@@ -39,8 +39,13 @@ competidor; el aspecto visual sale de ella.
 - **LLM**: contrato propio (`api/src/llm/`) con adaptador Anthropic por defecto y
   OpenAI de reserva. Sin bucle de agente en v1: el informe es una llamada con
   herramienta forzada y esquema estricto. Whisper para voz (`language=ca`).
-- **Correo**: nodemailer por SMTP de `bambufisiovet.com`, siempre a través de la
-  cola de `avisos/`. `CORREO_DRY_RUN=true` en local.
+- **Correo**: nodemailer por el SMTP de Dondominio (`avisos@bambufisiovet.com`),
+  siempre a través de la cola de `avisos/`. **El servidor SMTP se configura desde
+  el panel** (solo superadmin), no en el entorno: la contraseña va cifrada con
+  `CLAVE_CIFRADO` y nunca vuelve al navegador. `CORREO_DRY_RUN=true` en el
+  entorno manda sobre el panel (en local, siempre).
+- **Superadmin**: `SUPERADMIN_USUARIO` + `SUPERADMIN_CONTRASENA` en claro en el
+  entorno; se compara contra la variable en cada login, sin hash en BD.
 - **Deploy**: Dokploy. Stack = app + **Postgres propio** en la red interna
   `bambu-internal` (nunca en `dokploy-network`, sin puerto publicado); la app se
   conecta a `bambu-postgres:5432`, nunca a `postgres` a secas. Volumen
