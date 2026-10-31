@@ -403,5 +403,63 @@ reabre. Nada se aplaza sin apuntarlo aquí.
 
 ## 12. Hallazgos y lecciones
 
-_(Se rellena durante la construcción: lo que costó encontrar, para la futura
-plantilla.)_
+Del change `fundamentos-acceso-y-avisos` (2026-10-31). Cada uno costó un
+fallo real o lo cazó un test.
+
+- **JSON mal codificado guardado en silencio.** El parser JSON de serie de
+  Fastify decodifica con sustitución: un `curl` desde una consola de Windows
+  mandó «Clínica» en latin-1 y la base guardó «Cl�nica» (bytes `efbfbd`) sin
+  error. Arreglo: parser propio con `TextDecoder('utf-8', { fatal: true })` →
+  400. Lo vio Nando en una captura. Para la plantilla: **el API debe rechazar
+  lo que no es UTF-8, no repararlo**.
+- **HTML servido como JavaScript = página en blanco sin errores.** El
+  fallback de la SPA devolvía `index.html` para cualquier ruta, también para un
+  `.js` que ya no existe (una PWA vieja tras un despliegue, o el servidor
+  arrancado antes de la build). Arreglo: ruta con extensión de fichero
+  inexistente → 404. Test en `arranque`.
+- **La cola «apagada» se movía igual.** Con `COLA_ACTIVA=false` (tests) el
+  temporizador no corría, pero `despertar()` desde las rutas sí procesaba, y
+  competía con la cola del propio test: fallo intermitente 1 de cada ~5
+  pasadas. Arreglo: apagada = no se mueve sola, ni por temporizador ni al
+  despertarla. Lección: **un test intermitente es casi siempre una carrera
+  entre dos productores, no «mala suerte»**.
+- **El superadmin no veía su campana.** Los avisos del lado Bambú iban solo a
+  `rol = 'bambu'`; quien prueba el panel como superadmin no veía nada y
+  parecía roto. Arreglo: el superadmin cuenta como lado Bambú (solo campana,
+  no tiene correo). Lo cazó el recorrido HTTP de punta a punta, no los tests.
+- **Una defensa en profundidad sin test que la vigile.** Quitar la
+  comprobación de «usuario activo» al leer la sesión no rompía ningún test,
+  porque desactivar ya revoca las sesiones y lo tapaba. Se añadió un test que
+  la aísla. Lección: **la mutación de guardas encuentra los tests que pasan
+  por la razón equivocada**.
+- **Cada arranque cierra las sesiones del superadmin** (no hay hash con el que
+  saber si su contraseña cambió). Correcto por diseño, pero un test que
+  arranca un segundo servidor sobre la misma base invalida la cookie de los
+  demás: hay que volver a entrar.
+- **lucide-react 1.x retiró los iconos de marcas** (Instagram…): usar uno
+  genérico.
+- **`©` es `Extended_Pictographic` para Unicode**: el detector de emojis lo
+  excluye junto con ® y ™.
+- **El dominio definitivo ya estaba en producción.** `bambufisiovet.com` y
+  `www` los sirve una Application de Dokploy (la landing estática) desde este
+  mismo repo y rama, **con autodespliegue activado**: un push con el
+  Dockerfile nuevo la habría tumbado. Se desactivó su autodespliegue (sin
+  cambiar lo que sirve) y el portal se desplegó como Compose aparte con un
+  dominio de pruebas. Lección: **antes del primer despliegue, mirar qué más
+  despliega desde el mismo repo**.
+
+## 13. Estado del despliegue
+
+- Dokploy, proyecto **BambuFisioVet**, entorno `production`:
+  - Application `bambu-fisiovet` (landing estática antigua): sirve
+    `bambufisiovet.com` y `www`. **Autodespliegue desactivado el 2026-10-31**
+    para que el código nuevo no la reconstruya.
+  - Compose **`portal`** (`./docker-compose.yml`): app + Postgres propio en
+    `bambu-internal`. Dominio de pruebas
+    `bambu-fisiovet.91-99-128-20.sslip.io` (sslip.io resuelve a la IP del VPS).
+    `CORREO_DRY_RUN=true`. Environment: copia local en `.env.produccion`
+    (ignorado por git).
+- Pendiente (decisión de Nando): pasar `bambufisiovet.com` del Application
+  antiguo al Compose `portal` (cambiar `APP_HOST`, quitar el dominio del
+  Application y redesplegar), configurar el SMTP de Dondominio desde el panel,
+  probarlo y poner `CORREO_DRY_RUN=false`.

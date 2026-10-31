@@ -185,9 +185,12 @@ corre con otro modelo.
       correo en dry-run con su enlace en la traza → establecer contraseña →
       `yo` → notificación `usuario.derivador_alta` en la campana de Bambú →
       recuperar → cambiar contraseña revoca la otra sesión.
-- [ ] 7.4 Despliegue en Dokploy (skill `desplegar-dokploy`) en un subdominio
+- [x] 7.4 Despliegue en Dokploy (skill `desplegar-dokploy`) en un subdominio
       de pruebas con `CORREO_DRY_RUN=true`; `/api/salud` 200; logs limpios.
-- [ ] 7.5 `CLAUDE.md` con los comandos reales; cuaderno: hallazgos y
+      Hecho: Compose `portal` en https://bambu-fisiovet.91-99-128-20.sslip.io,
+      certificado Let's Encrypt, superadmin entra, cookie Secure. La web
+      antigua de `bambufisiovet.com` sigue intacta (autodespliegue desactivado).
+- [x] 7.5 `CLAUDE.md` con los comandos reales; cuaderno: hallazgos y
       aplazados nuevos.
 - [ ] 7.6 Agente `revisor` sobre el diff del change con un modelo distinto
       al que programó; corregir o justificar por escrito cada hallazgo.
