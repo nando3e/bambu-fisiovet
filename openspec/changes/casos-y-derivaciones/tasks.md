@@ -7,31 +7,32 @@ corre con otro modelo.
 
 ## 1. Datos y dominio
 
-- [ ] 1.1 `005_casos.sql`: `propietarios`, `pacientes`, `casos` (design D1),
+- [x] 1.1 `005_casos.sql`: `propietarios`, `pacientes`, `casos` (design D1),
       CHECK nombrados, índices. Test: aplicar dos veces no falla; un caso
       `derivacion` sin clínica y un paciente `otro` sin `especie_otra` los
       rechaza la propia BD.
-- [ ] 1.2 `dominio/estados-caso.ts`: estados, acciones y
+- [x] 1.2 `dominio/estados-caso.ts`: estados, acciones y
       `decidirTransicion`. Tests puros recorriendo la tabla entera: cada
       combinación permitida da su estado destino; las demás, 403 (rol) o 409
       (estado).
-- [ ] 1.3 `dominio/visibilidad.ts`: `ambitoCaso` y `ambitoPaciente`. Tests
+- [x] 1.3 `dominio/visibilidad.ts`: `ambitoCaso` y `ambitoPaciente`. Tests
       puros: fragmento y parámetros por rol; el derivador nunca sale sin
       filtro de clínica; los borradores ajenos quedan fuera.
-- [ ] 1.4 `dominio/validacion-derivacion.ts`. Tests puros: cada obligatorio
+- [x] 1.4 `dominio/validacion-derivacion.ts`. Tests puros: cada obligatorio
       que falta aparece en `campos`; consentimiento de versión antigua no vale;
       `otro` sin texto falla.
-- [ ] 1.5 Clave de configuración `consentimiento` con texto provisional y
+- [x] 1.5 Clave de configuración `consentimiento` con texto provisional y
       versión que sube sola al cambiar el texto. Test: editar el texto sube la
       versión; guardar el mismo texto no.
 
 ## 2. Pacientes, propietarios y casos (API)
 
-- [ ] 2.1 `POST /casos` (D: borrador con paciente nuevo o existente de su
-      clínica; B: caso propio que nace `aceptada`, con `caso_anterior_id`
-      opcional) y `GET /casos/:id`. Tests: el borrador se recupera con otra
-      sesión del mismo veterinario; un compañero no ve el borrador; Bambú
-      tampoco (404); `paciente_id` de otra clínica → 404; recaída enlazada.
+- [ ] 2.1 `POST /casos` del derivador (borrador con paciente nuevo o
+      existente de su clínica) y `GET /casos/:id`. Tests: el borrador se
+      recupera con otra sesión del mismo veterinario; un compañero no ve el
+      borrador; Bambú tampoco (404); `paciente_id` de otra clínica → 404;
+      derivar otra vez un paciente existente crea otro caso y la ficha del
+      paciente muestra los dos.
 - [ ] 2.2 `PATCH /casos/:id`. Tests: derivador en `enviada` edita; tras
       aceptar → 409 con el texto de la spec y nada cambia; Bambú edita
       siempre; cambio real → `historial` con antes y después; PATCH sin cambios
@@ -53,17 +54,24 @@ corre con otro modelo.
       huecos; búsqueda sin acentos («clinica» encuentra «Clínica»).
 - [ ] 2.6 `POST /casos/:id/leido`. Test: con dos notificaciones del caso sin
       leer, el resumen de la campana baja en dos y las de otros casos siguen.
-- [ ] 2.7 `GET /pacientes`, `GET /pacientes/:id`, `POST /pacientes` (B),
+- [ ] 2.7 `GET /pacientes`, `GET /pacientes/:id`,
       `PATCH /pacientes/:id`, `PATCH /propietarios/:id`. Tests: Bambú corrige
       el peso 12,4 → 11,8 → historial y notificación al veterinario; derivador
       edita el teléfono del propietario de su clínica pero no el de otra (404);
-      derivador no edita el paciente de un caso aceptado (409); paciente
-      propio invisible para cualquier derivador.
+      derivador no edita el paciente de un caso aceptado (409).
 - [ ] 2.8 `GET /casos/:id/historial` y `GET /pacientes/:id/historial` (B).
       Test de rol: derivador → 403.
 - [ ] 2.9 Ampliar `fusionarClinica` (design D8). Test de la spec: veterinario
       con dos derivaciones en su clínica provisional aceptado en otra → sus
       compañeros nuevos las ven y la clínica antigua queda sin casos.
+- [ ] 2.10 Test transversal: ninguna ruta de `casos`, `pacientes` o
+      `propietarios` devuelve datos de otra clínica a un derivador (recorre
+      todas las rutas con un caso ajeno y espera 404 o lista vacía).
+- [ ] 2.11 Uniones a clínicas no validadas (design D11): columna
+      `validada` en `005_casos.sql`, Bambú la marca, `decidirUnion` y
+      `resolverSolicitud` la aplican, el aviso solo va a Bambú. Tests: un
+      veterinario de una clínica no validada no aprueba (404) y no recibe el
+      aviso; validada, sí; la unión por dominio sigue siendo automática.
 - [ ] 2.12 `POST /clinicas` (B, nace validada) y `validada` en
       `PATCH /clinicas/:id`. Tests: la clínica creada por Bambú sale en las
       sugerencias sin tener usuarios; derivador → 403.
@@ -74,23 +82,10 @@ corre con otro modelo.
       `derivador_nombre` y clínica sin usuarios no avisa a nadie y no falla;
       clínica no validada → 400; un veterinario que se registra después y se
       une a la clínica la ve.
-- [ ] 2.14 El paciente sigue siendo de su clínica (design D13). Tests:
-      recaída de un paciente derivado abierta por Bambú → misma clínica,
-      enlazada al caso anterior, visible para el veterinario, con
-      `caso.abierto_por_bambu` en su campana y sin correo; paciente propio
-      sin clínica sigue invisible.
-- [ ] 2.15 Catálogo de eventos: `derivacion.registrada` y
-      `caso.abierto_por_bambu` en `eventos.ts` y en el CHECK (005). Test: el
+- [ ] 2.14 Catálogo de eventos: `derivacion.registrada` en `eventos.ts` y en
+      el CHECK (005); Bambú sin clínica que derive → 400 (design D13). Test: el
       test que compara catálogo y CHECK sigue en verde; una base del change 1
       recibe las filas nuevas de la matriz al arrancar sin tocar las demás.
-- [ ] 2.10 Test transversal: ninguna ruta de `casos`, `pacientes` o
-      `propietarios` devuelve datos de otra clínica a un derivador (recorre
-      todas las rutas con un caso ajeno y espera 404 o lista vacía).
-- [ ] 2.11 Uniones a clínicas no validadas (design D11): columna
-      `validada` en `005_casos.sql`, Bambú la marca, `decidirUnion` y
-      `resolverSolicitud` la aplican, el aviso solo va a Bambú. Tests: un
-      veterinario de una clínica no validada no aprueba (404) y no recibe el
-      aviso; validada, sí; la unión por dominio sigue siendo automática.
 
 ## 3. Web
 
@@ -107,9 +102,8 @@ corre con otro modelo.
       acciones de Bambú (acepta con fisio, rebutja, abandona, alta manual,
       reassigna); marca como leído al abrir.
 - [ ] 3.5 `Pacientes` (`/d/pacients`, `/b/pacients`, `/b/pacients/:id` con
-      casos e historial) y `NouCas` (`/b/casos/nou`) con sus dos modos:
-      derivació rebuda (clínica validada, «+ Nova clínica», veterinari) i
-      pacient propi.
+      casos e historial) y `RegistraDerivacio` (`/b/casos/nou`): clínica
+      validada, «+ Nova clínica», veterinari amb compte o escrit a mà.
 - [ ] 3.8 `/b/cliniques`: alta manual de clínica y marca «Validada».
 - [ ] 3.6 Inici de Bambú con «Noves derivacions»; Configuració → Textos
       legals (consentimiento).

@@ -27,6 +27,12 @@ const urlOpcional = z
   .refine((v) => v === '' || /^https?:\/\//.test(v), 'Ha de començar per https://')
   .default('');
 
+/** Texto provisional del consentimiento, hasta que Bambú y su asesor den el bueno. */
+export const CONSENTIMIENTO_PROVISIONAL =
+  "El propietari autoritza BAMBÚ Fisiovet a tractar les seues dades de contacte i les del seu animal " +
+  "per a atendre la derivació, fer-ne el seguiment i informar el veterinari que l'ha derivat. " +
+  "Pot exercir els seus drets d'accés, rectificació i supressió escrivint a BAMBÚ Fisiovet.";
+
 export const ESQUEMAS = {
   contacto: z.object({
     email: correoOpcional,
@@ -47,6 +53,12 @@ export const ESQUEMAS = {
   imagenes_web: z.object({
     portada: z.string().default(''),
     instalaciones: z.string().default(''),
+  }),
+  // La versión la lleva el servidor: sube sola cuando cambia el texto, y un
+  // propietario con una versión anterior vuelve a dar el consentimiento.
+  consentimiento: z.object({
+    texto: z.string().trim().min(20, 'El text és massa curt').max(4000).default(CONSENTIMIENTO_PROVISIONAL),
+    version: z.coerce.number().int().min(1).default(1),
   }),
   correo_servidor: z.object({
     host: z.string().trim().max(200).default(''),
@@ -112,7 +124,12 @@ export async function guardarConfiguracion<C extends ClaveConfig>(
     throw datosIncorrectos('Hi ha dades que no són vàlides', { campos });
   }
   const antes = await leerConfiguracion(bd, clave);
-  const nuevo = resultado.data as ValorConfig<C>;
+  let nuevo = resultado.data as ValorConfig<C>;
+  if (clave === 'consentimiento') {
+    const a = antes as ValorConfig<'consentimiento'>;
+    const n = nuevo as ValorConfig<'consentimiento'>;
+    nuevo = { texto: n.texto, version: n.texto === a.texto ? a.version : a.version + 1 } as ValorConfig<C>;
+  }
   await bd.query(
     `INSERT INTO configuracion (clave, valor, actualizado, actualizado_por)
      VALUES ($1, $2, now(), $3)

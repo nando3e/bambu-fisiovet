@@ -166,3 +166,24 @@ export async function fisioVerificada(s: Servidor, cookieAdmin: string, nombre =
   if (e.estado !== 200) throw new Error(`Aceptar invitación fallida: ${JSON.stringify(e.cuerpo)}`);
   return { email, cookie: e.cookie, id: r.cuerpo.id as number };
 }
+
+/** Un caso mínimo (registrado por Bambú y aceptado) para los tests que solo necesitan su id. */
+export async function casoDePrueba(bd: pg.Pool | pg.PoolClient): Promise<number> {
+  const { rows: autor } = await bd.query<{ id: number }>('SELECT id FROM usuarios WHERE es_de_entorno LIMIT 1');
+  const { rows: clinica } = await bd.query<{ id: number }>(
+    `INSERT INTO clinicas (nombre, validada) VALUES ('Clínica de prova', true) RETURNING id`,
+  );
+  const { rows: propietario } = await bd.query<{ id: number }>(
+    `INSERT INTO propietarios (nombre) VALUES ('Propietari de prova') RETURNING id`,
+  );
+  const { rows: paciente } = await bd.query<{ id: number }>(
+    `INSERT INTO pacientes (nombre, especie, propietario_id) VALUES ('Pacient', 'perro', $1) RETURNING id`,
+    [propietario[0]!.id],
+  );
+  const { rows } = await bd.query<{ id: number }>(
+    `INSERT INTO casos (paciente_id, clinica_id, estado, creado_por, registrado_por)
+     VALUES ($1, $2, 'aceptada', $3, $3) RETURNING id`,
+    [paciente[0]!.id, clinica[0]!.id, autor[0]!.id],
+  );
+  return rows[0]!.id;
+}

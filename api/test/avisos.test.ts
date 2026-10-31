@@ -2,14 +2,13 @@
 // cola de correos.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 
 import { publicarEvento } from '../src/avisos/publicar.ts';
 import { encolarCorreo, crearCola, MAX_INTENTOS } from '../src/avisos/cola.ts';
 import { TIPOS_EVENTO } from '../src/avisos/eventos.ts';
 import { enTransaccion } from '../src/db/pool.ts';
 import {
-  CanalFalso, entrarSuperadmin, fisioVerificada, pedir, servidorDePrueba, veterinarioVerificado,
+  CanalFalso, casoDePrueba, entrarSuperadmin, fisioVerificada, pedir, servidorDePrueba, veterinarioVerificado,
   type Servidor,
 } from './ayuda.ts';
 
@@ -31,12 +30,13 @@ const matriz = (evento: string, fila: { notificacion: boolean; correo: boolean; 
 const contar = async (sql: string, params: unknown[] = []) =>
   (await s.pool.query<{ n: number }>(sql, params)).rows[0]!.n;
 
-let casoFalso = 1000;
-
-test('el catálogo del código y el CHECK de la migración son la misma lista', () => {
-  const sql = readFileSync(new URL('../migrations/004_avisos.sql', import.meta.url), 'utf8');
-  const bloque = /eventos_tipo_check CHECK \(tipo IN \(([\s\S]*?)\)\)/.exec(sql)![1]!;
-  const enSql = [...bloque.matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
+test('el catálogo del código y el CHECK de la base son la misma lista', async () => {
+  // La restricción viva, no la de un fichero: cada change que añade eventos la
+  // redefine en su migración.
+  const { rows } = await s.pool.query<{ def: string }>(
+    `SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname = 'eventos_tipo_check'`,
+  );
+  const enSql = [...rows[0]!.def.matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
   assert.deepEqual(enSql, [...TIPOS_EVENTO].sort());
 });
 
@@ -54,7 +54,7 @@ test('la semilla crea una fila por evento y no pisa lo editado', async () => {
 
 test('publicar un tipo desconocido lanza y deshace', async () => {
   await assert.rejects(
-    enTransaccion(s.pool, (bd) => publicarEvento(bd, { tipo: 'caso.inventado' as never, actor: null })),
+    enTransaccion(s.pool, async (bd) => publicarEvento(bd, { tipo: 'caso.inventado' as never, actor: null })),
     /desconocido/,
   );
 });
@@ -66,7 +66,7 @@ test('si la acción se deshace, no queda ni evento, ni notificación, ni correo'
   await assert.rejects(
     enTransaccion(s.pool, async (bd) => {
       await publicarEvento(bd, {
-        tipo: 'derivacion.enviada', actor: null, casoId: casoFalso++, datos: { paciente: 'Nala' },
+        tipo: 'derivacion.enviada', actor: null, casoId: await casoDePrueba(s.pool), datos: { paciente: 'Nala' },
       });
       throw new Error('la acción falla después de publicar');
     }),
@@ -78,9 +78,9 @@ test('si la acción se deshace, no queda ni evento, ni notificación, ni correo'
 test('matriz: apagar la notificación no crea filas; apagar el correo no encola', async () => {
   await matriz('caso.alta', { notificacion: false, correo: false });
   const vet = await veterinarioVerificado(s);
-  const r = await enTransaccion(s.pool, (bd) =>
+  const r = await enTransaccion(s.pool, async (bd) =>
     publicarEvento(bd, {
-      tipo: 'caso.alta', actor: null, casoId: casoFalso++, datos: { paciente: 'Rufo' },
+      tipo: 'caso.alta', actor: null, casoId: await casoDePrueba(s.pool), datos: { paciente: 'Rufo' },
       derivadoresInteresados: [vet.usuario.id],
     }),
   );
@@ -88,9 +88,9 @@ test('matriz: apagar la notificación no crea filas; apagar el correo no encola'
   assert.deepEqual(r.correosEncolados, []);
 
   await matriz('caso.alta', { notificacion: true, correo: false });
-  const r2 = await enTransaccion(s.pool, (bd) =>
+  const r2 = await enTransaccion(s.pool, async (bd) =>
     publicarEvento(bd, {
-      tipo: 'caso.alta', actor: null, casoId: casoFalso++, datos: { paciente: 'Rufo' },
+      tipo: 'caso.alta', actor: null, casoId: await casoDePrueba(s.pool), datos: { paciente: 'Rufo' },
       derivadoresInteresados: [vet.usuario.id],
     }),
   );
@@ -104,14 +104,14 @@ test('«Correu a» manda sobre el correo del centro; vacío, el del centro', asy
     cookie: admin, cuerpo: { correo_centro: 'avisos@bambufisiovet.com', dias_sin_noticias: 7 },
   });
   await matriz('derivacion.enviada', { notificacion: true, correo: true, correo_a: 'recepcio@bambufisiovet.com' });
-  const con = await enTransaccion(s.pool, (bd) =>
-    publicarEvento(bd, { tipo: 'derivacion.enviada', actor: null, casoId: casoFalso++, datos: { paciente: 'Nala' } }),
+  const con = await enTransaccion(s.pool, async (bd) =>
+    publicarEvento(bd, { tipo: 'derivacion.enviada', actor: null, casoId: await casoDePrueba(s.pool), datos: { paciente: 'Nala' } }),
   );
   assert.deepEqual(con.correosEncolados, ['recepcio@bambufisiovet.com']);
 
   await matriz('derivacion.enviada', { notificacion: true, correo: true, correo_a: null });
-  const sin = await enTransaccion(s.pool, (bd) =>
-    publicarEvento(bd, { tipo: 'derivacion.enviada', actor: null, casoId: casoFalso++, datos: { paciente: 'Nala' } }),
+  const sin = await enTransaccion(s.pool, async (bd) =>
+    publicarEvento(bd, { tipo: 'derivacion.enviada', actor: null, casoId: await casoDePrueba(s.pool), datos: { paciente: 'Nala' } }),
   );
   assert.deepEqual(sin.correosEncolados, ['avisos@bambufisiovet.com']);
 });
@@ -124,9 +124,9 @@ test('«Correu a» no se admite en eventos que van a los veterinarios', async ()
 test('veterinario con los correos apagados: notificación sí, correo no, y la traza lo dice', async () => {
   const vet = await veterinarioVerificado(s);
   await pedir(s.app, 'PATCH', '/api/auth/perfil', { cookie: vet.cookie, cuerpo: { recibe_correos: false } });
-  const r = await enTransaccion(s.pool, (bd) =>
+  const r = await enTransaccion(s.pool, async (bd) =>
     publicarEvento(bd, {
-      tipo: 'informe.publicado', actor: null, casoId: casoFalso++, datos: { paciente: 'Kira' },
+      tipo: 'informe.publicado', actor: null, casoId: await casoDePrueba(s.pool), datos: { paciente: 'Kira' },
       derivadoresInteresados: [vet.usuario.id],
     }),
   );
@@ -142,9 +142,9 @@ test('veterinario con los correos apagados: notificación sí, correo no, y la t
 test('anti-ruido: dos mensajes sin leer → dos notificaciones y un correo; tras leer, otro correo', async () => {
   const vet = await veterinarioVerificado(s);
   const fisio = await fisioVerificada(s, admin);
-  const caso = casoFalso++;
+  const caso = await casoDePrueba(s.pool);
   const mensaje = () =>
-    enTransaccion(s.pool, (bd) =>
+    enTransaccion(s.pool, async (bd) =>
       publicarEvento(bd, {
         tipo: 'mensaje.nuevo', actor: { id: fisio.id, rol: 'bambu' }, casoId: caso,
         datos: { paciente: 'Nala', nombre: 'Laia' }, derivadoresInteresados: [vet.usuario.id],
@@ -166,9 +166,9 @@ test('notificaciones: contador, marcar una, marcar todas; la de otro → 404', a
   const vet = await veterinarioVerificado(s);
   const otro = await veterinarioVerificado(s);
   for (let i = 0; i < 3; i++) {
-    await enTransaccion(s.pool, (bd) =>
+    await enTransaccion(s.pool, async (bd) =>
       publicarEvento(bd, {
-        tipo: 'derivacion.aceptada', actor: null, casoId: casoFalso++, datos: { paciente: `P${i}` },
+        tipo: 'derivacion.aceptada', actor: null, casoId: await casoDePrueba(s.pool), datos: { paciente: `P${i}` },
         derivadoresInteresados: [vet.usuario.id],
       }),
     );

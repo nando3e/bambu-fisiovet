@@ -19,7 +19,7 @@ import { enTransaccion } from '../db/pool.ts';
 import { conflicto, datosIncorrectos, noEncontrado } from '../errores.ts';
 import { idDeRuta, validar, type Deps } from './index.ts';
 
-const CLAVES_PANEL = ['contacto', 'avisos', 'retencion'] as const;
+const CLAVES_PANEL = ['contacto', 'avisos', 'retencion', 'consentimiento'] as const;
 
 /** El servidor de correo tal y como sale por la API: sin la contraseña. */
 function servidorPublico(s: ValorConfig<'correo_servidor'>) {
@@ -36,6 +36,7 @@ export async function rutasConfiguracion(app: FastifyInstance, deps: Deps): Prom
       contacto: await leerConfiguracion(pool, 'contacto'),
       avisos: await leerConfiguracion(pool, 'avisos'),
       retencion: await leerConfiguracion(pool, 'retencion'),
+      consentimiento: await leerConfiguracion(pool, 'consentimiento'),
     };
   });
 

@@ -3,6 +3,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { TIPOS_EVENTO } from '../src/avisos/eventos.ts';
 import { canalSmtp } from '../src/correo/transporte.ts';
 import {
   entrarSuperadmin, fisioVerificada, pedir, servidorDePrueba, veterinarioVerificado, type Servidor,
@@ -142,7 +143,7 @@ test('sin servidor completo, el canal omite el envío con su motivo', async () =
   assert.deepEqual(r, { resultado: 'omitido', motivo: 'smtp sin configurar' });
   const avisos = await pedir(s.app, 'GET', '/api/configuracion/avisos', { cookie: fisio });
   assert.equal(avisos.cuerpo.smtp_configurado, false);
-  assert.equal(avisos.cuerpo.matriz.length, 17);
+  assert.equal(avisos.cuerpo.matriz.length, TIPOS_EVENTO.length);
 });
 
 // --- Fotos de la web ---

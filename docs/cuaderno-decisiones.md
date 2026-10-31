@@ -400,6 +400,8 @@ reabre. Nada se aplaza sin apuntarlo aquí.
 | Caso privado dentro de la clínica | Visibilidad por clínica decidida | Si una clínica lo exige (`casos.visibilidad`) |
 | Fusionar clínicas duplicadas | La solicitud de unión cubre el caso normal | Si aparecen duplicadas en uso real |
 | Límite de propuestas pendientes que caducan | Riesgo bajo con pocos fisios | Si se acumulan en el inicio |
+| Casos propios de Bambú (animales que llegan sin veterinario) y recaídas que abre Bambú | El portal es para recibir derivaciones (Nando, 31/10); se gestionan en Wakyma. Sustituye a la decisión de §7.1 de `casos.origen` derivacion/propio | Si Bambú quiere informes por voz o seguimiento del portal para sus propios pacientes |
+| Agenda y registro detallado de visitas | Se hacen en Wakyma, que no tiene API (Nando, 31/10). El portal no debe obligar a apuntar nada dos veces | Puentes posibles: enlace iCal de la agenda, exportación CSV, ficha para pegar en Wakyma; o una API de Wakyma |
 | Retirar del disco las fotos de la web sustituidas (y las huérfanas de una subida fallida) | Ocupan poco y no se ven | Con la purga física de adjuntos |
 | **Decisión de Nando:** que en una clínica sin validar por Bambú las uniones las apruebe solo Bambú | Hoy cualquier miembro verificado aprueba; quien registre el nombre de una clínica ajena con un correo verificado podría aceptar a quien pida unirse y ver sus casos (revisión del change 1) | Antes de abrir el portal a veterinarios reales |
 

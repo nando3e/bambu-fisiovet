@@ -8,9 +8,9 @@ nada que seguir, comentar ni informar.
 
 ## What Changes
 
-- Pacientes y propietarios: alta, edición e historial de cambios. Bambú puede
-  dar de alta pacientes propios, que no vienen derivados.
-- Casos con `origen` derivación o propio y la máquina de estados completa
+- Pacientes y propietarios: alta, edición e historial de cambios. Todo
+  paciente llega derivado por una clínica: el portal solo recibe derivaciones.
+- Casos (derivaciones) con la máquina de estados completa
   (borrador → enviada → aceptada → en tratamiento → alta, más rechazada y
   abandonada). Las transiciones permitidas por rol se definen en `dominio/`.
 - Nueva derivación en tres pasos, pensada para el móvil y con **borrador
@@ -33,8 +33,6 @@ nada que seguir, comentar ni informar.
 - **Alta manual de clínicas** por Bambú, que nacen validadas. Las uniones a
   clínicas no validadas solo las aprueba Bambú (decisión de Nando tras la
   revisión del change 1).
-- **El paciente sigue siendo de su clínica**: una recaída que abre Bambú queda
-  ligada a la clínica de origen y el veterinario la ve y recibe el aviso.
 - `fusionarClinica` se amplía para mover también casos y pacientes.
 - Semilla `--demo` para entornos de prueba.
 
@@ -49,8 +47,7 @@ nada que seguir, comentar ni informar.
 
 - `acceso`: sugerencias de clínica (validadas o con alguien verificado) y
   unión a clínicas no validadas resuelta solo por Bambú.
-- `avisos`: dos eventos nuevos en el catálogo, `derivacion.registrada` y
-  `caso.abierto_por_bambu`.
+- `avisos`: un evento nuevo en el catálogo, `derivacion.registrada`.
 
 ## Impact
 
@@ -76,8 +73,10 @@ nada que seguir, comentar ni informar.
 ## Decisiones de Nando (31/10)
 
 - Un borrador solo lo ve quien lo escribe.
-- El paciente sigue siendo de su clínica: los casos que abra Bambú para él
-  los ve la clínica, con aviso en la campana (sin correo).
+- El portal solo recibe derivaciones: Bambú no abre casos propios ni
+  recaídas; los animales que llegan sin veterinario y las visitas se
+  gestionan en Wakyma. Si un paciente vuelve a necesitar fisioterapia, es una
+  derivación nueva del mismo paciente.
 - Bambú registra derivaciones que llegan por teléfono o correo y da de alta
   clínicas a mano.
 - Uniones a clínicas no validadas: solo Bambú.
@@ -88,3 +87,5 @@ nada que seguir, comentar ni informar.
   ficha de la derivación no admite ficheros.
 - Informes → `informes-por-voz`.
 - Caso privado dentro de la clínica (aplazado en el cuaderno).
+- Casos propios de Bambú y recaídas que abre Bambú: se gestionan en Wakyma.
+- Agenda y registro de visitas: siguen en Wakyma (sin API; ver cuaderno).

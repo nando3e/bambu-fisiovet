@@ -1,14 +1,15 @@
 // Arranque: migraciones, superadmin por entorno y la web servida por el API.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { aplicarMigraciones } from '../src/db/migraciones.ts';
+import { aplicarMigraciones, CARPETA_MIGRACIONES } from '../src/db/migraciones.ts';
 import { crearPool } from '../src/db/pool.ts';
 import { baseLimpia, ENTORNO_BASE, pedir, servidorDePrueba, type Servidor } from './ayuda.ts';
 
+const MIGRACIONES = readdirSync(CARPETA_MIGRACIONES).filter((f) => f.endsWith('.sql')).length;
 const abiertos: Servidor[] = [];
 after(async () => {
   for (const s of abiertos) await s.app.close();
@@ -25,7 +26,7 @@ test('las migraciones se pueden aplicar dos veces y /api/salud responde', async 
   const s = await arrancar(url);
   assert.deepEqual(await aplicarMigraciones(s.pool), [], 'la segunda vez no aplica nada');
   const { rows } = await s.pool.query('SELECT count(*)::int AS n FROM migraciones');
-  assert.equal(rows[0].n, 4);
+  assert.equal(rows[0].n, MIGRACIONES);
   assert.equal((await pedir(s.app, 'GET', '/api/salud')).estado, 200);
   assert.equal((await pedir(s.app, 'GET', '/api/no-existe')).estado, 404);
 });
@@ -36,9 +37,9 @@ test('dos arranques a la vez sobre una base nueva: los dos acaban bien y cada mi
   const b = crearPool(url);
   try {
     const [na, nb] = await Promise.all([aplicarMigraciones(a), aplicarMigraciones(b)]);
-    assert.equal(na.length + nb.length, 4);
+    assert.equal(na.length + nb.length, MIGRACIONES);
     const { rows } = await a.query('SELECT count(*)::int AS n FROM migraciones');
-    assert.equal(rows[0].n, 4);
+    assert.equal(rows[0].n, MIGRACIONES);
   } finally {
     await a.end();
     await b.end();

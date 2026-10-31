@@ -12,7 +12,6 @@ valores por defecto son:
 | `derivacion.registrada` | derivador | sí | sí |
 | `derivacion.aceptada` | derivador | sí | sí |
 | `derivacion.rechazada` | derivador | sí | sí |
-| `caso.abierto_por_bambu` | derivador | sí | no |
 | `caso.fisio_asignado` | bambu | sí | no |
 | `caso.en_tratamiento` | derivador | sí | no |
 | `caso.alta` | derivador | sí | sí |
@@ -30,8 +29,7 @@ valores por defecto son:
 
 `derivacion.registrada` avisa al veterinario de que Bambú ha registrado en el
 portal la derivación que hizo por teléfono o por correo, para que pueda
-seguirla. `caso.abierto_por_bambu` avisa a la clínica de un paciente suyo de
-que Bambú le ha abierto un caso nuevo (una recaída, por ejemplo).
+seguirla.
 
 Publicar un tipo que no está en la lista MUST fallar en el servidor.
 

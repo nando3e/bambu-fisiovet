@@ -39,6 +39,12 @@ export const CATALOGO = {
     cuerpo: (d) => `${clinica(d)} ha derivat un cas.`,
     enlace: enlaceCaso,
   },
+  'derivacion.registrada': {
+    audiencia: 'derivador', notificacion: true, correo: true, plantilla: 'aviso',
+    titulo: (d) => `Derivació registrada: ${paciente(d)}`,
+    cuerpo: () => 'Bambú ha registrat al portal la derivació que vas fer i ja l\'ha acceptada. Ací pots seguir-la.',
+    enlace: enlaceCaso,
+  },
   'derivacion.aceptada': {
     audiencia: 'derivador', notificacion: true, correo: true, plantilla: 'aviso',
     titulo: (d) => `Derivació acceptada: ${paciente(d)}`,
