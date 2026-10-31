@@ -247,3 +247,23 @@ en el historial; volver a ella es desplegar ese commit.
 - ¿Quién tiene hoy el DNS de `bambufisiovet.com` y desde dónde se gestiona?
 - ¿Fotos reales de Bambú para la landing (instalaciones, equipo)?
 - Texto de la política de privacidad y versión inicial.
+
+## Diferencias con lo construido
+
+Anotadas al cerrar el change (revisión del change 1, hallazgo 18):
+
+- No hay `db/repos/`: el SQL vive en las rutas y en `servicios/` (por
+  ejemplo `servicios/clinicas.ts`), que es lo que pide «SQL a mano» sin una
+  capa que solo reenvía llamadas.
+- No hay `avisos/canales/correo.ts`: el canal real es `canalSmtp` en
+  `correo/transporte.ts`, y la interfaz `CanalCorreo` está en `avisos/cola.ts`.
+- `clinicas` no tiene columna `provisional`. Las sugerencias de D5 ofrecen
+  las clínicas activas con algún usuario activo y verificado; la regla de
+  «la clínica de origen ya tiene compañeros» se mira al pedir y otra vez al
+  aprobar.
+- El compose de producción es `docker-compose.yml` (no
+  `docker-compose.dokploy.yml`), y Postgres local va en
+  `docker-compose.local.yml`.
+- El correo de prueba del superadmin sale en la petición y aunque haya
+  dry-run (excepción deliberada a D6/D7, escrita en el código y en
+  `CLAUDE.md`), con su traza en `avisos_enviados`.

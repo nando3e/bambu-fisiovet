@@ -28,6 +28,8 @@ interface InfoToken {
   nombre?: string | null;
   email?: string | null;
   rol?: string | null;
+  /** Llega por invitación y aún no ha aceptado la política de privacidad. */
+  pide_privacidad?: boolean;
 }
 
 export function Establece() {
@@ -37,6 +39,7 @@ export function Establece() {
   const [info, setInfo] = useState<InfoToken | null>(null);
   const [contrasena, setContrasena] = useState('');
   const [repetida, setRepetida] = useState('');
+  const [privacidad, setPrivacidad] = useState(false);
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -95,7 +98,9 @@ export function Establece() {
     }
     setEnviando(true);
     try {
-      const r = await api.post<{ destino: string; usuario: Usuario }>('/auth/establece-contrasena', { token, contrasena });
+      const r = await api.post<{ destino: string; usuario: Usuario }>('/auth/establece-contrasena', {
+        token, contrasena, ...(info?.pide_privacidad ? { privacidad } : {}),
+      });
       fijar(r.usuario);
       navegar(r.destino, { replace: true });
     } catch (err) {
@@ -129,7 +134,15 @@ export function Establece() {
           onChange={(e) => setRepetida(e.target.value)}
           required
         />
-        <button type="submit" className="boton ancho" disabled={enviando || !contrasena}>
+        {info.pide_privacidad ? (
+          <label className="casilla">
+            <input type="checkbox" checked={privacidad} onChange={(e) => setPrivacidad(e.target.checked)} />
+            <span>
+              {t('alta.privacidad')} <Link to="/legal/privacitat" target="_blank" style={{ textDecoration: 'underline' }}>{t('alta.privacidadEnlace')}</Link>
+            </span>
+          </label>
+        ) : null}
+        <button type="submit" className="boton ancho" disabled={enviando || !contrasena || (info.pide_privacidad && !privacidad)}>
           {enviando ? t('comun.un_momento') : t('enlace.guardar')}
         </button>
       </form>

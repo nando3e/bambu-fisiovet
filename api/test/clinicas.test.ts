@@ -19,6 +19,11 @@ after(async () => {
 
 const sufijo = () => Math.random().toString(36).slice(2, 8);
 
+const solicitudDe = async (usuarioId: number) =>
+  (await s.pool.query(
+    `SELECT id FROM solicitudes_union WHERE usuario_id = $1 AND estado = 'pendiente'`, [usuarioId],
+  )).rows[0].id as number;
+
 test('el alta crea su clínica y guarda el dominio solo si no es genérico', async () => {
   const propio = await veterinarioVerificado(s, { email: correoUnico('vet', `cl${sufijo()}.vet`) });
   const generico = await veterinarioVerificado(s);
@@ -37,6 +42,116 @@ test('sugerencias por nombre parecido y por dominio, solo nombre y población', 
   assert.equal(r.estado, 200);
   assert.ok(r.cuerpo.clinicas.some((c: { nombre: string }) => c.nombre.endsWith(marca)));
   assert.deepEqual(Object.keys(r.cuerpo.clinicas[0]).sort(), ['id', 'mismo_dominio', 'nombre', 'poblacion']);
+});
+
+test('sugerencias: la clínica de un alta sin verificar no se ofrece; mismo_dominio siempre es booleano', async () => {
+  const marca = sufijo();
+  await pedir(s.app, 'POST', '/api/auth/registro', {
+    cuerpo: {
+      nombre: 'Anna', apellidos: 'Soler', email: correoUnico(), telefono: '600123456',
+      clinica: { nombre: `Clínica Fantasma ${marca}` }, privacidad: true,
+    },
+  });
+  const nombre = encodeURIComponent(`Clinica Fantasma ${marca}`);
+  const antes = await pedir(s.app, 'GET', `/api/clinicas/sugerencias?nombre=${nombre}`);
+  assert.equal(antes.cuerpo.clinicas.length, 0);
+  await veterinarioVerificado(s, { clinica: `Clínica Fantasma ${marca}` });
+  const despues = await pedir(s.app, 'GET', `/api/clinicas/sugerencias?nombre=${nombre}`);
+  assert.equal(despues.cuerpo.clinicas.length, 1);
+  assert.equal(despues.cuerpo.clinicas[0].mismo_dominio, false);
+});
+
+test('aprobar se revalida: si el solicitante invitó a alguien entre medias → 409 y nadie se mueve', async () => {
+  const destino = await veterinarioVerificado(s);
+  const solicitante = await veterinarioVerificado(s);
+  const pide = await pedir(s.app, 'POST', `/api/clinicas/${destino.usuario.clinica.id}/solicitudes-union`, {
+    cookie: solicitante.cookie,
+  });
+  assert.equal(pide.estado, 200);
+  const invitado = correoUnico();
+  await pedir(s.app, 'POST', '/api/clinicas/mia/invitaciones', {
+    cookie: solicitante.cookie, cuerpo: { nombre: 'Biel', email: invitado },
+  });
+  const solicitud = await solicitudDe(solicitante.usuario.id);
+  const r = await pedir(s.app, 'POST', `/api/solicitudes-union/${solicitud}/aprueba`, { cookie: destino.cookie });
+  assert.equal(r.estado, 409);
+  assert.match(r.cuerpo.error, /fusione/);
+  const { rows } = await s.pool.query('SELECT clinica_id FROM usuarios WHERE lower(email) = $1', [invitado]);
+  assert.equal(rows[0].clinica_id, solicitante.usuario.clinica.id);
+});
+
+test('aprobar hacia una clínica desactivada → 409', async () => {
+  const destino = await veterinarioVerificado(s);
+  const solicitante = await veterinarioVerificado(s);
+  await pedir(s.app, 'POST', `/api/clinicas/${destino.usuario.clinica.id}/solicitudes-union`, { cookie: solicitante.cookie });
+  await s.pool.query('UPDATE clinicas SET activa = false WHERE id = $1', [destino.usuario.clinica.id]);
+  const solicitud = await solicitudDe(solicitante.usuario.id);
+  const r = await pedir(s.app, 'POST', `/api/solicitudes-union/${solicitud}/aprueba`, { cookie: admin });
+  assert.equal(r.estado, 409);
+});
+
+test('invitar a un correo que ya tiene cuenta: misma respuesta, no se crea nada ni sale correo', async () => {
+  const titular = await veterinarioVerificado(s);
+  const otro = await veterinarioVerificado(s);
+  const antes = (await s.pool.query('SELECT count(*)::int AS n FROM correos_pendientes WHERE destinatario = $1', [otro.email])).rows[0].n;
+  const r = await pedir(s.app, 'POST', '/api/clinicas/mia/invitaciones', {
+    cookie: titular.cookie, cuerpo: { nombre: 'X', email: otro.email },
+  });
+  assert.equal(r.estado, 201);
+  const { rows } = await s.pool.query('SELECT clinica_id FROM usuarios WHERE lower(email) = $1', [otro.email]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].clinica_id, otro.usuario.clinica.id);
+  const despues = (await s.pool.query('SELECT count(*)::int AS n FROM correos_pendientes WHERE destinatario = $1', [otro.email])).rows[0].n;
+  assert.equal(despues, antes);
+});
+
+test('invitar a un compañero deja historial', async () => {
+  const titular = await veterinarioVerificado(s);
+  const email = correoUnico();
+  await pedir(s.app, 'POST', '/api/clinicas/mia/invitaciones', { cookie: titular.cookie, cuerpo: { nombre: 'Biel', email } });
+  const { rows } = await s.pool.query(
+    `SELECT h.usuario_id FROM historial h JOIN usuarios u ON h.tabla = 'usuarios' AND h.fila_id = u.id::text
+     WHERE lower(u.email) = $1`,
+    [email],
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].usuario_id, titular.usuario.id);
+});
+
+test('solicitudes de unión: un veterinario solo ve las dirigidas a su clínica', async () => {
+  const destino = await veterinarioVerificado(s);
+  const ajeno = await veterinarioVerificado(s);
+  const solicitante = await veterinarioVerificado(s);
+  await pedir(s.app, 'POST', `/api/clinicas/${destino.usuario.clinica.id}/solicitudes-union`, { cookie: solicitante.cookie });
+  const id = await solicitudDe(solicitante.usuario.id);
+  const delDestino = await pedir(s.app, 'GET', '/api/solicitudes-union', { cookie: destino.cookie });
+  const delAjeno = await pedir(s.app, 'GET', '/api/solicitudes-union', { cookie: ajeno.cookie });
+  assert.ok(delDestino.cuerpo.solicitudes.some((x: { id: number }) => x.id === id));
+  assert.ok(!delAjeno.cuerpo.solicitudes.some((x: { id: number }) => x.id === id));
+});
+
+test('invitar compañeros tiene freno: pasado el límite → 429', async () => {
+  const limitado = await servidorDePrueba('clinicas_freno', { LIMITE_INTENTOS: '2' });
+  try {
+    const vet = await veterinarioVerificado(limitado);
+    const estados: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      estados.push((await pedir(limitado.app, 'POST', '/api/clinicas/mia/invitaciones', {
+        cookie: vet.cookie, cuerpo: { nombre: 'X', email: correoUnico() },
+      })).estado);
+    }
+    assert.deepEqual(estados, [201, 201, 429]);
+  } finally {
+    await limitado.app.close();
+  }
+});
+
+test('la ficha de la clínica no admite un correo que no lo es', async () => {
+  const vet = await veterinarioVerificado(s);
+  const r = await pedir(s.app, 'PATCH', '/api/clinicas/mia', {
+    cookie: vet.cookie, cuerpo: { nombre: 'Clínica Bona', email: 'no-es-un-correo' },
+  });
+  assert.equal(r.estado, 400);
 });
 
 test('mismo dominio de correo: unido al momento, sin solicitud pendiente', async () => {
@@ -139,7 +254,9 @@ test('clínica provisional con compañeros → 409; invitar a un compañero lo c
   });
   assert.equal(inv.estado, 201);
   const token = await tokenDelCorreo(s.pool, emailCompanero, 'invitacion-clinica');
-  const acepta = await pedir(s.app, 'POST', '/api/auth/establece-contrasena', { cuerpo: { token, contrasena: CONTRASENA } });
+  const acepta = await pedir(s.app, 'POST', '/api/auth/establece-contrasena', {
+    cuerpo: { token, contrasena: CONTRASENA, privacidad: true },
+  });
   assert.equal(acepta.estado, 200);
   assert.equal(acepta.cuerpo.usuario.clinica.id, titular.usuario.clinica.id);
 

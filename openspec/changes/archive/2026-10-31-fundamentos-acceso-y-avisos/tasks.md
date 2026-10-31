@@ -192,5 +192,6 @@ corre con otro modelo.
       antigua de `bambufisiovet.com` sigue intacta (autodespliegue desactivado).
 - [x] 7.5 `CLAUDE.md` con los comandos reales; cuaderno: hallazgos y
       aplazados nuevos.
-- [ ] 7.6 Agente `revisor` sobre el diff del change con un modelo distinto
+- [x] 7.6 Agente `revisor` sobre el diff del change con un modelo distinto
       al que programó; corregir o justificar por escrito cada hallazgo.
+      Hecho con Fable (dos pasadas): informe y resolución en `revision.md`.

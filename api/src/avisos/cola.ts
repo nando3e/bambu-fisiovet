@@ -96,7 +96,12 @@ export function crearCola(deps: {
 
   async function tomarLote(): Promise<Pendiente[]> {
     const { rows } = await pool.query<Pendiente>(
-      `UPDATE correos_pendientes SET estado = 'en_curso', en_curso_desde = now()
+      // Un `en_curso` caducado es un envío que no terminó (el proceso murió o
+      // el SMTP se colgó): cuenta como intento, para que no se repita para
+      // siempre sin llegar nunca a `fallido`.
+      `UPDATE correos_pendientes
+         SET intentos = CASE WHEN estado = 'en_curso' THEN intentos + 1 ELSE intentos END,
+             estado = 'en_curso', en_curso_desde = now()
        WHERE id IN (
          SELECT id FROM correos_pendientes
          WHERE (estado = 'pendiente' AND proximo_intento <= now())
@@ -112,6 +117,18 @@ export function crearCola(deps: {
   }
 
   async function tratar(p: Pendiente): Promise<void> {
+    if (p.intentos >= MAX_INTENTOS) {
+      const motivo = 'interromput massa vegades';
+      await pool.query(
+        `UPDATE correos_pendientes SET estado = 'fallido', error = $2, en_curso_desde = NULL WHERE id = $1`,
+        [p.id, motivo],
+      );
+      await trazarAviso(pool, {
+        canal: 'correo', eventoId: p.evento_id, correoPendienteId: p.id,
+        destinatario: p.destinatario, plantilla: p.plantilla, enviado: false, motivo,
+      });
+      return;
+    }
     let mensaje;
     try {
       const r = renderizar(p.plantilla, datosParaPlantilla(p.datos, config.URL_PUBLICA));

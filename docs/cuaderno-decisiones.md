@@ -400,6 +400,8 @@ reabre. Nada se aplaza sin apuntarlo aquí.
 | Caso privado dentro de la clínica | Visibilidad por clínica decidida | Si una clínica lo exige (`casos.visibilidad`) |
 | Fusionar clínicas duplicadas | La solicitud de unión cubre el caso normal | Si aparecen duplicadas en uso real |
 | Límite de propuestas pendientes que caducan | Riesgo bajo con pocos fisios | Si se acumulan en el inicio |
+| Retirar del disco las fotos de la web sustituidas (y las huérfanas de una subida fallida) | Ocupan poco y no se ven | Con la purga física de adjuntos |
+| **Decisión de Nando:** que en una clínica sin validar por Bambú las uniones las apruebe solo Bambú | Hoy cualquier miembro verificado aprueba; quien registre el nombre de una clínica ajena con un correo verificado podría aceptar a quien pida unirse y ver sus casos (revisión del change 1) | Antes de abrir el portal a veterinarios reales |
 
 ## 12. Hallazgos y lecciones
 
@@ -447,6 +449,25 @@ fallo real o lo cazó un test.
   cambiar lo que sirve) y el portal se desplegó como Compose aparte con un
   dominio de pruebas. Lección: **antes del primer despliegue, mirar qué más
   despliega desde el mismo repo**.
+
+De la revisión del change 1 (Fable, dos pasadas, 2026-10-31):
+
+- **El usuario del superadmin con forma de correo era una bomba de
+  arranque.** Cualquiera podía darse de alta con ese correo; el login lo
+  desviaba al superadmin y el siguiente arranque se negaba a levantar. Toda
+  ruta que crea usuarios tiene que conocer los identificadores reservados.
+- **`trustProxy: true` no es «detrás de un proxy»: es «creo a cualquiera».**
+  Con un salto de confianza vale la dirección que añade Traefik. El test
+  tiene que simular la cabecera tal como llega tras Traefik (lo inventado
+  delante, lo real al final); si no, prueba otra cosa.
+- **Un 429 por cuenta también enumera cuentas.** Si el freno solo existe
+  cuando hay cuenta, el código de respuesta dice que la hay. Pasado el freno,
+  la misma respuesta de siempre.
+- **Lo que se decide al pedir hay que revalidarlo al aprobar.** Entre la
+  solicitud y la aprobación pueden cambiar los miembros o el destino.
+- **Un test que manda un dato inventado pasa por la razón equivocada.** El de
+  «el superadmin no puede recuperar» usaba un correo que no existía y no
+  ejercitaba nada.
 
 ## 13. Estado del despliegue
 

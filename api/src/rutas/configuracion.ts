@@ -7,7 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { esHueco, TAMANO_MAXIMO, tipoDeImagen } from '../ficheros/imagenes-web.ts';
 import { exigirSesion, ROLES_BAMBU, SOLO_SUPERADMIN } from '../auth/permisos.ts';
-import { reintentarCorreo } from '../avisos/cola.ts';
+import { reintentarCorreo, trazarAviso } from '../avisos/cola.ts';
 import { actualizarFilaMatriz, leerMatriz } from '../avisos/matriz.ts';
 import { cifrar, descifrar } from '../cifrado.ts';
 import {
@@ -78,7 +78,10 @@ export async function rutasConfiguracion(app: FastifyInstance, deps: Deps): Prom
     const { rows } = await pool.query(
       `SELECT id, destinatario, plantilla, estado, intentos, error, creado, proximo_intento
        FROM correos_pendientes
-       WHERE estado IN ('pendiente', 'en_curso', 'fallido') AND creado > now() - interval '24 hours'
+       -- Lo que está por salir, siempre; lo fallido, un mes, para poder verlo
+       -- y reintentarlo aunque nadie haya entrado al panel en unos días.
+       WHERE estado IN ('pendiente', 'en_curso')
+          OR (estado = 'fallido' AND creado > now() - interval '30 days')
        ORDER BY id DESC LIMIT 100`,
     );
     return { correos: rows };
@@ -142,14 +145,20 @@ export async function rutasConfiguracion(app: FastifyInstance, deps: Deps): Prom
     }
     const contrasena = descifrar(servidor.contrasena_cifrada, config.CLAVE_CIFRADO);
     if (contrasena === null) throw datosIncorrectos('No es pot llegir la contrasenya guardada: torna a escriure-la');
-    // Es una prueba explícita del superadmin: sale aunque el entorno esté en dry-run.
+    // Excepción deliberada a «todo correo pasa por la cola» y a «el dry-run
+    // del entorno manda»: es la prueba explícita del superadmin para comprobar
+    // el SMTP antes de quitar el dry-run (design D7, plan de migración). Sale
+    // en la petición para poder enseñar el error, y deja su traza igual.
     const transporte = crearTransporte(servidor, contrasena);
     try {
       const r = renderizar('prueba', { urlPublica: config.URL_PUBLICA });
       const resultado = await enviarCon(transporte, servidor, { para, ...r });
-      return resultado.resultado === 'enviado'
-        ? { enviado: true }
-        : { enviado: false, error: resultado.motivo };
+      const enviado = resultado.resultado === 'enviado';
+      await trazarAviso(pool, {
+        canal: 'correo', destinatario: para, plantilla: 'prueba', enviado,
+        motivo: enviado ? null : `prova: ${resultado.motivo}`,
+      });
+      return enviado ? { enviado: true } : { enviado: false, error: resultado.motivo };
     } finally {
       transporte.close();
     }

@@ -161,7 +161,7 @@ export async function fisioVerificada(s: Servidor, cookieAdmin: string, nombre =
   if (r.estado !== 201) throw new Error(`Invitación fallida: ${JSON.stringify(r.cuerpo)}`);
   const token = await tokenDelCorreo(s.pool, email, 'invitacion-bambu');
   const e = await pedir(s.app, 'POST', '/api/auth/establece-contrasena', {
-    cuerpo: { token, contrasena: CONTRASENA },
+    cuerpo: { token, contrasena: CONTRASENA, privacidad: true },
   });
   if (e.estado !== 200) throw new Error(`Aceptar invitación fallida: ${JSON.stringify(e.cuerpo)}`);
   return { email, cookie: e.cookie, id: r.cuerpo.id as number };

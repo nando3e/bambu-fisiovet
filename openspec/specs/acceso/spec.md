@@ -1,5 +1,8 @@
-## ADDED Requirements
+# acceso Specification
 
+## Purpose
+TBD - created by archiving change fundamentos-acceso-y-avisos. Update Purpose after archive.
+## Requirements
 ### Requirement: Alta de veterinario con verificación por correo
 La aplicación SHALL permitir que un veterinario cree su cuenta desde `/acces`
 con nombre, apellidos, clínica, correo, teléfono, número de colegiado
@@ -57,7 +60,7 @@ enlaces de verificación anteriores de esa cuenta.
 
 #### Scenario: Cuarto reenvío en una hora
 - **WHEN** se pide el reenvío por cuarta vez en la misma hora
-- **THEN** 429 y no se encola nada
+- **THEN** la respuesta es la misma que siempre (la de un correo sin cuenta) y no se encola nada; un 429 solo para las cuentas pendientes revelaría cuáles existen
 
 #### Scenario: El enlace viejo deja de valer
 - **WHEN** se reenvía la verificación y se abre el primer enlace
@@ -257,3 +260,4 @@ El correo no se cambia desde el perfil en v1.
 #### Scenario: Apagar los correos
 - **WHEN** un derivador apaga «Rebre avisos per correu»
 - **THEN** sigue recibiendo notificaciones en la campana pero no correos de avisos
+

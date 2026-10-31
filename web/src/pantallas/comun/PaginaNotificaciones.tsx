@@ -42,7 +42,12 @@ export function PaginaNotificaciones() {
             type="button"
             className="boton-secundario"
             onClick={async () => {
-              await api.post('/notificaciones/leidas');
+              try {
+                await api.post('/notificaciones/leidas');
+              } catch (err) {
+                window.alert(mensajeDe(err));
+                return;
+              }
               avisarCambioNotificaciones();
               await cargar();
             }}

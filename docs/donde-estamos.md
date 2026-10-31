@@ -1,4 +1,4 @@
-# Dónde estamos — 2026-10-31 (corte de sesión)
+# Dónde estamos — 2026-10-31 (segunda sesión)
 
 Leer esto primero al retomar. Después, `CLAUDE.md` y el cuaderno.
 
@@ -7,16 +7,23 @@ Leer esto primero al retomar. Después, `CLAUDE.md` y el cuaderno.
 - **Fases 1-4 del protocolo `nuevo-proyecto`: cerradas.** Cuaderno en
   `docs/cuaderno-decisiones.md` (decisiones D1-D16, dictamen, riesgos,
   aplazados §11, hallazgos §12, despliegue §13).
-- **Fase 5, change 1 `fundamentos-acceso-y-avisos`: construido y desplegado.**
-  Tareas en `openspec/changes/fundamentos-acceso-y-avisos/tasks.md`: todas
-  hechas salvo **7.6 (revisor)**, ver abajo.
-  - API: 81 tests en verde (`cd api && npm test`, necesita el Postgres local).
-  - Web: build con las seis comprobaciones en verde (`cd web && npm run build`).
-  - Probado en Chrome a 1280 px y a 390 px, y recorrido HTTP completo.
-- **Changes 2-5** (`casos-y-derivaciones`, `hilo-adjuntos-y-sesiones`,
-  `informes-por-voz`, `panel-e-indicadores`): propuesta y specs escritas y
-  válidas; **les faltan design.md y tasks.md**, que se escriben al empezar
-  cada uno.
+- **Change 1 `fundamentos-acceso-y-avisos`: cerrado y archivado** en
+  `openspec/changes/archive/2026-10-31-fundamentos-acceso-y-avisos/`. Sus
+  specs ya están en `openspec/specs/` (acceso, avisos, configuracion,
+  diseno).
+  - Revisor con Fable (dos pasadas): informe y resolución de cada hallazgo en
+    `revision.md` dentro del change archivado. Todo lo GRAVE y lo MEDIO
+    corregido con su test; cada arreglo verificado por mutación (quitarlo →
+    test en rojo).
+  - API: 100 tests en verde (`cd api && npm test`, necesita el Postgres
+    local). Web: build con las seis comprobaciones en verde.
+  - **Los arreglos de la revisión están sin commit y sin desplegar.**
+    Producción todavía corre la versión anterior.
+- **Change 2 `casos-y-derivaciones`: `design.md` y `tasks.md` escritos y
+  válidos, pendientes de que Nando los valide** (dos preguntas abiertas,
+  abajo). No hay código del change 2.
+- **Changes 3-5** (`hilo-adjuntos-y-sesiones`, `informes-por-voz`,
+  `panel-e-indicadores`): propuesta y specs; les faltan design.md y tasks.md.
 
 ## Desplegado
 
@@ -29,38 +36,37 @@ Leer esto primero al retomar. Después, `CLAUDE.md` y el cuaderno.
 | Local | `docker compose -f docker-compose.local.yml up -d` (Postgres 5438) + `api/.env` |
 
 Redesplegar: un push no despliega. Skill `desplegar-dokploy`, `composeId`
-`KsDhH9XS4pHR4h-fPxCra`. Cliente de la API usado en esta sesión: llamadas con
-Node `fetch` (UTF-8), credenciales en las variables de usuario de Windows.
+`KsDhH9XS4pHR4h-fPxCra`. Cliente de la API: llamadas con Node `fetch`
+(UTF-8), credenciales en las variables de usuario de Windows.
 
 ## Por dónde seguir (en este orden)
 
-1. **Revisor del change 1 (tarea 7.6).** Se lanzó el agente `revisor` con
-   Fable sobre `git diff 06dfabb..HEAD`. Si sus hallazgos no están recogidos
-   abajo, **relanzarlo** (con un modelo distinto al que programe), corregir lo
-   GRAVE y lo MEDIO con su test, justificar por escrito lo descartado en el
-   change y redesplegar.
-2. **Archivar el change 1** (`/opsx:archive fundamentos-acceso-y-avisos`), que
-   pasa sus specs a `openspec/specs/`.
-3. **Change 2 `casos-y-derivaciones`**: escribir `design.md` y `tasks.md`
-   (Nando valida), y construir. Ampliar `fusionarClinica` para mover casos y
-   pacientes; la pantalla `/d/nova` deja de ser provisional.
+1. **Commit, push y redespliegue** de los arreglos de la revisión (esperan
+   el visto bueno de Nando). Después del despliegue, comprobar en producción
+   que una invitación pide la casilla de privacidad y que el alta sigue
+   funcionando.
+2. **Change 2 `casos-y-derivaciones`**: con el design validado, construir
+   por el orden de `tasks.md`. Al cerrar, revisor con un modelo distinto
+   (Nando ofrece Sol/Codex, skill `codex`, como revisor de otra casa).
 
 ## Decisiones pendientes de Nando
 
+- **Change 2, borradores**: ¿solo los ve quien los escribe (propuesta) o
+  toda la clínica?
+- **Change 2, recaída de un paciente derivado**: ¿el caso nuevo es `propio`
+  de Bambú (propuesta; el veterinario no lo ve) o sigue ligado a la clínica?
+- **Uniones a clínicas no validadas** (revisión del change 1, cuaderno §11):
+  ¿que las apruebe solo Bambú hasta que la clínica esté validada? Antes de
+  abrir a veterinarios reales.
 - **Pasar `bambufisiovet.com` al portal nuevo.** Pasos: en Dokploy quitar los
   dominios del Application antiguo, poner `APP_HOST=bambufisiovet.com` en el
   Compose `portal` (y añadir `www` como segundo router o redirección) y
-  redesplegar. El DNS ya apunta al VPS. Hasta entonces la web pública es la
-  antigua.
+  redesplegar. El DNS ya apunta al VPS.
 - **SMTP de Dondominio**: configurarlo como superadmin en Configuració →
   Servidor de correu, mandar el correo de prueba, publicar SPF/DKIM/DMARC y
   poner `CORREO_DRY_RUN=false` en Dokploy.
 - **Correo del centro** para los avisos (Configuració → Avisos).
-- Fotos reales de Bambú (Configuració → Imatges de la web), textos legales,
-  revisión del valenciano por un nativo.
-- Servidor: si se usa la CPX12 de 2 GB, swap y limpieza de imágenes (cuaderno
-  §10.12).
-
-## Hallazgos del revisor
-
-_(Pendiente: se rellenan al recibirlos.)_
+- Fotos reales de Bambú, textos legales (privacidad y consentimiento del
+  propietario), revisión del valenciano por un nativo.
+- Servidor: si se usa la CPX12 de 2 GB, swap y limpieza de imágenes
+  (cuaderno §10.12).

@@ -298,6 +298,24 @@ test('cola: un correo que se quedó «en curso» porque el proceso murió vuelve
   );
   await (await colaCon(canal)).procesar();
   assert.equal(canal.enviados.length, 1);
+  const { rows } = await s.pool.query('SELECT intentos FROM correos_pendientes WHERE id = $1', [id]);
+  assert.equal(rows[0].intentos, 1);
+});
+
+test('cola: un «en curso» que se interrumpe una y otra vez acaba en fallido, sin enviarse', async () => {
+  await vaciarCola();
+  const canal = new CanalFalso();
+  const id = await encolarCorreo(s.pool, { destinatario: 'cuelga@clinica.vet', plantilla: 'prueba', datos: {} });
+  await s.pool.query(
+    `UPDATE correos_pendientes SET estado = 'en_curso', intentos = $2,
+       en_curso_desde = now() - interval '11 minutes' WHERE id = $1`,
+    [id, MAX_INTENTOS - 1],
+  );
+  await (await colaCon(canal)).procesar();
+  assert.equal(canal.enviados.length, 0);
+  const { rows } = await s.pool.query('SELECT estado, error FROM correos_pendientes WHERE id = $1', [id]);
+  assert.equal(rows[0].estado, 'fallido');
+  assert.match(rows[0].error, /interromput/);
 });
 
 test('cola: una plantilla que no existe → fallido sin reintentos', async () => {

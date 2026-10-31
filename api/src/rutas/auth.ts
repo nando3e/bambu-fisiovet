@@ -14,7 +14,7 @@ import { enTransaccion, type Consultable } from '../db/pool.ts';
 import { registrarCambio } from '../db/historial.ts';
 import { problemaDeContrasena } from '../dominio/contrasena-valida.ts';
 import { dominioDeClinica } from '../dominio/dominios-genericos.ts';
-import { datosIncorrectos, demasiados, prohibido } from '../errores.ts';
+import { datosIncorrectos, prohibido } from '../errores.ts';
 import { solicitarUnion } from '../servicios/clinicas.ts';
 import {
   contrasenaSuperadminCorrecta, esUsuarioSuperadmin,
@@ -88,45 +88,66 @@ export async function rutasAuth(app: FastifyInstance, deps: Deps): Promise<void>
 
   app.post('/auth/registro', freno, async (peticion) => {
     const d = validar(esquemaRegistro, peticion.body);
-    await enTransaccion(pool, async (bd) => {
-      const { rows: existentes } = await bd.query<{ id: number; nombre: string; activo: boolean; es_de_entorno: boolean }>(
-        'SELECT id, nombre, activo, es_de_entorno FROM usuarios WHERE lower(email) = $1',
-        [d.email],
-      );
-      const existente = existentes[0];
-      if (existente) {
-        // Misma respuesta que un alta nueva: no se le dice a nadie qué correos
-        // tienen cuenta. Al dueño del correo le llega cómo recuperarla.
-        if (existente.activo && !existente.es_de_entorno) {
-          const token = await emitirToken(bd, existente.id, 'recuperacion');
-          await encolarCorreo(bd, {
-            destinatario: d.email, usuarioId: existente.id, plantilla: 'alta-existente',
-            datos: { nombre: existente.nombre, enlace: enlaceToken(token) },
-          });
+    // El usuario del superadmin no puede ser el correo de nadie: el login no
+    // sabría a quién se refiere y el siguiente arranque se negaría a levantar.
+    // Misma respuesta que siempre, sin crear nada.
+    if (esUsuarioSuperadmin(config, d.email)) return RESPUESTA_ALTA;
+    try {
+      await enTransaccion(pool, async (bd) => {
+        const { rows: existentes } = await bd.query<{
+          id: number; nombre: string; activo: boolean; es_de_entorno: boolean; verificado: boolean;
+        }>(
+          `SELECT id, nombre, activo, es_de_entorno, verificado_el IS NOT NULL AS verificado
+           FROM usuarios WHERE lower(email) = $1`,
+          [d.email],
+        );
+        const existente = existentes[0];
+        if (existente) {
+          // Misma respuesta que un alta nueva: no se le dice a nadie qué correos
+          // tienen cuenta. Si aún no la verificó, le llega otra vez la
+          // verificación; si ya la tiene, cómo recuperarla.
+          if (existente.activo && !existente.es_de_entorno && !existente.verificado) {
+            const token = await emitirToken(bd, existente.id, 'verificacion',
+              d.union_clinica_id ? { union_clinica_id: d.union_clinica_id } : {});
+            await encolarCorreo(bd, {
+              destinatario: d.email, usuarioId: existente.id, plantilla: 'verificacion',
+              datos: { nombre: existente.nombre, enlace: enlaceToken(token) },
+            });
+          } else if (existente.activo && !existente.es_de_entorno) {
+            const token = await emitirToken(bd, existente.id, 'recuperacion');
+            await encolarCorreo(bd, {
+              destinatario: d.email, usuarioId: existente.id, plantilla: 'alta-existente',
+              datos: { nombre: existente.nombre, enlace: enlaceToken(token) },
+            });
+          }
+          return;
         }
-        return;
-      }
 
-      const { rows: clinicas } = await bd.query<{ id: number }>(
-        `INSERT INTO clinicas (nombre, poblacion, dominio_correo) VALUES ($1, $2, $3) RETURNING id`,
-        [d.clinica.nombre, d.clinica.poblacion || null, dominioDeClinica(d.email)],
-      );
-      const { rows: usuarios } = await bd.query<{ id: number }>(
-        `INSERT INTO usuarios (email, nombre, apellidos, telefono, num_colegiado, rol, clinica_id,
-                               privacidad_version, privacidad_el)
-         VALUES ($1, $2, $3, $4, $5, 'derivador', $6, $7, now()) RETURNING id`,
-        [d.email, d.nombre, d.apellidos, d.telefono, d.num_colegiado || null, clinicas[0]!.id,
-          VERSION_PRIVACIDAD],
-      );
-      // Si eligió unirse a una clínica que ya existe, la solicitud se hace al
-      // confirmar el correo: así nadie recibe avisos de cuentas sin verificar.
-      const token = await emitirToken(bd, usuarios[0]!.id, 'verificacion',
-        d.union_clinica_id ? { union_clinica_id: d.union_clinica_id } : {});
-      await encolarCorreo(bd, {
-        destinatario: d.email, usuarioId: usuarios[0]!.id, plantilla: 'verificacion',
-        datos: { nombre: d.nombre, enlace: enlaceToken(token) },
+        const { rows: clinicas } = await bd.query<{ id: number }>(
+          `INSERT INTO clinicas (nombre, poblacion, dominio_correo) VALUES ($1, $2, $3) RETURNING id`,
+          [d.clinica.nombre, d.clinica.poblacion || null, dominioDeClinica(d.email)],
+        );
+        const { rows: usuarios } = await bd.query<{ id: number }>(
+          `INSERT INTO usuarios (email, nombre, apellidos, telefono, num_colegiado, rol, clinica_id,
+                                 privacidad_version, privacidad_el)
+           VALUES ($1, $2, $3, $4, $5, 'derivador', $6, $7, now()) RETURNING id`,
+          [d.email, d.nombre, d.apellidos, d.telefono, d.num_colegiado || null, clinicas[0]!.id,
+            VERSION_PRIVACIDAD],
+        );
+        // Si eligió unirse a una clínica que ya existe, la solicitud se hace al
+        // confirmar el correo: así nadie recibe avisos de cuentas sin verificar.
+        const token = await emitirToken(bd, usuarios[0]!.id, 'verificacion',
+          d.union_clinica_id ? { union_clinica_id: d.union_clinica_id } : {});
+        await encolarCorreo(bd, {
+          destinatario: d.email, usuarioId: usuarios[0]!.id, plantilla: 'verificacion',
+          datos: { nombre: d.nombre, enlace: enlaceToken(token) },
+        });
       });
-    });
+    } catch (error) {
+      // Dos altas a la vez con el mismo correo: la segunda choca con el índice
+      // único. Para quien la manda es la misma respuesta que la primera.
+      if ((error as { code?: string }).code !== '23505') throw error;
+    }
     cola.despertar();
     return RESPUESTA_ALTA;
   });
@@ -146,8 +167,10 @@ export async function rutasAuth(app: FastifyInstance, deps: Deps): Promise<void>
          WHERE usuario_id = $1 AND tipo = 'verificacion' AND creado > now() - interval '1 hour'`,
         [usuario.id],
       );
-      // El primero es el del alta; tres reenvíos por hora como mucho.
-      if ((recientes[0]?.n ?? 0) >= 4) throw demasiados('Ja has demanat massa reenviaments. Espera una hora.');
+      // El primero es el del alta; tres reenvíos por hora como mucho. Pasado
+      // el freno, la respuesta es la de siempre: un 429 solo para las cuentas
+      // pendientes diría a cualquiera qué correos tienen un alta a medias.
+      if (Number(recientes[0]?.n ?? 0) >= 4) return;
       const { rows: anterior } = await bd.query<{ datos: Record<string, unknown> }>(
         `SELECT datos FROM tokens_correo WHERE usuario_id = $1 AND tipo = 'verificacion'
          ORDER BY creado DESC LIMIT 1`,
@@ -215,8 +238,8 @@ export async function rutasAuth(app: FastifyInstance, deps: Deps): Promise<void>
     const { token } = peticion.params as { token: string };
     const info = await consultarToken(pool, token);
     if (info.estado === 'inexistente' || !info.usuarioId) return { estado: 'inexistente' };
-    const { rows } = await pool.query<{ nombre: string; email: string | null; rol: string }>(
-      'SELECT nombre, email, rol FROM usuarios WHERE id = $1',
+    const { rows } = await pool.query<{ nombre: string; email: string | null; rol: string; pide_privacidad: boolean }>(
+      'SELECT nombre, email, rol, privacidad_el IS NULL AS pide_privacidad FROM usuarios WHERE id = $1',
       [info.usuarioId],
     );
     const u = rows[0];
@@ -227,12 +250,18 @@ export async function rutasAuth(app: FastifyInstance, deps: Deps): Promise<void>
       // El correo solo si el enlace vale o ha caducado (para poder reenviarlo).
       email: info.estado === 'usado' ? null : (u?.email ?? null),
       rol: u?.rol ?? null,
+      // Los invitados no pasaron por el alta: aceptan la privacidad aquí.
+      pide_privacidad: u?.pide_privacidad ?? false,
     };
   });
 
   app.post('/auth/establece-contrasena', freno, async (peticion, respuesta) => {
     const d = validar(
-      z.object({ token: z.string().min(10).max(200), contrasena: z.string().min(1).max(200) }),
+      z.object({
+        token: z.string().min(10).max(200),
+        contrasena: z.string().min(1).max(200),
+        privacidad: z.boolean().optional(),
+      }),
       peticion.body,
     );
     const resultado = await enTransaccion(pool, async (bd) => {
@@ -242,10 +271,10 @@ export async function rutasAuth(app: FastifyInstance, deps: Deps): Promise<void>
       const { rows } = await bd.query<{
         id: number; email: string | null; rol: 'bambu' | 'derivador' | 'superadmin'; nombre: string;
         apellidos: string; clinica_id: number | null; verificado_el: Date | null; activo: boolean;
-        clinica_nombre: string | null;
+        clinica_nombre: string | null; privacidad_el: Date | null;
       }>(
         `SELECT u.id, u.email, u.rol, u.nombre, u.apellidos, u.clinica_id, u.verificado_el, u.activo,
-                c.nombre AS clinica_nombre
+                u.privacidad_el, c.nombre AS clinica_nombre
          FROM usuarios u LEFT JOIN clinicas c ON c.id = u.clinica_id
          WHERE u.id = $1 FOR UPDATE OF u`,
         [consumido.usuarioId],
@@ -256,11 +285,21 @@ export async function rutasAuth(app: FastifyInstance, deps: Deps): Promise<void>
       // Si la contraseña no vale, el error deshace también el consumo del token.
       const problema = problemaDeContrasena(d.contrasena, u.email);
       if (problema) throw datosIncorrectos(problema);
+      // Quien llega por invitación no ha pasado por el alta: acepta aquí la
+      // política de privacidad. Sin aceptarla, el enlace sigue sin usar.
+      const pidePrivacidad = u.privacidad_el === null;
+      if (pidePrivacidad && d.privacidad !== true) {
+        throw datosIncorrectos('Cal acceptar la política de privacitat', {
+          campos: { privacidad: 'Cal acceptar la política de privacitat' },
+        });
+      }
 
       await bd.query(
-        `UPDATE usuarios SET contrasena_hash = $2, verificado_el = coalesce(verificado_el, now())
+        `UPDATE usuarios SET contrasena_hash = $2, verificado_el = coalesce(verificado_el, now()),
+                privacidad_version = CASE WHEN $3 THEN $4 ELSE privacidad_version END,
+                privacidad_el = CASE WHEN $3 THEN now() ELSE privacidad_el END
          WHERE id = $1`,
-        [u.id, await hashearContrasena(d.contrasena)],
+        [u.id, await hashearContrasena(d.contrasena), pidePrivacidad, VERSION_PRIVACIDAD],
       );
       if (consumido.tipo === 'recuperacion') await revocarSesiones(bd, u.id);
 
@@ -298,7 +337,12 @@ export async function rutasAuth(app: FastifyInstance, deps: Deps): Promise<void>
   });
 
   app.post('/auth/recupera', freno, async (peticion) => {
-    const { email } = validar(z.object({ email: correo }), peticion.body);
+    // Cualquier texto: lo que no es un correo (el usuario del superadmin, por
+    // ejemplo) recibe la misma respuesta genérica, no un 400 que lo distinga.
+    const { email: bruto } = validar(z.object({ email: z.string().max(200) }), peticion.body);
+    const comprobado = correo.safeParse(bruto);
+    if (!comprobado.success) return RESPUESTA_RECUPERA;
+    const email = comprobado.data;
     await enTransaccion(pool, async (bd) => {
       const { rows } = await bd.query<{ id: number; nombre: string }>(
         'SELECT id, nombre FROM usuarios WHERE lower(email) = $1 AND activo AND NOT es_de_entorno',
@@ -360,7 +404,8 @@ export async function rutasAuth(app: FastifyInstance, deps: Deps): Promise<void>
       await bd.query(
         `UPDATE usuarios SET
            nombre = coalesce($2, nombre), apellidos = coalesce($3, apellidos),
-           telefono = coalesce($4, telefono), num_colegiado = coalesce($5, num_colegiado),
+           telefono = CASE WHEN $4::text IS NULL THEN telefono ELSE nullif($4, '') END,
+           num_colegiado = CASE WHEN $5::text IS NULL THEN num_colegiado ELSE nullif($5, '') END,
            recibe_correos = coalesce($6, recibe_correos)
          WHERE id = $1`,
         [sesion.usuarioId, d.nombre ?? null, d.apellidos ?? null, d.telefono ?? null,

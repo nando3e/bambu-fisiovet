@@ -4,7 +4,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  CONTRASENA, correoUnico, entrarSuperadmin, fisioVerificada, pedir, servidorDePrueba,
+  CONTRASENA, correoUnico, ENTORNO_BASE, entrarSuperadmin, fisioVerificada, pedir, servidorDePrueba,
   tokenDelCorreo, veterinarioVerificado, type Servidor,
 } from './ayuda.ts';
 
@@ -25,6 +25,9 @@ const alta = (email: string, extra: Record<string, unknown> = {}) =>
       clinica: { nombre: 'Clínica Vidal' }, privacidad: true, ...extra,
     },
   });
+
+const correosA = async (email: string) =>
+  (await s.pool.query('SELECT count(*)::int AS n FROM correos_pendientes WHERE destinatario = $1', [email])).rows[0].n as number;
 
 const entrar = (identificador: string, contrasena = CONTRASENA) =>
   pedir(s.app, 'POST', '/api/auth/entrar', { cuerpo: { identificador, contrasena } });
@@ -129,7 +132,7 @@ test('contraseña corta → 400 y el token sigue sin usar', async () => {
   assert.equal((await pedir(s.app, 'GET', `/api/auth/tokens/${token}`)).cuerpo.estado, 'valido');
 });
 
-test('reenviar la verificación: el enlace viejo deja de valer y el cuarto reenvío → 429', async () => {
+test('reenviar la verificación: el enlace viejo deja de valer; el cuarto reenvío no encola nada', async () => {
   const email = correoUnico();
   await alta(email);
   const primero = await tokenDelCorreo(s.pool, email, 'verificacion');
@@ -139,7 +142,63 @@ test('reenviar la verificación: el enlace viejo deja de valer y el cuarto reenv
   assert.equal((await pedir(s.app, 'GET', `/api/auth/tokens/${primero}`)).cuerpo.estado, 'caducado');
   assert.equal((await pedir(s.app, 'POST', '/api/auth/reenvia-verificacion', { cuerpo: { email } })).estado, 200);
   assert.equal((await pedir(s.app, 'POST', '/api/auth/reenvia-verificacion', { cuerpo: { email } })).estado, 200);
-  assert.equal((await pedir(s.app, 'POST', '/api/auth/reenvia-verificacion', { cuerpo: { email } })).estado, 429);
+  const antes = await correosA(email);
+  // Pasado el freno, la respuesta es idéntica a la de un correo sin cuenta: un
+  // 429 solo para las cuentas pendientes diría cuáles existen.
+  const cuarto = await pedir(s.app, 'POST', '/api/auth/reenvia-verificacion', { cuerpo: { email } });
+  const sinCuenta = await pedir(s.app, 'POST', '/api/auth/reenvia-verificacion', { cuerpo: { email: correoUnico() } });
+  assert.equal(cuarto.estado, 200);
+  assert.deepEqual(cuarto.cuerpo, sinCuenta.cuerpo);
+  assert.equal(await correosA(email), antes);
+});
+
+test('alta con el usuario del superadmin: misma respuesta, no se crea nada y el servidor vuelve a arrancar', async () => {
+  const conCorreo = await servidorDePrueba('acceso_superadmin_correo', { SUPERADMIN_USUARIO: 'admin@bambu.test' });
+  try {
+    const r = await pedir(conCorreo.app, 'POST', '/api/auth/registro', {
+      cuerpo: {
+        nombre: 'Pau', apellidos: 'Vidal', email: 'Admin@Bambu.test', telefono: '600123456',
+        clinica: { nombre: 'Clínica Vidal' }, privacidad: true,
+      },
+    });
+    assert.equal(r.estado, 200);
+    const { rows } = await conCorreo.pool.query(
+      `SELECT count(*)::int AS n FROM usuarios WHERE lower(email) = 'admin@bambu.test'`,
+    );
+    assert.equal(rows[0].n, 0);
+    const cookie = (await pedir(conCorreo.app, 'POST', '/api/auth/entrar', {
+      cuerpo: { identificador: 'admin@bambu.test', contrasena: ENTORNO_BASE.SUPERADMIN_CONTRASENA },
+    })).cookie;
+    // Tampoco se puede invitar con ese correo, ni al equipo ni a una clínica.
+    const equipo = await pedir(conCorreo.app, 'POST', '/api/usuarios', {
+      cookie, cuerpo: { nombre: 'X', email: 'admin@bambu.test' },
+    });
+    assert.equal(equipo.estado, 409);
+    const vet = await veterinarioVerificado(conCorreo);
+    const companero = await pedir(conCorreo.app, 'POST', '/api/clinicas/mia/invitaciones', {
+      cookie: vet.cookie, cuerpo: { nombre: 'X', email: 'admin@bambu.test' },
+    });
+    assert.equal(companero.estado, 201);
+    const tras = await conCorreo.pool.query(
+      `SELECT count(*)::int AS n FROM usuarios WHERE lower(email) = 'admin@bambu.test'`,
+    );
+    assert.equal(tras.rows[0].n, 0);
+    // El arranque se negaba a levantar si había un usuario con ese correo.
+    const otra = await servidorDePrueba('acceso_superadmin_correo', { SUPERADMIN_USUARIO: 'admin@bambu.test' }, { url: conCorreo.url });
+    await otra.app.close();
+  } finally {
+    await conCorreo.app.close();
+  }
+});
+
+test('dos altas simultáneas con el mismo correo: las dos responden igual y queda una cuenta', async () => {
+  const email = correoUnico();
+  const [a, b] = await Promise.all([alta(email), alta(email)]);
+  assert.equal(a.estado, 200);
+  assert.equal(b.estado, 200);
+  assert.deepEqual(a.cuerpo, b.cuerpo);
+  const { rows } = await s.pool.query('SELECT count(*)::int AS n FROM usuarios WHERE lower(email) = $1', [email]);
+  assert.equal(rows[0].n, 1);
 });
 
 test('entrar: inexistente, contraseña errónea y sin verificar son el mismo 401', async () => {
@@ -170,6 +229,25 @@ test('freno de intentos: el undécimo en un minuto → 429', async () => {
     }
     assert.deepEqual(estados.slice(0, 10), Array(10).fill(401));
     assert.equal(estados[10], 429);
+  } finally {
+    await limitado.app.close();
+  }
+});
+
+test('freno de intentos: cambiar X-Forwarded-For en cada petición no lo salta', async () => {
+  const limitado = await servidorDePrueba('acceso_freno_xff', { LIMITE_INTENTOS: '3' });
+  try {
+    const estados: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      estados.push((await limitado.app.inject({
+        method: 'POST', url: '/api/auth/entrar',
+        // Lo que inventa el cliente va delante; Traefik añade al final la
+        // dirección real desde la que le llega la conexión.
+        headers: { 'x-forwarded-for': `10.0.0.${i}, 203.0.113.7` },
+        payload: { identificador: 'nadie@x.es', contrasena: 'x' },
+      })).statusCode);
+    }
+    assert.deepEqual(estados, [401, 401, 401, 429]);
   } finally {
     await limitado.app.close();
   }
@@ -237,6 +315,33 @@ test('invitar a una fisio: entra en /b y aparece en el equipo', async () => {
   assert.equal(repetida.estado, 409);
 });
 
+test('invitación: sin aceptar la privacidad → 400 y el enlace sigue sin usar; aceptándola queda guardada', async () => {
+  const email = correoUnico('fisio', 'bambufisiovet.com');
+  await pedir(s.app, 'POST', '/api/usuarios', { cookie: admin, cuerpo: { nombre: 'Nil', email } });
+  const token = await tokenDelCorreo(s.pool, email, 'invitacion-bambu');
+  assert.equal((await pedir(s.app, 'GET', `/api/auth/tokens/${token}`)).cuerpo.pide_privacidad, true);
+  const sin = await pedir(s.app, 'POST', '/api/auth/establece-contrasena', { cuerpo: { token, contrasena: CONTRASENA } });
+  assert.equal(sin.estado, 400);
+  assert.ok(sin.cuerpo.campos.privacidad);
+  assert.equal((await pedir(s.app, 'GET', `/api/auth/tokens/${token}`)).cuerpo.estado, 'valido');
+  const con = await pedir(s.app, 'POST', '/api/auth/establece-contrasena', {
+    cuerpo: { token, contrasena: CONTRASENA, privacidad: true },
+  });
+  assert.equal(con.estado, 200);
+  const { rows } = await s.pool.query('SELECT privacidad_version, privacidad_el FROM usuarios WHERE email = $1', [email]);
+  assert.equal(rows[0].privacidad_version, '2026-10');
+  assert.ok(rows[0].privacidad_el);
+});
+
+test('recuperar: quien ya aceptó la privacidad en el alta no la vuelve a ver', async () => {
+  const { email } = await veterinarioVerificado(s);
+  await pedir(s.app, 'POST', '/api/auth/recupera', { cuerpo: { email } });
+  const token = await tokenDelCorreo(s.pool, email, 'recuperacion');
+  assert.equal((await pedir(s.app, 'GET', `/api/auth/tokens/${token}`)).cuerpo.pide_privacidad, false);
+  const r = await pedir(s.app, 'POST', '/api/auth/establece-contrasena', { cuerpo: { token, contrasena: 'otra-contrasena-larga' } });
+  assert.equal(r.estado, 200);
+});
+
 test('invitación pendiente: «invitado» y se puede reenviar, invalidando la anterior', async () => {
   const email = correoUnico('fisio', 'bambufisiovet.com');
   const r = await pedir(s.app, 'POST', '/api/usuarios', { cookie: admin, cuerpo: { nombre: 'Clara', email } });
@@ -278,4 +383,22 @@ test('perfil: apagar los correos y cambiar el teléfono', async () => {
   assert.equal(r.estado, 200);
   assert.equal(r.cuerpo.recibe_correos, false);
   assert.equal(r.cuerpo.telefono, '611222333');
+  // Vaciar el campo lo deja sin valor, no con un texto vacío.
+  const vacio = await pedir(s.app, 'PATCH', '/api/auth/perfil', { cookie, cuerpo: { telefono: '' } });
+  assert.equal(vacio.cuerpo.telefono, null);
+});
+
+test('alta repetida sin haber verificado: llega otra verificación, con la clínica elegida', async () => {
+  const email = correoUnico();
+  await alta(email);
+  const destino = await veterinarioVerificado(s);
+  await alta(email, { union_clinica_id: destino.usuario.clinica.id });
+  const { rows } = await s.pool.query(
+    `SELECT t.tipo, t.datos FROM tokens_correo t JOIN usuarios u ON u.id = t.usuario_id
+     WHERE lower(u.email) = $1 ORDER BY t.id DESC LIMIT 1`,
+    [email],
+  );
+  assert.equal(rows[0].tipo, 'verificacion');
+  assert.equal(rows[0].datos.union_clinica_id, destino.usuario.clinica.id);
+  assert.equal(await correosA(email), 2);
 });

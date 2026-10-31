@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { aplicarMigraciones } from '../src/db/migraciones.ts';
+import { crearPool } from '../src/db/pool.ts';
 import { baseLimpia, ENTORNO_BASE, pedir, servidorDePrueba, type Servidor } from './ayuda.ts';
 
 const abiertos: Servidor[] = [];
@@ -27,6 +28,21 @@ test('las migraciones se pueden aplicar dos veces y /api/salud responde', async 
   assert.equal(rows[0].n, 4);
   assert.equal((await pedir(s.app, 'GET', '/api/salud')).estado, 200);
   assert.equal((await pedir(s.app, 'GET', '/api/no-existe')).estado, 404);
+});
+
+test('dos arranques a la vez sobre una base nueva: los dos acaban bien y cada migración se aplica una vez', async () => {
+  const url = await baseLimpia('arranque_paralelo');
+  const a = crearPool(url);
+  const b = crearPool(url);
+  try {
+    const [na, nb] = await Promise.all([aplicarMigraciones(a), aplicarMigraciones(b)]);
+    assert.equal(na.length + nb.length, 4);
+    const { rows } = await a.query('SELECT count(*)::int AS n FROM migraciones');
+    assert.equal(rows[0].n, 4);
+  } finally {
+    await a.end();
+    await b.end();
+  }
 });
 
 test('superadmin: cambiar la contraseña por entorno; la vieja deja de valer', async () => {
@@ -76,8 +92,10 @@ test('superadmin: no puede recuperar ni cambiar su contraseña desde la app', as
     cookie: entrar.cookie, cuerpo: { actual: ENTORNO_BASE.SUPERADMIN_CONTRASENA, nueva: 'otra-contrasena-larga' },
   });
   assert.equal(cambio.estado, 403);
-  const recupera = await pedir(s.app, 'POST', '/api/auth/recupera', { cuerpo: { email: 'superadmin@x.es' } });
+  // Con su usuario real, que no es un correo: la respuesta genérica, no un 400.
+  const recupera = await pedir(s.app, 'POST', '/api/auth/recupera', { cuerpo: { email: ENTORNO_BASE.SUPERADMIN_USUARIO } });
   assert.equal(recupera.estado, 200);
+  assert.match(recupera.cuerpo.mensaje, /Si existeix un compte/);
   const { rows } = await s.pool.query('SELECT count(*)::int AS n FROM correos_pendientes');
   assert.equal(rows[0].n, 0);
 });

@@ -104,6 +104,23 @@ test('correo de prueba con un servidor que no responde: muestra el error', async
   assert.equal(r.estado, 200);
   assert.equal(r.cuerpo.enviado, false);
   assert.match(r.cuerpo.error, /SMTP/);
+  // Sale fuera de la cola, pero deja su traza como cualquier otro correo.
+  const { rows } = await s.pool.query(
+    `SELECT enviado, motivo FROM avisos_enviados WHERE destinatario = 'nando@rbimprove.com' AND plantilla = 'prueba'
+     ORDER BY id DESC LIMIT 1`,
+  );
+  assert.equal(rows[0].enviado, false);
+  assert.match(rows[0].motivo, /^prova: /);
+});
+
+test('la cola del panel enseña un correo fallido de hace días, no solo las últimas 24 horas', async () => {
+  const { rows } = await s.pool.query(
+    `INSERT INTO correos_pendientes (destinatario, plantilla, datos, estado, intentos, error, creado)
+     VALUES ('viejo@clinica.vet', 'prueba', '{}', 'fallido', 6, 'SMTP caigut', now() - interval '3 days')
+     RETURNING id`,
+  );
+  const r = await pedir(s.app, 'GET', '/api/configuracion/avisos/cola', { cookie: admin });
+  assert.ok(r.cuerpo.correos.some((c: { id: number }) => c.id === rows[0].id));
 });
 
 test('el canal real lee la configuración en cada envío: un cambio vale sin reiniciar', async () => {

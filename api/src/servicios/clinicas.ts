@@ -141,6 +141,18 @@ export async function resolverSolicitud(
   if (!s || !puede) throw noEncontrado('Aquesta sol·licitud no existeix');
   if (s.estado !== 'pendiente') throw conflicto('Aquesta sol·licitud ja està resolta');
 
+  if (aprobar) {
+    // Lo que valía al pedirlo se vuelve a mirar al aprobar: entre medias el
+    // solicitante pudo invitar a alguien a su clínica (y la fusión se lo
+    // llevaría sin que nadie lo viera) o la clínica destino desactivarse.
+    const { rows: destino } = await bd.query('SELECT 1 FROM clinicas WHERE id = $1 AND activa', [s.clinica_destino_id]);
+    if (destino.length === 0) throw conflicto('Aquesta clínica ja no està activa');
+    const miembros = await derivadoresActivos(bd, s.clinica_origen_id);
+    if (miembros.some((id) => id !== s.usuario_id)) {
+      throw conflicto('La clínica del sol·licitant ja té companys; demana a Bambú que les fusione');
+    }
+  }
+
   await bd.query(
     `UPDATE solicitudes_union SET estado = $2, resuelta_por = $3, resuelta_el = now() WHERE id = $1`,
     [solicitudId, aprobar ? 'aprobada' : 'rechazada', sesion.usuarioId],

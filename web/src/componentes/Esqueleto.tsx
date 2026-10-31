@@ -4,6 +4,7 @@ import { NavLink, Outlet } from 'react-router';
 import type { LucideIcon } from 'lucide-react';
 import { Campana } from './Notificaciones.tsx';
 import { Marca } from './comunes.tsx';
+import { t } from '../i18n/index.ts';
 
 export interface EntradaMenu {
   a: string;
@@ -20,7 +21,7 @@ export function Esqueleto({ zona, menu }: { zona: '/d' | '/b'; menu: EntradaMenu
         <Marca a={zona} />
         <Campana zona={zona} />
       </header>
-      <nav className="navegacion" aria-label="Menú">
+      <nav className="navegacion" aria-label={t('menu.etiqueta')}>
         {menu.map(({ a, texto, icono: Icono, exacta }) => (
           <NavLink key={a} to={a} end={exacta} className={({ isActive }) => (isActive ? 'activo' : undefined)}>
             <Icono size={22} aria-hidden />

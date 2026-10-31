@@ -8,8 +8,9 @@ import { encolarCorreo } from '../avisos/cola.ts';
 import { enTransaccion } from '../db/pool.ts';
 import { registrarCambio } from '../db/historial.ts';
 import { dominioDe } from '../dominio/dominios-genericos.ts';
-import { conflicto, noEncontrado } from '../errores.ts';
+import { noEncontrado } from '../errores.ts';
 import { resolverSolicitud, solicitarUnion } from '../servicios/clinicas.ts';
+import { esUsuarioSuperadmin } from '../superadmin.ts';
 import { frenoIntentos, idDeRuta, validar, type Deps } from './index.ts';
 
 const datosClinica = z.object({
@@ -18,7 +19,8 @@ const datosClinica = z.object({
   direccion: z.string().trim().max(200).default(''),
   codigo_postal: z.string().trim().max(10).default(''),
   telefono: z.string().trim().max(30).default(''),
-  email: z.string().trim().max(200).default(''),
+  email: z.string().trim().toLowerCase().max(200).default('')
+    .refine((v) => v === '' || z.string().email().safeParse(v).success, 'Correu no vàlid'),
 });
 
 export async function rutasClinicas(app: FastifyInstance, deps: Deps): Promise<void> {
@@ -34,9 +36,14 @@ export async function rutasClinicas(app: FastifyInstance, deps: Deps): Promise<v
     const dominio = q.email ? dominioDe(q.email) : null;
     if (q.nombre.length < 3 && !dominio) return { clinicas: [] };
     const { rows } = await pool.query(
-      `SELECT id, nombre, poblacion, (dominio_correo IS NOT NULL AND dominio_correo = $2) AS mismo_dominio
+      // Solo clínicas con alguien verificado y activo: la clínica que acaba de
+      // teclear un desconocido sin confirmar su correo no se ofrece a nadie.
+      `SELECT id, nombre, poblacion, coalesce(dominio_correo = $2, false) AS mismo_dominio
        FROM clinicas
-       WHERE activa AND (
+       WHERE activa
+         AND EXISTS (SELECT 1 FROM usuarios u
+                     WHERE u.clinica_id = clinicas.id AND u.activo AND u.verificado_el IS NOT NULL)
+         AND (
          ($1 <> '' AND similarity(unaccent(lower(nombre)), unaccent(lower($1))) > 0.3)
          OR ($2::text IS NOT NULL AND dominio_correo = $2)
        )
@@ -180,7 +187,8 @@ export async function rutasClinicas(app: FastifyInstance, deps: Deps): Promise<v
     });
   }
 
-  app.post('/clinicas/mia/invitaciones', async (peticion, respuesta) => {
+  // Con freno: cada invitación es un correo que sale con nuestro remitente.
+  app.post('/clinicas/mia/invitaciones', { config: frenoIntentos(config) }, async (peticion, respuesta) => {
     const sesion = await exigirSesion(peticion, respuesta, deps, SOLO_DERIVADOR);
     const d = validar(
       z.object({
@@ -190,9 +198,13 @@ export async function rutasClinicas(app: FastifyInstance, deps: Deps): Promise<v
       }),
       peticion.body,
     );
+    // Un correo que ya tiene cuenta (o el usuario del superadmin) recibe la
+    // misma respuesta y no pasa nada: un 409 diría a cualquier veterinario qué
+    // correos están dados de alta. Esa persona ya puede entrar y unirse.
+    if (esUsuarioSuperadmin(config, d.email)) return respuesta.code(201).send({ ok: true });
     await enTransaccion(pool, async (bd) => {
       const { rows: existentes } = await bd.query('SELECT 1 FROM usuarios WHERE lower(email) = $1', [d.email]);
-      if (existentes.length) throw conflicto('Aquest correu ja té compte');
+      if (existentes.length) return;
       const { rows: clinica } = await bd.query<{ nombre: string }>(
         'SELECT nombre FROM clinicas WHERE id = $1', [sesion.clinicaId],
       );
@@ -201,6 +213,11 @@ export async function rutasClinicas(app: FastifyInstance, deps: Deps): Promise<v
          VALUES ($1, $2, $3, 'derivador', $4) RETURNING id`,
         [d.email, d.nombre, d.apellidos, sesion.clinicaId],
       );
+      await registrarCambio(bd, {
+        tabla: 'usuarios', filaId: rows[0]!.id, antes: null,
+        despues: { ...d, rol: 'derivador', clinica_id: sesion.clinicaId, invitado_por: sesion.usuarioId },
+        usuarioId: sesion.usuarioId,
+      });
       const token = await emitirToken(bd, rows[0]!.id, 'invitacion');
       await encolarCorreo(bd, {
         destinatario: d.email, usuarioId: rows[0]!.id, plantilla: 'invitacion-clinica',

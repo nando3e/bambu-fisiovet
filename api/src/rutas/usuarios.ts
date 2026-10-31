@@ -9,12 +9,13 @@ import { encolarCorreo } from '../avisos/cola.ts';
 import { enTransaccion } from '../db/pool.ts';
 import { registrarCambio } from '../db/historial.ts';
 import { conflicto, noEncontrado, prohibido } from '../errores.ts';
+import { esUsuarioSuperadmin } from '../superadmin.ts';
 import { idDeRuta, validar, type Deps } from './index.ts';
 
 const nombreCompleto = (s: { nombre: string; apellidos: string }) => `${s.nombre} ${s.apellidos}`.trim();
 
 export async function rutasUsuarios(app: FastifyInstance, deps: Deps): Promise<void> {
-  const { pool, cola } = deps;
+  const { pool, config, cola } = deps;
 
   app.get('/usuarios', async (peticion, respuesta) => {
     await exigirSesion(peticion, respuesta, deps, ROLES_BAMBU);
@@ -46,6 +47,8 @@ export async function rutasUsuarios(app: FastifyInstance, deps: Deps): Promise<v
       }),
       peticion.body,
     );
+    // El usuario del superadmin cuenta como un correo ya usado.
+    if (esUsuarioSuperadmin(config, d.email)) throw conflicto('Aquest correu ja té compte');
     const usuario = await enTransaccion(pool, async (bd) => {
       const { rows: existentes } = await bd.query('SELECT 1 FROM usuarios WHERE lower(email) = $1', [d.email]);
       if (existentes.length) throw conflicto('Aquest correu ja té compte');

@@ -43,7 +43,9 @@ competidor; el aspecto visual sale de ella.
   siempre a través de la cola de `avisos/`. **El servidor SMTP se configura desde
   el panel** (solo superadmin), no en el entorno: la contraseña va cifrada con
   `CLAVE_CIFRADO` y nunca vuelve al navegador. `CORREO_DRY_RUN=true` en el
-  entorno manda sobre el panel (en local, siempre).
+  entorno manda sobre el panel (en local, siempre). Única excepción a las dos
+  reglas: el botón «correu de prova» del superadmin, que envía en la petición
+  y aunque haya dry-run para comprobar el SMTP antes de quitarlo (deja traza).
 - **Superadmin**: `SUPERADMIN_USUARIO` + `SUPERADMIN_CONTRASENA` en claro en el
   entorno; se compara contra la variable en cada login, sin hash en BD.
 - **Deploy**: Dokploy, `docker-compose.yml`. Stack = app + **Postgres propio** en la red interna

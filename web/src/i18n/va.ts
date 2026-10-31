@@ -8,6 +8,8 @@ export const va = {
   'comun.guardar': 'Guarda',
   'comun.guardado': 'Guardat',
   'comun.opcional': 'Opcional',
+  'comun.sinConexion': 'No hi ha connexió. Comprova la xarxa i torna-ho a provar.',
+  'comun.errorGenerico': 'Hi ha hagut un error. Torna-ho a provar.',
   'tiempo.ahora': 'ara mateix',
   'tiempo.minutos': 'fa {n} min',
   'tiempo.horas': 'fa {n} h',
@@ -19,6 +21,7 @@ export const va = {
   'noEncontrada.volver': 'Torna a l’inici',
 
   // Menús
+  'menu.etiqueta': 'Menú',
   'menu.inicio': 'Inici',
   'menu.nueva': 'Nova derivació',
   'menu.perfil': 'Perfil',

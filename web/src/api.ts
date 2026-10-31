@@ -1,5 +1,6 @@
 // Cliente del API. Una sola forma de llamar: api.get/post/put/patch con la
 // ruta escrita entera (scripts/rutas-api.mjs comprueba que existe en el API).
+import { t } from './i18n/index.ts';
 
 export class ErrorApi extends Error {
   readonly estado: number;
@@ -28,14 +29,14 @@ async function peticion<T>(metodo: string, ruta: string, cuerpo?: unknown): Prom
       body: cuerpo === undefined ? undefined : esFormulario ? cuerpo : JSON.stringify(cuerpo),
     });
   } catch {
-    throw new ErrorApi(0, "No hi ha connexió. Comprova la xarxa i torna-ho a provar.");
+    throw new ErrorApi(0, t('comun.sinConexion'));
   }
   const datos = (await respuesta.json().catch(() => ({}))) as Record<string, unknown>;
   if (!respuesta.ok) {
     if (respuesta.status === 401 && !ruta.startsWith('/auth/')) {
       window.dispatchEvent(new Event(EVENTO_SESION_CADUCADA));
     }
-    const mensaje = String(datos.error ?? datos.message ?? 'Hi ha hagut un error. Torna-ho a provar.');
+    const mensaje = String(datos.error ?? datos.message ?? t('comun.errorGenerico'));
     throw new ErrorApi(respuesta.status, mensaje, datos.campos as Record<string, string> | undefined);
   }
   return datos as T;
@@ -56,7 +57,7 @@ export const api = {
 
 /** El mensaje que se enseña de cualquier error. */
 export function mensajeDe(error: unknown): string {
-  return error instanceof Error ? error.message : 'Hi ha hagut un error. Torna-ho a provar.';
+  return error instanceof Error ? error.message : t('comun.errorGenerico');
 }
 
 // --- Tipos de las respuestas que usa más de una pantalla ---

@@ -44,9 +44,11 @@ export async function construirServidor(entorno: NodeJS.ProcessEnv = process.env
   const app = Fastify({
     logger: { level: config.NIVEL_LOG },
     bodyLimit: 1024 * 1024,
-    // Detrás de Traefik: sin esto todas las peticiones parecen venir de la
-    // misma dirección y el freno de intentos bloquearía a todo el mundo a la vez.
-    trustProxy: true,
+    // Detrás de Traefik, y solo de él (un salto). Sin proxy de confianza todas
+    // las peticiones parecerían venir de la misma dirección y el freno de
+    // intentos bloquearía a todo el mundo a la vez; con `true` valdría el primer
+    // X-Forwarded-For, que lo escribe el cliente, y el freno se saltaría.
+    trustProxy: (_direccion: string, salto: number) => salto < 1,
   });
   app.log.info(avisoSuperadmin);
 

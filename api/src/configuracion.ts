@@ -65,10 +65,6 @@ export type ValorConfig<C extends ClaveConfig> = z.infer<(typeof ESQUEMAS)[C]>;
 
 export const CLAVES = Object.keys(ESQUEMAS) as ClaveConfig[];
 
-export function esClaveConfig(clave: string): clave is ClaveConfig {
-  return (CLAVES as string[]).includes(clave);
-}
-
 export async function sembrarConfiguracion(bd: Consultable): Promise<void> {
   for (const clave of CLAVES) {
     const porDefecto = ESQUEMAS[clave].parse({});
@@ -90,6 +86,13 @@ export async function leerConfiguracion<C extends ClaveConfig>(
   // Lo guardado pasa otra vez por el esquema: si se añadió un campo nuevo, sale
   // con su valor por defecto en vez de undefined.
   const resultado = ESQUEMAS[clave].safeParse(rows[0]?.valor ?? {});
+  if (!resultado.success) {
+    // Lo guardado ya no cumple el esquema (se endureció después): se usan los
+    // valores por defecto, pero que quede escrito; si no, la web pierde datos
+    // sin que nadie sepa por qué.
+    console.warn(`Configuración «${clave}» no válida; se usan los valores por defecto:`,
+      JSON.stringify(resultado.error.issues));
+  }
   return (resultado.success ? resultado.data : ESQUEMAS[clave].parse({})) as ValorConfig<C>;
 }
 

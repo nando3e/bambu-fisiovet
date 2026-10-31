@@ -8,7 +8,7 @@ import {
   Bell, BellOff, Building2, CheckCheck, FileText, MessageSquare, Paperclip, Stethoscope,
   UserPlus, Users, type LucideIcon,
 } from 'lucide-react';
-import { api, type Notificacion } from '../api.ts';
+import { api, mensajeDe, type Notificacion } from '../api.ts';
 import { haceCuanto, t } from '../i18n/index.ts';
 
 const ICONOS: Record<string, LucideIcon> = {
@@ -144,7 +144,12 @@ export function Campana({ zona }: { zona: '/d' | '/b' }) {
   }
 
   async function marcarTodas() {
-    await api.post('/notificaciones/leidas');
+    try {
+      await api.post('/notificaciones/leidas');
+    } catch (err) {
+      window.alert(mensajeDe(err));
+      return;
+    }
     setNoLeidas(0);
     setLista((l) => l?.map((n) => ({ ...n, leida_el: n.leida_el ?? new Date().toISOString() })) ?? null);
   }
