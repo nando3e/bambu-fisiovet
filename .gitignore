@@ -1,0 +1,26 @@
+# dependencias y compilados
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+web/dev-dist/
+
+# entorno y secretos
+.env
+.env.*
+!.env.example
+
+# datos locales (adjuntos, audios, volumen)
+datos/
+api/datos/
+uploads/
+
+# sistema y editores
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
+
+# claude local
+.claude/settings.local.json

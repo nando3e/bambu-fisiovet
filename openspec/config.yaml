@@ -1,0 +1,48 @@
+schema: spec-driven
+
+context: |
+  BAMBÚ Fisiovet: portal de derivaciones de un centro de fisioterapia y
+  rehabilitación veterinaria. Dos poblaciones de usuarios colaboran sobre el
+  mismo expediente (el caso): los veterinarios derivadores (alta propia con
+  confirmación por correo, derivan, siguen sus casos, aportan informes e
+  imágenes, hilo por caso; ven solo lo de su clínica) y el equipo de Bambú
+  (ven todo, aceptan o rechazan, registran sesiones, dictan notas de voz que
+  se convierten en borradores de informe, configuran avisos y usuarios). El
+  foco es que deriven los profesionales, no los dueños de animales.
+  Interfaz en valenciano (diccionario de textos); código, nombres de tabla y
+  documentación en español.
+
+  Stack: Node 22 + TypeScript + Fastify 5 + pg (SQL a mano, migraciones
+  numeradas idempotentes) + zod + node:test · React 19 + Vite + TS como PWA
+  servida por el API · CSS plano con tokens (paleta y tipografía de la demo
+  de referencia) · lucide-react · Anthropic (contrato propio de LLM, OpenAI de
+  reserva) · Whisper (OpenAI) para voz, language=ca · nodemailer SMTP de
+  bambufisiovet.com · Postgres 16 propio del proyecto en red interna ·
+  Dokploy.
+
+  Documentos canónicos: docs/cuaderno-decisiones.md (decisiones, dictamen,
+  supuestos, riesgos) y CLAUDE.md (convenciones). Referencia visual:
+  docs/referencia-demo/. Plantillas de la casa: C:\Users\nando\APPS\
+  PLANTILLA-CHATBOT.md (convenciones generales, catálogo de fallos
+  silenciosos), PLANTILLA-CHATBOT-DATOS.md §4 (proponer/confirmar), §7 (voz),
+  §8 (fotos), §9 (operación) y SEPARACION-SERVICIOS-DESPLIEGUE.md.
+
+  Principios duros: el derivador solo ve lo de su clínica y el filtro va en
+  SQL, nunca en JS; fuera de ámbito es 404; toda acción relevante publica un
+  evento dentro de su transacción y los avisos salen solo por el módulo
+  avisos/ (matriz configurable en BD, correo siempre encolado, nunca inline);
+  el informe por voz es proponer/confirmar con lease atómico y nunca sale sin
+  confirmar; al modelo no viaja ningún dato del propietario ni del
+  veterinario; sin borrado duro; dominio/ puro sin LLM ni HTTP; cada arreglo
+  se verifica quitándolo y viendo el test en rojo.
+
+rules:
+  proposal:
+    - Marcar explícitamente los supuestos pendientes de confirmar con Bambú
+    - Incluir sección de "Fuera de alcance" y volcarla al registro de aplazados del cuaderno
+    - Copiar el dictamen de arquitectura en la proposal del primer change
+  tasks:
+    - Tareas cerradas y verificables, cada una con su test
+    - Lo que resuelve, calcula, valida o decide visibilidad va en dominio/ con test sin red
+    - Toda ruta nueva con un test de ámbito (derivador de otra clínica → 404) y de rol
+    - Al cerrar el change, lanzar el agente revisor sobre el diff con un modelo distinto al que programó
