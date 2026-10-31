@@ -37,6 +37,7 @@ export function ambitoCaso(q: QuienMira, alias = 'c', n = 1): Ambito {
 export function ambitoPaciente(q: QuienMira, alias = 'p', n = 1): Ambito {
   // Todo paciente nace de un caso; para Bambú, uno que ya no sea borrador.
   const caso = ambitoCaso(q, 'cv', n);
+  if (caso.sql === 'false') return caso;
   return {
     sql: `EXISTS (SELECT 1 FROM casos cv WHERE cv.paciente_id = ${alias}.id AND ${caso.sql})`,
     params: caso.params,
