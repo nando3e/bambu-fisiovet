@@ -1,0 +1,108 @@
+// Arranque: migraciones, superadmin por entorno y la web servida por el API.
+import { test, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { aplicarMigraciones } from '../src/db/migraciones.ts';
+import { baseLimpia, ENTORNO_BASE, pedir, servidorDePrueba, type Servidor } from './ayuda.ts';
+
+const abiertos: Servidor[] = [];
+after(async () => {
+  for (const s of abiertos) await s.app.close();
+});
+
+async function arrancar(url: string, entorno: Record<string, string> = {}) {
+  const s = await servidorDePrueba('arranque', entorno, { url });
+  abiertos.push(s);
+  return s;
+}
+
+test('las migraciones se pueden aplicar dos veces y /api/salud responde', async () => {
+  const url = await baseLimpia('arranque');
+  const s = await arrancar(url);
+  assert.deepEqual(await aplicarMigraciones(s.pool), [], 'la segunda vez no aplica nada');
+  const { rows } = await s.pool.query('SELECT count(*)::int AS n FROM migraciones');
+  assert.equal(rows[0].n, 4);
+  assert.equal((await pedir(s.app, 'GET', '/api/salud')).estado, 200);
+  assert.equal((await pedir(s.app, 'GET', '/api/no-existe')).estado, 404);
+});
+
+test('superadmin: cambiar la contraseña por entorno; la vieja deja de valer', async () => {
+  const url = await baseLimpia('superadmin');
+  const entrar = (s: Servidor, contrasena: string) =>
+    pedir(s.app, 'POST', '/api/auth/entrar', { cuerpo: { identificador: 'superadmin', contrasena } });
+
+  const primero = await arrancar(url, { SUPERADMIN_CONTRASENA: 'primera-contrasena' });
+  assert.equal((await entrar(primero, 'primera-contrasena')).estado, 200);
+
+  const segundo = await arrancar(url, { SUPERADMIN_CONTRASENA: 'segunda-contrasena' });
+  assert.equal((await entrar(segundo, 'segunda-contrasena')).estado, 200);
+  assert.equal((await entrar(segundo, 'primera-contrasena')).estado, 401);
+
+  const { rows } = await segundo.pool.query(
+    'SELECT count(*)::int AS n, max(contrasena_hash) AS hash FROM usuarios WHERE es_de_entorno',
+  );
+  assert.equal(rows[0].n, 1, 'una sola fila de superadmin');
+  assert.equal(rows[0].hash, null, 'sin hash en la base');
+});
+
+test('superadmin: sin contraseña nadie entra; cambiar el usuario renombra, no duplica', async () => {
+  const url = await baseLimpia('superadmin_usuario');
+  const sin = await arrancar(url, { SUPERADMIN_CONTRASENA: '' });
+  const r = await pedir(sin.app, 'POST', '/api/auth/entrar', {
+    cuerpo: { identificador: 'superadmin', contrasena: ENTORNO_BASE.SUPERADMIN_CONTRASENA },
+  });
+  assert.equal(r.estado, 401);
+
+  const renombrado = await arrancar(url, { SUPERADMIN_USUARIO: 'nando' });
+  const { rows } = await renombrado.pool.query('SELECT usuario FROM usuarios WHERE es_de_entorno');
+  assert.deepEqual(rows.map((f) => f.usuario), ['nando']);
+  const ok = await pedir(renombrado.app, 'POST', '/api/auth/entrar', {
+    cuerpo: { identificador: 'Nando', contrasena: ENTORNO_BASE.SUPERADMIN_CONTRASENA },
+  });
+  assert.equal(ok.estado, 200);
+  assert.equal(ok.cuerpo.rol, 'superadmin');
+});
+
+test('superadmin: no puede recuperar ni cambiar su contraseña desde la app', async () => {
+  const s = await servidorDePrueba('superadmin_limites');
+  abiertos.push(s);
+  const entrar = await pedir(s.app, 'POST', '/api/auth/entrar', {
+    cuerpo: { identificador: 'superadmin', contrasena: ENTORNO_BASE.SUPERADMIN_CONTRASENA },
+  });
+  const cambio = await pedir(s.app, 'POST', '/api/auth/cambia-contrasena', {
+    cookie: entrar.cookie, cuerpo: { actual: ENTORNO_BASE.SUPERADMIN_CONTRASENA, nueva: 'otra-contrasena-larga' },
+  });
+  assert.equal(cambio.estado, 403);
+  const recupera = await pedir(s.app, 'POST', '/api/auth/recupera', { cuerpo: { email: 'superadmin@x.es' } });
+  assert.equal(recupera.estado, 200);
+  const { rows } = await s.pool.query('SELECT count(*)::int AS n FROM correos_pendientes');
+  assert.equal(rows[0].n, 0);
+});
+
+test('superadmin: un reinicio cierra sus sesiones', async () => {
+  const url = await baseLimpia('superadmin_sesiones');
+  const a = await arrancar(url);
+  const entrar = await pedir(a.app, 'POST', '/api/auth/entrar', {
+    cuerpo: { identificador: 'superadmin', contrasena: ENTORNO_BASE.SUPERADMIN_CONTRASENA },
+  });
+  assert.equal((await pedir(a.app, 'GET', '/api/auth/yo', { cookie: entrar.cookie })).estado, 200);
+  const b = await arrancar(url);
+  assert.equal((await pedir(b.app, 'GET', '/api/auth/yo', { cookie: entrar.cookie })).estado, 401);
+});
+
+test('la web: cualquier ruta que no es del API devuelve el index sin caché', async () => {
+  const web = mkdtempSync(join(tmpdir(), 'web-'));
+  writeFileSync(join(web, 'index.html'), '<!doctype html><title>Bambú</title>');
+  const s = await servidorDePrueba('web', {}, { carpetaWeb: web });
+  abiertos.push(s);
+  const pagina = await s.app.inject({ method: 'GET', url: '/acces/estableix/abc' });
+  assert.equal(pagina.statusCode, 200);
+  assert.match(pagina.body, /<title>Bambú<\/title>/);
+  assert.equal(pagina.headers['cache-control'], 'no-cache');
+  const api = await s.app.inject({ method: 'GET', url: '/api/no-existe' });
+  assert.equal(api.statusCode, 404);
+  assert.equal(api.json().error, 'No existeix');
+});

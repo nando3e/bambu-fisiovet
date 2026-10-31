@@ -1,0 +1,32 @@
+{
+  "name": "bambu-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/servidor.ts",
+    "start": "node --experimental-strip-types src/servidor.ts",
+    "test": "tsx --test --test-concurrency=4 test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "comprova-produccio": "node --experimental-strip-types comprova-produccio.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/rate-limit": "^11.2.1",
+    "@fastify/static": "^8.3.0",
+    "fastify": "^5.12.7",
+    "nodemailer": "^10.3.1",
+    "pg": "^8.23.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}

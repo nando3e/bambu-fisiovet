@@ -122,7 +122,7 @@ del correo no enviado.
 
 #### Scenario: Correos apagados
 - **WHEN** se publica un informe para un veterinario con los correos apagados
-- **THEN** tiene la notificación, no se encola correo y la traza dice `rep_correos=false`
+- **THEN** tiene la notificación, no se encola correo y la traza dice `recibe_correos=false`
 
 ### Requirement: Un solo correo hasta que se lea
 La aplicación SHALL omitir el correo a un destinatario que ya tiene una

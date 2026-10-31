@@ -70,7 +70,7 @@ el script `rutes-api.mjs` comprueba que las rutas que llama existen.
 - `001_acceso.sql`: `clinicas` (con `dominio_correo`, `activa`,
   `provisional`), `usuarios` (rol con CHECK; `email` nullable solo si
   `es_de_entorno`; `usuario` para el superadmin; `contrasena_hash` nullable;
-  `verificado_el`, `activo`, `rep_correos`, `privacidad_version`,
+  `verificado_el`, `activo`, `recibe_correos`, `privacidad_version`,
   `privacidad_el`), `sesiones` (token_hash PK), `tokens_correo`,
   `solicitudes_union`. Extensiones `pg_trgm` y `unaccent` para las
   sugerencias de clínica.
@@ -131,7 +131,7 @@ provisionales de otra persona. Devuelven nombre y población, nunca usuarios.
 - `publicar.ts`: `publicarEvento(cliente, { tipo, casoId, actorId, datos })`.
   Inserta el evento, lee la fila de la matriz y el correo del centro, resuelve
   destinatarios con `destinatarios.ts` (puro), inserta notificaciones y encola
-  correos aplicando `rep_correos` y la regla anti-ruido. Devuelve un resumen
+  correos aplicando `recibe_correos` y la regla anti-ruido. Devuelve un resumen
   para los tests.
 - `cola.ts`: `iniciarCola(deps)` con temporizador de 15 s y `despertar()`.
   Lote: `SELECT … FOR UPDATE SKIP LOCKED LIMIT 20` dentro de una transacción
