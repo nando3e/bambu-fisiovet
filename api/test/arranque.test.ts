@@ -111,3 +111,32 @@ test('la web: cualquier ruta que no es del API devuelve el index sin caché', as
   assert.equal(viejo.statusCode, 404);
   assert.doesNotMatch(viejo.body, /<title>/);
 });
+
+test('JSON: un cuerpo que no es UTF-8 → 400 y no se guarda; en UTF-8 llega intacto', async () => {
+  const s = await servidorDePrueba('utf8');
+  abiertos.push(s);
+  const cuerpo = (email: string) => ({
+    nombre: 'Marta', apellidos: 'Puig', email, telefono: '600123456',
+    clinica: { nombre: 'Clínica Sant Roc' }, privacidad: true,
+  });
+  // «í» en latin-1 (0xED), como lo manda curl desde una consola de Windows.
+  const latin1 = Buffer.from(JSON.stringify(cuerpo('latin1@x.vet')), 'latin1');
+  const mal = await s.app.inject({
+    method: 'POST', url: '/api/auth/registro', headers: { 'content-type': 'application/json' }, payload: latin1,
+  });
+  assert.equal(mal.statusCode, 400);
+  assert.match(mal.json().error, /UTF-8/);
+
+  const bien = await s.app.inject({
+    method: 'POST', url: '/api/auth/registro', headers: { 'content-type': 'application/json; charset=utf-8' },
+    payload: Buffer.from(JSON.stringify(cuerpo('utf8@x.vet')), 'utf8'),
+  });
+  assert.equal(bien.statusCode, 200);
+  const { rows } = await s.pool.query('SELECT nombre FROM clinicas ORDER BY id');
+  assert.deepEqual(rows.map((r) => r.nombre), ['Clínica Sant Roc']);
+
+  const roto = await s.app.inject({
+    method: 'POST', url: '/api/auth/entrar', headers: { 'content-type': 'application/json' }, payload: '{"identificador":',
+  });
+  assert.equal(roto.statusCode, 400);
+});

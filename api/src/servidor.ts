@@ -20,6 +20,7 @@ import { crearCola } from './avisos/cola.ts';
 import { canalSmtp, type CanalCorreo } from './correo/transporte.ts';
 import { aplicarSuperadmin } from './superadmin.ts';
 import { registrarRutas } from './rutas/index.ts';
+import { ErrorHttp } from './errores.ts';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 
@@ -53,6 +54,31 @@ export async function construirServidor(entorno: NodeJS.ProcessEnv = process.env
   app.addHook('onClose', async () => {
     cola.detener();
     await pool.end();
+  });
+
+  // JSON en UTF-8 estricto. El parser de serie decodifica con sustitución:
+  // un cuerpo en latin-1 (curl en Windows) guardaba «Cl�nica» sin avisar. Ahora
+  // un cuerpo que no es UTF-8 válido es un 400 y no llega a la base.
+  const utf8Estricto = new TextDecoder('utf-8', { fatal: true });
+  app.removeContentTypeParser('application/json');
+  app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (_peticion, cuerpo, hecho) => {
+    let texto: string;
+    try {
+      texto = utf8Estricto.decode(cuerpo as Buffer);
+    } catch {
+      hecho(new ErrorHttp(400, 'El cos de la petició no està codificat en UTF-8'), undefined);
+      return;
+    }
+    if (texto.trim() === '') {
+      hecho(null, {});
+      return;
+    }
+    try {
+      // Sin claves __proto__ ni constructor: nada de envenenar prototipos.
+      hecho(null, JSON.parse(texto, (clave, valor) => (clave === '__proto__' || clave === 'constructor' ? undefined : valor)));
+    } catch {
+      hecho(new ErrorHttp(400, 'El cos de la petició no és un JSON vàlid'), undefined);
+    }
   });
 
   await app.register(cookie, { secret: config.SECRETO_SESION });
