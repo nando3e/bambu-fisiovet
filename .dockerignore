@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/dev-dist
+**/.env
+**/.env.*
+!.env.example
+**/datos
+**/datos-test
+.git
+.claude
+docs
+openspec
+**/*.log

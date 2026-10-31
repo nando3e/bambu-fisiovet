@@ -43,6 +43,11 @@ export const ESQUEMAS = {
   retencion: z.object({
     audio_dias: z.coerce.number().int().min(1).max(365).default(30),
   }),
+  // Nombre del fichero subido para cada foto de la web; vacío = la de serie.
+  imagenes_web: z.object({
+    portada: z.string().default(''),
+    instalaciones: z.string().default(''),
+  }),
   correo_servidor: z.object({
     host: z.string().trim().max(200).default(''),
     puerto: z.coerce.number().int().min(1).max(65535).default(587),

@@ -76,7 +76,8 @@ Los destinatarios de cada evento SHALL calcularse con una función pura a
 partir del caso, los usuarios activos y quién actúa, y nunca incluyen a quien
 provocó el evento. Audiencia `bambu`: el fisio responsable del caso si lo hay;
 si no, todos los usuarios `bambu` activos (en `derivacion.enviada` y los
-`usuario.*`, siempre todos). Audiencia `derivador`: el veterinario que derivó
+`usuario.*`, siempre todos). El superadmin cuenta como usuario de Bambú para la
+campana; como no tiene correo, nunca recibe correos. Audiencia `derivador`: el veterinario que derivó
 y los compañeros de su clínica que hayan escrito en el hilo. Audiencia
 `ambas`: el lado contrario al de quien actúa. En `usuario.solicita_union` son
 los veterinarios activos de la clínica destino y los usuarios `bambu`.
@@ -88,6 +89,10 @@ los veterinarios activos de la clínica destino y los usuarios `bambu`.
 #### Scenario: Escribe Bambú
 - **WHEN** un fisio escribe en el hilo
 - **THEN** la notificación va al veterinario derivador y a los compañeros que han participado, no al fisio
+
+#### Scenario: El superadmin ve la campana
+- **WHEN** se da de alta un veterinario y en Bambú solo existe el superadmin
+- **THEN** el superadmin tiene la notificación `usuario.derivador_alta`
 
 #### Scenario: Caso sin fisio asignado
 - **WHEN** llega un mensaje del veterinario en un caso sin fisio responsable

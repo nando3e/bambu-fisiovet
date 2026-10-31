@@ -43,9 +43,12 @@ _Ninguna._
 
 - Migración `007_informes.sql` (`transcripciones`, `propuestas_informe`,
   `informes`).
-- Dependencias `@anthropic-ai/sdk` y `openai`. Variables `PROVEEDOR_LLM`,
-  `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MODELO_INFORME` (por defecto
-  `claude-sonnet-5-5`) y `MODELO_TRANSCRIPCION`.
+- Dependencias `@anthropic-ai/sdk` y `openai`. **Claves de Anthropic y OpenAI
+  configurables desde el panel** (solo superadmin, cifradas con
+  `CLAVE_CIFRADO`, nunca devueltas, botón de prueba; decisión D16 del
+  cuaderno), con `ANTHROPIC_API_KEY` y `OPENAI_API_KEY` del entorno como
+  respaldo. Modelos (`MODELO_INFORME`, por defecto `claude-sonnet-5-5`, y
+  `MODELO_TRANSCRIPCION`) también editables en el panel.
 - Volumen `/datos/audios`.
 - Rutas `/api/casos/:id/transcripciones`, `/api/casos/:id/propuestas-informe`,
   `/api/propuestas-informe/:id/*`, `/api/casos/:id/informes` e

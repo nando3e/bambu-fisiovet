@@ -1,23 +1,78 @@
-# Postgres para desarrollo y tests en local. Credenciales de prueba, solo para
-# esta máquina: producción usa docker-compose.dokploy.yml con las suyas.
+# Producción en Dokploy: app + Postgres PROPIO del proyecto (cuaderno D11,
+# SEPARACION-SERVICIOS-DESPLIEGUE.md). El proyecto es una unidad: se levanta y
+# se retira entero, sin compartir red, volúmenes ni credenciales con nadie.
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: bambu-postgres-local
-    restart: unless-stopped
+    # El nombre del contenedor es el host de la base: con prefijo, porque en
+    # `dokploy-network` el nombre `postgres` ya resuelve a la base de otro
+    # proyecto (pasó en nosolodulce y presus-rius).
+    container_name: bambu-postgres
+    restart: always
     environment:
-      POSTGRES_USER: bambu
-      POSTGRES_PASSWORD: bambu_local
-      POSTGRES_DB: bambu
-    ports:
-      - "5438:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-bambu_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?hace falta POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-bambu_app}
+      TZ: Europe/Madrid
     volumes:
-      - bambu_datos_local:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bambu"]
-      interval: 5s
-      timeout: 3s
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-bambu_admin} -d ${POSTGRES_DB:-bambu_app}']
+      interval: 10s
+      timeout: 5s
       retries: 10
+    # Solo en la red interna: la base no se publica ni entra en dokploy-network.
+    networks:
+      - interna
+
+  # El nombre del servicio es alias DNS en todas sus redes, también en
+  # dokploy-network (compartida): con prefijo, para no sumar otro `app` allí.
+  bambu-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bambu-fisiovet:latest
+    container_name: bambu-app
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-bambu_admin}:${POSTGRES_PASSWORD}@bambu-postgres:5432/${POSTGRES_DB:-bambu_app}
+      SECRETO_SESION: ${SECRETO_SESION:?hace falta SECRETO_SESION}
+      CLAVE_CIFRADO: ${CLAVE_CIFRADO:?hace falta CLAVE_CIFRADO}
+      URL_PUBLICA: https://${APP_HOST:?hace falta APP_HOST}
+      # Cuenta de servicio, contraseña en claro (decisión de Nando, D15).
+      SUPERADMIN_USUARIO: ${SUPERADMIN_USUARIO:-superadmin}
+      SUPERADMIN_CONTRASENA: ${SUPERADMIN_CONTRASENA:?hace falta SUPERADMIN_CONTRASENA}
+      # true = no sale ningún correo aunque el panel tenga el SMTP configurado.
+      CORREO_DRY_RUN: ${CORREO_DRY_RUN:-true}
+      COOKIE_SEGURA: 'true'
+      RUTA_DATOS: /datos
+      PUERTO_API: '8105'
+      NIVEL_LOG: ${NIVEL_LOG:-info}
+      TZ: Europe/Madrid
+    volumes:
+      - datos:/datos
+    networks:
+      - interna
+      - dokploy-network
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      - traefik.http.routers.bambu.rule=Host(`${APP_HOST:?hace falta APP_HOST}`)
+      - traefik.http.routers.bambu.entrypoints=websecure
+      - traefik.http.routers.bambu.tls.certresolver=letsencrypt
+      - traefik.http.services.bambu.loadbalancer.server.port=8105
 
 volumes:
-  bambu_datos_local:
+  pgdata:
+    name: bambu-postgres-data
+  datos:
+    name: bambu-datos
+
+networks:
+  interna:
+    name: bambu-internal
+  dokploy-network:
+    external: true

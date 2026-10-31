@@ -127,3 +127,55 @@ test('sin servidor completo, el canal omite el envío con su motivo', async () =
   assert.equal(avisos.cuerpo.smtp_configurado, false);
   assert.equal(avisos.cuerpo.matriz.length, 17);
 });
+
+// --- Fotos de la web ---
+
+function multipart(nombre: string, datos: Buffer, tipo = 'image/png') {
+  const limite = '----bambu' + Math.random().toString(16).slice(2);
+  const cuerpo = Buffer.concat([
+    Buffer.from(`--${limite}\r\nContent-Disposition: form-data; name="imagen"; filename="${nombre}"\r\nContent-Type: ${tipo}\r\n\r\n`),
+    datos,
+    Buffer.from(`\r\n--${limite}--\r\n`),
+  ]);
+  return { cuerpo, tipo: `multipart/form-data; boundary=${limite}` };
+}
+
+const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64, 1)]);
+
+async function subir(cookie: string, hueco: string, nombre: string, datos: Buffer) {
+  const m = multipart(nombre, datos);
+  return s.app.inject({
+    method: 'POST', url: `/api/configuracion/imagenes/${hueco}`,
+    headers: { cookie, 'content-type': m.tipo }, payload: m.cuerpo,
+  });
+}
+
+test('fotos de la web: una PNG se guarda y se sirve; restaurar vuelve a la de serie', async () => {
+  const r = await subir(fisio, 'portada', 'foto.png', PNG);
+  assert.equal(r.statusCode, 200);
+  const url = r.json().url as string;
+  assert.match(url, /^\/api\/publico\/imagenes\/portada-[a-f0-9]{16}\.png$/);
+  const publicas = await pedir(s.app, 'GET', '/api/publico/imagenes');
+  assert.deepEqual(publicas.cuerpo, { portada: url, instalaciones: null });
+  const imagen = await s.app.inject({ method: 'GET', url });
+  assert.equal(imagen.statusCode, 200);
+  assert.equal(imagen.headers['content-type'], 'image/png');
+  assert.match(String(imagen.headers['cache-control']), /immutable/);
+
+  await pedir(s.app, 'POST', '/api/configuracion/imagenes/portada/restaura', { cookie: fisio });
+  assert.equal((await pedir(s.app, 'GET', '/api/publico/imagenes')).cuerpo.portada, null);
+});
+
+test('fotos de la web: un ejecutable con extensión .png → 400', async () => {
+  const exe = Buffer.concat([Buffer.from('MZ'), Buffer.alloc(64)]);
+  const r = await subir(fisio, 'portada', 'foto.png', exe);
+  assert.equal(r.statusCode, 400);
+});
+
+test('fotos de la web: un derivador no sube; un hueco inventado → 404; nada de ../', async () => {
+  const vet = await veterinarioVerificado(s);
+  assert.equal((await subir(vet.cookie, 'portada', 'foto.png', PNG)).statusCode, 403);
+  assert.equal((await subir(fisio, 'fondo', 'foto.png', PNG)).statusCode, 404);
+  const fuera = await s.app.inject({ method: 'GET', url: '/api/publico/imagenes/..%2F..%2F.env' });
+  assert.equal(fuera.statusCode, 404);
+});

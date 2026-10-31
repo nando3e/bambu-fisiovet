@@ -1,0 +1,606 @@
+/* La landing pública. Reproduce el aspecto de la demo de referencia (mismas
+   proporciones, paleta y tipografía) con CSS propio, y con una sola puerta de
+   entrada: «Deriva un cas» en la cabecera y en el hero. */
+
+.web {
+  background: var(--papel);
+}
+.web h1 {
+  font-size: clamp(3rem, 7.4vw, 6.8rem);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1.04;
+}
+.web h2 {
+  font-size: clamp(2.2rem, 4.8vw, 4.4rem);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1.06;
+}
+.web p {
+  color: var(--texto-suave);
+  line-height: 1.65;
+}
+
+/* Cabecera fija */
+.web-cabecera {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: 84px;
+  padding: 0 6vw;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 253, 248, 0.92);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--linea);
+}
+.web-cabecera .marca img {
+  width: 50px;
+  height: 50px;
+}
+.web-menu {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.web-menu > a:not(.boton):hover {
+  color: var(--verde);
+}
+.web-menu .boton {
+  min-height: 44px;
+}
+.web-hamburguesa {
+  display: none;
+}
+
+/* Hero */
+.web-hero {
+  position: relative;
+  min-height: calc(100dvh - 84px);
+  padding: 9vh 7vw 7vh;
+  display: grid;
+  grid-template-columns: 1.08fr 0.92fr;
+  align-items: center;
+  gap: 4vw;
+  overflow: hidden;
+  background: var(--crema);
+}
+.web-hero::before {
+  content: '';
+  position: absolute;
+  width: 48vw;
+  height: 48vw;
+  border: 1px solid rgba(101, 125, 96, 0.15);
+  border-radius: 50%;
+  right: -12vw;
+  top: -25vw;
+}
+.web-hero-texto {
+  position: relative;
+  z-index: 2;
+  max-width: 760px;
+}
+.web-hero h1 em {
+  font-style: normal;
+  color: var(--verde);
+  display: block;
+}
+.web-hero-texto > p {
+  max-width: 500px;
+  font-size: 1.1rem;
+  margin: 26px 0 30px;
+}
+.web-hero-acciones {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.web-hero-arte {
+  position: relative;
+  min-height: 520px;
+  display: grid;
+  place-items: center;
+}
+.web-hero-disco {
+  position: absolute;
+  inset: 5% 4% 3% 2%;
+  border-radius: 48% 48% 42% 42%;
+  background: linear-gradient(145deg, #c9d0b9, #e7d5bd);
+  box-shadow: var(--sombra);
+  transform: rotate(2deg);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.web-hero-disco img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  mix-blend-mode: multiply;
+  opacity: 0.9;
+}
+.web-hero-disco::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, rgba(49, 74, 54, 0.3), transparent 55%);
+}
+.web-sello {
+  position: absolute;
+  z-index: 3;
+  right: 0;
+  bottom: 7%;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: var(--papel);
+  display: grid;
+  place-items: center;
+  text-align: center;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  padding: 18px;
+  box-shadow: var(--sombra);
+  transform: rotate(8deg);
+  color: var(--tinta);
+}
+.web-sello strong {
+  font: 700 1.3rem var(--fuente-titulo);
+  color: var(--verde);
+  display: block;
+}
+
+/* Cinta */
+.web-cinta {
+  background: var(--verde-oscuro);
+  color: var(--sobre-oscuro);
+  padding: 16px 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font: 600 0.8rem var(--fuente-titulo);
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+.web-cinta-pista {
+  display: flex;
+  width: max-content;
+  animation: cinta 28s linear infinite;
+}
+.web-cinta-pista span {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  padding-right: 30px;
+}
+.web-cinta-pista svg {
+  color: var(--melocoton);
+}
+@keyframes cinta {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Secciones */
+.web-seccion {
+  padding: 110px 7vw;
+}
+.web-seccion-cabeza {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 40px;
+  margin-bottom: 50px;
+}
+.web-seccion-cabeza > div {
+  max-width: 700px;
+}
+.web-seccion-cabeza p {
+  max-width: 380px;
+}
+.web-servicios {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+.web-servicio {
+  min-height: 320px;
+  border-radius: var(--radio);
+  padding: 32px;
+  background: var(--hoja);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: transform 0.35s;
+}
+.web-servicio:nth-child(2) {
+  background: #f1e3d3;
+}
+.web-servicio:nth-child(3) {
+  background: #e9e4dc;
+}
+.web-servicio:hover {
+  transform: translateY(-6px);
+}
+.web-servicio .numero {
+  font-size: 0.78rem;
+  color: var(--verde-oscuro);
+  letter-spacing: 0.14em;
+  font-weight: 700;
+}
+.web-servicio svg {
+  color: var(--verde-oscuro);
+  margin: 26px 0;
+}
+.web-servicio h3 {
+  font-size: 1.7rem;
+  max-width: 260px;
+}
+
+/* Cómo funciona */
+.web-pasos {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  counter-reset: paso;
+}
+.web-paso {
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  padding: 30px;
+}
+.web-paso .icono-paso {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--crema);
+  color: var(--verde-oscuro);
+  display: grid;
+  place-items: center;
+  margin-bottom: 20px;
+}
+.web-paso h3 {
+  font-size: 1.35rem;
+}
+.web-paso h3::before {
+  counter-increment: paso;
+  content: counter(paso, decimal-leading-zero) '  ';
+  color: var(--verde);
+  font-size: 0.9rem;
+  letter-spacing: 0.1em;
+}
+
+/* Instalaciones */
+.web-partido {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8vw;
+  align-items: center;
+}
+.web-marco {
+  position: relative;
+  min-height: 480px;
+  border-radius: 220px 220px 24px 24px;
+  background: linear-gradient(145deg, #d8d9c7, #c0b29c);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.web-marco img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.web-nota {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  background: var(--crema);
+  border-radius: 20px;
+  padding: 22px;
+  max-width: 220px;
+  box-shadow: var(--sombra);
+  font: 600 1rem var(--fuente-titulo);
+}
+.web-nota small {
+  display: block;
+  font: 400 0.85rem var(--fuente-texto);
+  color: var(--texto-suave);
+  margin-top: 6px;
+}
+.web-checks {
+  list-style: none;
+  padding: 0;
+  margin: 26px 0;
+}
+.web-checks li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--linea);
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.web-checks svg {
+  color: var(--verde);
+  flex: none;
+}
+
+/* Banda de la filosofía */
+.web-banda {
+  padding: 95px 7vw;
+  background: var(--verde);
+  color: var(--crema);
+  text-align: center;
+}
+.web-banda h2 {
+  max-width: 980px;
+  margin: 0 auto 22px;
+  color: var(--crema);
+  font-size: clamp(1.9rem, 4.4vw, 4.2rem);
+}
+.web-banda p {
+  color: #eef1e8;
+}
+.web-banda .antetitulo {
+  justify-content: center;
+  color: #f4e7d6;
+}
+
+/* Sobre nosotros */
+.web-nosotros {
+  background: var(--arena);
+  border-radius: 36px;
+  padding: 60px;
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 6vw;
+  align-items: center;
+}
+.web-nosotros-logo {
+  width: min(100%, 280px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #fffaf0;
+  display: grid;
+  place-items: center;
+}
+.web-nosotros-logo img {
+  width: 92%;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+
+/* Contacto */
+.web-contacto {
+  padding: 80px 7vw;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 50px;
+  align-items: center;
+  background: #e9eee4;
+}
+.web-enlaces {
+  display: grid;
+  gap: 12px;
+}
+.web-enlace {
+  background: var(--papel);
+  border: 1px solid var(--linea);
+  padding: 18px 22px;
+  border-radius: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  align-items: center;
+}
+.web-enlace small {
+  display: block;
+  color: var(--texto-suave);
+}
+.web-enlace svg {
+  color: var(--verde-oscuro);
+  flex: none;
+}
+
+/* Pie */
+.web-pie {
+  background: var(--verde-profundo);
+  color: var(--crema);
+  padding: 70px 7vw 25px;
+}
+.web-pie-principal {
+  display: grid;
+  grid-template-columns: 1.5fr 0.7fr 1fr;
+  gap: 8vw;
+  padding-bottom: 55px;
+}
+.web-pie .marca span {
+  color: var(--crema);
+}
+.web-pie .marca img {
+  background: var(--crema);
+}
+.web-pie p {
+  color: #c5d0c3;
+  max-width: 320px;
+  margin-top: 18px;
+}
+.web-pie h3 {
+  font-size: 1rem;
+  letter-spacing: 0;
+  color: #e3cfb4;
+  margin-bottom: 18px;
+}
+.web-pie-columna {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  color: #dce3d8;
+  font-size: 0.92rem;
+}
+.web-pie-base {
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  padding-top: 22px;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: #c2cdc1;
+}
+
+/* Aparición al hacer scroll (respeta prefers-reduced-motion en base.css) */
+.aparece {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.aparece.visible {
+  opacity: 1;
+  transform: none;
+}
+.retraso-1 {
+  transition-delay: 0.12s;
+}
+.retraso-2 {
+  transition-delay: 0.24s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .aparece {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .web-hero {
+    grid-template-columns: 1fr;
+    padding-top: 64px;
+  }
+  .web-hero-arte {
+    min-height: 400px;
+    max-width: 560px;
+    width: 100%;
+    margin: auto;
+  }
+  .web-servicios,
+  .web-pasos {
+    grid-template-columns: 1fr 1fr;
+  }
+  .web-servicio:last-child,
+  .web-paso:last-child {
+    grid-column: 1 / -1;
+  }
+  .web-nosotros {
+    padding: 40px;
+    grid-template-columns: 0.7fr 1.3fr;
+  }
+  .web-pie-principal {
+    gap: 4vw;
+  }
+}
+
+@media (max-width: 680px) {
+  .web-cabecera {
+    height: 72px;
+    padding: 0 5vw;
+  }
+  .web-cabecera .marca img {
+    width: 42px;
+    height: 42px;
+  }
+  .web-hamburguesa {
+    display: inline-grid;
+  }
+  .web-menu {
+    display: none;
+    position: absolute;
+    top: 72px;
+    left: 0;
+    right: 0;
+    background: var(--papel);
+    padding: 20px 5vw 26px;
+    box-shadow: 0 20px 25px rgba(38, 60, 43, 0.07);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .web-menu.abierto {
+    display: flex;
+  }
+  .web-hero {
+    padding: 56px 6vw 40px;
+    min-height: auto;
+    gap: 10px;
+  }
+  .web-hero-arte {
+    min-height: 320px;
+  }
+  .web-sello {
+    width: 108px;
+    height: 108px;
+    font-size: 0.66rem;
+  }
+  .web-sello strong {
+    font-size: 1.05rem;
+  }
+  .web-seccion {
+    padding: 72px 6vw;
+  }
+  .web-seccion-cabeza {
+    display: block;
+    margin-bottom: 32px;
+  }
+  .web-servicios,
+  .web-pasos,
+  .web-partido,
+  .web-contacto {
+    grid-template-columns: 1fr;
+  }
+  .web-servicio,
+  .web-servicio:last-child,
+  .web-paso:last-child {
+    grid-column: auto;
+    min-height: 260px;
+  }
+  .web-paso {
+    min-height: 0;
+  }
+  .web-marco {
+    min-height: 340px;
+  }
+  .web-banda {
+    padding: 66px 6vw;
+  }
+  .web-nosotros {
+    padding: 28px;
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+  .web-nosotros-logo {
+    width: 150px;
+  }
+  .web-contacto {
+    padding: 66px 6vw;
+    gap: 20px;
+  }
+  .web-pie {
+    padding: 52px 6vw 22px;
+  }
+  .web-pie-principal {
+    grid-template-columns: 1fr 1fr;
+    gap: 34px;
+  }
+  .web-pie-principal > div:first-child {
+    grid-column: 1 / -1;
+  }
+}

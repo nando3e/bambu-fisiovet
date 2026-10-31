@@ -13,6 +13,7 @@ web/dev-dist/
 # datos locales (adjuntos, audios, volumen)
 datos/
 api/datos/
+api/datos-test/
 uploads/
 
 # sistema y editores

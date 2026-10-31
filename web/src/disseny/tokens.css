@@ -1,0 +1,58 @@
+/* Tokens de diseño. La paleta y la tipografía salen de la demo de referencia
+   (docs/referencia-demo): verdes del logo sobre crema y papel. Todo color de
+   la interfaz sale de aquí; scripts/contraste.mjs comprueba las parejas que se
+   pintan juntas y scripts/variables-css.mjs que no se use ninguna inexistente.
+   Un solo tema: el modo oscuro está descartado (la marca es crema). */
+
+:root {
+  /* Marca */
+  --verde: #657d60;
+  --verde-oscuro: #344b3b;
+  --verde-profundo: #24392d;
+  --salvia: #a9b69a;
+  --crema: #f8f0df;
+  --papel: #fffdf8;
+  --melocoton: #dfc2ad;
+  --arena: #f0e8d9;
+  --hoja: #edf0e6;
+
+  /* Texto */
+  --tinta: #27372d;
+  --texto-suave: #5b665c;
+  --texto-tenue: #808a80;
+  --sobre-verde: #ffffff;
+  --sobre-oscuro: #f8f0df;
+
+  /* Superficies de la app */
+  --fondo-app: #f4f5ef;
+  --superficie: #ffffff;
+  --superficie-2: #f8f8f3;
+  --linea: #dfe3d8;
+  --linea-fuerte: #b9c1b2;
+
+  /* Estados */
+  --ok: #2f5f35;
+  --ok-fondo: #e7f0e3;
+  --aviso-texto: #7a4f00;
+  --aviso-fondo: #fbf0d9;
+  --alerta: #a3261c;
+  --alerta-fondo: #f9e7e1;
+  --insignia: #c2362b;
+
+  /* Forma */
+  --radio: 26px;
+  --radio-medio: 18px;
+  --radio-control: 12px;
+  --sombra: 0 24px 70px rgba(40, 58, 43, 0.12);
+  --sombra-suave: 0 6px 22px rgba(40, 58, 43, 0.08);
+  --foco: 0 0 0 3px rgba(101, 125, 96, 0.28);
+
+  /* Tipografía (servida desde la app: @fontsource) */
+  --fuente-texto: 'DM Sans Variable', 'DM Sans', system-ui, sans-serif;
+  --fuente-titulo: 'Manrope Variable', 'Manrope', system-ui, sans-serif;
+
+  /* Medidas de la app */
+  --alto-cabecera: 64px;
+  --alto-barra: 64px;
+  --ancho-lateral: 236px;
+}

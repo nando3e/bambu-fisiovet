@@ -94,3 +94,23 @@ llega con el change `informes-por-voz`; este change solo guarda el valor.
 #### Scenario: Fuera de rango
 - **WHEN** se guarda una retención de 0 días
 - **THEN** 400
+
+### Requirement: Fotos de la web desde el panel
+La aplicación SHALL permitir a Bambú cambiar desde Configuració → «Imatges de
+la web» la foto de portada y la de las instalaciones, subiendo un JPG, PNG o
+WebP de hasta 8 MB. El tipo se comprueba por el contenido del fichero, no por
+la extensión. Cada subida se guarda con un nombre aleatorio y se sirve con
+caché inmutable; «Torna a la de serie» vuelve a la foto que trae la web.
+Mientras no se suba ninguna, la web muestra unas fotos de serie.
+
+#### Scenario: Subir la foto de portada
+- **WHEN** Bambú sube una foto PNG de portada
+- **THEN** la web pública la muestra en el hero al recargar
+
+#### Scenario: Ejecutable disfrazado
+- **WHEN** se sube un ejecutable con extensión .png
+- **THEN** 400 y la web sigue con la foto anterior
+
+#### Scenario: Derivador
+- **WHEN** un derivador intenta subir una foto de la web
+- **THEN** 403

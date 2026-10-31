@@ -8,6 +8,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
 import estatico from '@fastify/static';
 
 import { leerConfig } from './config.ts';
@@ -55,6 +56,7 @@ export async function construirServidor(entorno: NodeJS.ProcessEnv = process.env
   });
 
   await app.register(cookie, { secret: config.SECRETO_SESION });
+  await app.register(multipart, { limits: { fileSize: 8 * 1024 * 1024, files: 1 } });
   await registrarRutas(app, { pool, config, cola });
 
   // La web compilada, si está. En desarrollo la sirve Vite con su proxy.
@@ -68,6 +70,12 @@ export async function construirServidor(entorno: NodeJS.ProcessEnv = process.env
     app.setNotFoundHandler((peticion, respuesta) => {
       if (peticion.url.startsWith('/api/') || peticion.url === '/api') {
         return respuesta.code(404).send({ error: 'No existeix' });
+      }
+      // Un fichero que no existe (un .js de un despliegue anterior que pide
+      // una PWA vieja) es un 404, no el index: servir HTML donde el navegador
+      // espera JavaScript deja la página en blanco sin un solo error.
+      if (/\.[a-z0-9]{1,8}$/i.test(peticion.url.split('?')[0]!)) {
+        return respuesta.code(404).type('text/plain; charset=utf-8').send('No existeix');
       }
       return respuesta.type('text/html; charset=utf-8').header('cache-control', 'no-cache').send(indice);
     });

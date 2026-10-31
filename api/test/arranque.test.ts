@@ -105,4 +105,9 @@ test('la web: cualquier ruta que no es del API devuelve el index sin caché', as
   const api = await s.app.inject({ method: 'GET', url: '/api/no-existe' });
   assert.equal(api.statusCode, 404);
   assert.equal(api.json().error, 'No existeix');
+  // Un .js que ya no existe (PWA vieja tras un despliegue): 404, nunca el index
+  // servido como JavaScript, que deja la página en blanco.
+  const viejo = await s.app.inject({ method: 'GET', url: '/assets/index-viejo123.js' });
+  assert.equal(viejo.statusCode, 404);
+  assert.doesNotMatch(viejo.body, /<title>/);
 });

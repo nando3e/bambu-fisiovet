@@ -64,8 +64,10 @@ export async function publicarEvento(bd: Consultable, ev: EventoAPublicar): Prom
   const matriz = filas[0] ?? { notificacion: def.notificacion, correo: def.correo, correo_a: null };
 
   const { rows: equipo } = await bd.query<FilaUsuario>(
+    // El superadmin también es del lado Bambú: recibe la campana (no tiene
+    // correo, así que nunca un correo).
     `SELECT id, rol, nombre, email, recibe_correos FROM usuarios
-     WHERE rol = 'bambu' AND activo AND verificado_el IS NOT NULL ORDER BY id`,
+     WHERE rol IN ('bambu', 'superadmin') AND activo AND verificado_el IS NOT NULL ORDER BY id`,
   );
   const interesados = [...new Set(ev.derivadoresInteresados ?? [])];
   const { rows: derivadores } = interesados.length

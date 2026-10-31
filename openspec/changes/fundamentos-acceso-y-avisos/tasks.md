@@ -23,7 +23,7 @@ corre con otro modelo.
 - [x] 1.4 Soporte de tests: esquema temporal por fichero contra
       `DATABASE_URL_TEST`, `fastify.inject`, canal de correo falso, reloj
       inyectable.
-- [ ] 1.5 `web/` con Vite + React 19 + TS + React Router 7 + vite-plugin-pwa;
+- [x] 1.5 `web/` con Vite + React 19 + TS + React Router 7 + vite-plugin-pwa;
       el API sirve `web/dist` y hace fallback a `index.html` salvo en `/api`.
       Test: `GET /acces` devuelve el HTML de la SPA; `GET /api/no-existe`
       devuelve 404 JSON.
@@ -133,45 +133,55 @@ corre con otro modelo.
 
 ## 6. Web
 
-- [ ] 6.1 `disseny/tokens.css`, `base.css` y `components.css` con la paleta
+- [x] 6.1 `disseny/tokens.css`, `base.css` y `components.css` con la paleta
       y la tipografía de la referencia; fuentes woff2 en `public/fonts`; logo
       recortado en círculo; favicon e iconos PWA generados del logo.
-- [ ] 6.2 Scripts de build (de forestal, adaptados): `sense-emojis`,
-      `contrast`, `variables-css` (usadas frente a definidas),
-      `rutes-absolutes`, `rutes-api` (cada ruta que llama la web existe en el
-      API), `camps-16px`. La build falla si alguno falla. Comprobar cada uno
+- [x] 6.2 Scripts de build (de forestal, adaptados): `sin-emojis`,
+      `contraste`, `variables-css` (usadas frente a definidas),
+      `rutas-absolutas`, `rutas-api` (cada ruta que llama la web existe en el
+      API), `campos-16px`. La build falla si alguno falla. Comprobar cada uno
       metiendo a propósito el fallo que caza.
-- [ ] 6.3 `i18n/va.ts` + `t()` con claves tipadas; `api.ts`; contexto de
+- [x] 6.3 `i18n/va.ts` + `t()` con claves tipadas; `api.ts`; contexto de
       sesión; `App.tsx` con guardas por rol.
-- [ ] 6.4 `Esquelet`, `Cabecera` con logo y `Campana` (sondeo 60 s y al
+- [x] 6.4 `Esquelet`, `Cabecera` con logo y `Campana` (sondeo 60 s y al
       volver a la pestaña, 99+), `ListaNotificaciones`, navegación inferior
       (< 900 px) y lateral (≥ 900 px), `AvisoVersion` de la PWA.
-- [ ] 6.5 Landing (`/`): hero, serveis, instal·lacions, filosofia, «Com
+- [x] 6.5 Landing (`/`): hero, serveis, instal·lacions, filosofia, «Com
       funciona», contacte desde la API; solo dos enlaces a `/acces`
       (cabecera y hero); animaciones de la referencia respetando
       `prefers-reduced-motion`.
-- [ ] 6.6 Acceso: `/acces` (Entra / Crea un compte con sugerencias de
+- [x] 6.6 Acceso: `/acces` (Entra / Crea un compte con sugerencias de
       clínica y «Sol·licita unir-te»), `/acces/recupera`,
       `/acces/estableix/:token`, `/acces/verifica-correu`.
-- [ ] 6.7 Zona común: perfil (datos, contraseña, «Rebre avisos per correu»,
+- [x] 6.7 Zona común: perfil (datos, contraseña, «Rebre avisos per correu»,
       clínica, invitar compañero, solicitudes de unión pendientes para el
       derivador), notificaciones. Inicio provisional del derivador.
-- [ ] 6.8 Zona Bambú: inicio (contador de no leídas) y Configuració con
+- [x] 6.8 Zona Bambú: inicio (contador de no leídas) y Configuració con
       pestañas Equip, Contacte web, Avisos (matriz + cola + aviso de
       dry-run), Servidor de correu (solo superadmin) y Retenció.
-- [ ] 6.9 Recorrido a 390 px y a 1280 px en Chrome con Nando: sin scroll
-      horizontal, campana, navegación, landing.
+- [x] 6.9 Recorrido a 390 px y a 1280 px en Chrome: sin scroll
+      horizontal, campana, navegación, landing. (Hecho por Claude; queda el
+      recorrido con Nando sobre el despliegue.)
+- [x] 6.10 Fotos de la web desde el panel (Configuració → Imatges de la
+      web): portada e instalaciones, JPG/PNG/WebP hasta 8 MB validados por el
+      contenido, nombre aleatorio y caché inmutable; fotos de serie mientras
+      no se suba ninguna. Tests: PNG válida, ejecutable disfrazado → 400,
+      derivador → 403, ruta con ../ → 404.
+- [x] 6.11 Un fichero con extensión que no existe (JS de un despliegue
+      anterior) responde 404, nunca el index: servir HTML como JavaScript deja
+      la página en blanco. Test en arranque.
 
 ## 7. Despliegue y cierre
 
-- [ ] 7.1 `Dockerfile` multi-stage (web build → dependencias de producción
+- [x] 7.1 `Dockerfile` multi-stage (web build → dependencias de producción
       del `package.json` → runtime con `--experimental-strip-types`, `tini`,
       usuario no root, healthcheck), `docker-compose.yml` local con Postgres,
       `.env.example` comentado.
-- [ ] 7.2 `docker-compose.dokploy.yml` con la skill `compose-dokploy`:
-      `bambu-postgres` solo en `bambu-internal`, app en las dos redes,
-      volúmenes `bambu-postgres-data` y `bambu-datos`.
-- [ ] 7.3 Recorrido HTTP con `curl -c` contra el contenedor local: alta →
+- [x] 7.2 `docker-compose.yml` de producción (patrón de la casa, labels de
+      Traefik con `APP_HOST`): `bambu-postgres` solo en `bambu-internal`,
+      `bambu-app` en las dos redes, volúmenes `bambu-postgres-data` y
+      `bambu-datos`. El de desarrollo pasa a `docker-compose.local.yml`.
+- [x] 7.3 Recorrido HTTP con `curl -c` contra el contenedor local: alta →
       correo en dry-run con su enlace en la traza → establecer contraseña →
       `yo` → notificación `usuario.derivador_alta` en la campana de Bambú →
       recuperar → cambiar contraseña revoca la otra sesión.

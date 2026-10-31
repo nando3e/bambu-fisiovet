@@ -46,7 +46,7 @@ competidor; el aspecto visual sale de ella.
   entorno manda sobre el panel (en local, siempre).
 - **Superadmin**: `SUPERADMIN_USUARIO` + `SUPERADMIN_CONTRASENA` en claro en el
   entorno; se compara contra la variable en cada login, sin hash en BD.
-- **Deploy**: Dokploy. Stack = app + **Postgres propio** en la red interna
+- **Deploy**: Dokploy, `docker-compose.yml`. Stack = app + **Postgres propio** en la red interna
   `bambu-internal` (nunca en `dokploy-network`, sin puerto publicado); la app se
   conecta a `bambu-postgres:5432`, nunca a `postgres` a secas. Volumen
   `bambu-datos` → `/datos` para adjuntos y audios.
@@ -104,5 +104,27 @@ competidor; el aspecto visual sale de ella.
 
 ## Comandos
 
-_(Se completan al cerrar el change 1: arranque, tests, build, migraciones,
-semilla, despliegue.)_
+```bash
+# Postgres local (puerto 5438; credenciales de prueba en el propio compose)
+docker compose -f docker-compose.local.yml up -d
+
+# API (api/): copia .env.example a api/.env y pon los valores de desarrollo
+cd api
+npm test                 # node:test contra Postgres real; cada fichero crea su base *_test
+npm run typecheck
+npm run comprova-produccio   # todos los módulos cargan con --experimental-strip-types
+npm run dev              # tsx watch en http://localhost:8105 (sirve web/dist si existe)
+
+# Web (web/)
+cd web
+npm run dev              # Vite en http://localhost:5205 con proxy /api → 8105
+npm run comprueba        # emojis, variables CSS, contraste, rutas, rutas del API, campos 16 px
+npm run build            # comprueba + typecheck + vite build → web/dist
+
+# Imagen de producción (la misma que construye Dokploy)
+docker build -t bambu-fisiovet .
+```
+
+Despliegue: Dokploy, aplicación Compose con `./docker-compose.yml` (app +
+Postgres propio en `bambu-internal`). Un push no despliega: hay que lanzar el
+despliegue (skill `desplegar-dokploy`). Las variables están en `.env.example`.

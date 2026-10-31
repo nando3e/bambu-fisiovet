@@ -203,6 +203,9 @@ export function crearCola(deps: {
   }
 
   function despertar(): void {
+    // Apagada (los tests), la cola solo se mueve cuando la llaman a mano: si
+    // no, una ruta que la despierta compite con la cola del propio test.
+    if (!config.COLA_ACTIVA) return;
     setImmediate(() => {
       procesar().catch((error) => log?.error({ err: error }, 'fallo en la cola de correos'));
     });

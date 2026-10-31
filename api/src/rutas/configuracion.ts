@@ -1,7 +1,11 @@
 // Configuración del panel de Bambú: contacto de la web, avisos (matriz, cola),
 // retención y, solo para el superadmin, el servidor de correo.
+import { randomBytes } from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { esHueco, TAMANO_MAXIMO, tipoDeImagen } from '../ficheros/imagenes-web.ts';
 import { exigirSesion, ROLES_BAMBU, SOLO_SUPERADMIN } from '../auth/permisos.ts';
 import { reintentarCorreo } from '../avisos/cola.ts';
 import { actualizarFilaMatriz, leerMatriz } from '../avisos/matriz.ts';
@@ -149,6 +153,38 @@ export async function rutasConfiguracion(app: FastifyInstance, deps: Deps): Prom
     } finally {
       transporte.close();
     }
+  });
+
+  // --- Fotos de la web pública ---
+  app.post('/configuracion/imagenes/:hueco', async (peticion, respuesta) => {
+    const sesion = await exigirSesion(peticion, respuesta, deps, ROLES_BAMBU);
+    const { hueco } = peticion.params as { hueco: string };
+    if (!esHueco(hueco)) throw noEncontrado();
+    const archivo = await peticion.file({ limits: { fileSize: TAMANO_MAXIMO, files: 1 } });
+    if (!archivo) throw datosIncorrectos('Tria una imatge');
+    const datos = await archivo.toBuffer();
+    const tipo = tipoDeImagen(datos);
+    if (!tipo) throw datosIncorrectos('Només imatges JPG, PNG o WebP');
+    const nombre = `${hueco}-${randomBytes(8).toString('hex')}.${tipo}`;
+    const carpeta = join(resolve(config.RUTA_DATOS), 'web');
+    await mkdir(carpeta, { recursive: true });
+    await writeFile(join(carpeta, nombre), datos);
+    await enTransaccion(pool, async (bd) => {
+      const actual = await leerConfiguracion(bd, 'imagenes_web');
+      await guardarConfiguracion(bd, 'imagenes_web', { ...actual, [hueco]: nombre }, sesion.usuarioId);
+    });
+    return { url: `/api/publico/imagenes/${nombre}` };
+  });
+
+  app.post('/configuracion/imagenes/:hueco/restaura', async (peticion, respuesta) => {
+    const sesion = await exigirSesion(peticion, respuesta, deps, ROLES_BAMBU);
+    const { hueco } = peticion.params as { hueco: string };
+    if (!esHueco(hueco)) throw noEncontrado();
+    await enTransaccion(pool, async (bd) => {
+      const actual = await leerConfiguracion(bd, 'imagenes_web');
+      await guardarConfiguracion(bd, 'imagenes_web', { ...actual, [hueco]: '' }, sesion.usuarioId);
+    });
+    return { url: null };
   });
 
   // --- Claves simples: contacto, avisos (correo del centro), retención ---

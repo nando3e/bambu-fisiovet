@@ -69,7 +69,10 @@ test('correo genérico: pendiente; llega a compañeros y Bambú; un compañero a
   assert.ok(aviso, 'el compañero recibe la solicitud');
   assert.equal(aviso.enlace, '/d/perfil');
   const avisoBambu = await pedir(s.app, 'GET', '/api/notificaciones', { cookie: admin });
-  assert.equal(avisoBambu.estado, 200);
+  assert.ok(
+    avisoBambu.cuerpo.notificaciones.some((n: { tipo: string }) => n.tipo === 'usuario.solicita_union'),
+    'el superadmin, del lado Bambú, recibe la solicitud en la campana',
+  );
 
   const repetida = await pedir(s.app, 'POST', `/api/clinicas/${destino.usuario.clinica.id}/solicitudes-union`, {
     cookie: solicitante.cookie,
