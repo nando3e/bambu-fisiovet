@@ -64,8 +64,9 @@ deciden en `dominio/estados-caso.ts`, sin BD:
 | aceptada, en_tratamiento | abandonada (con motivo) | bambu |
 | en_tratamiento | alta | sistema (informe de alta) o bambu (alta manual) |
 
-Los casos propios nacen en `aceptada`. No hay reapertura: una recaída es un
-caso nuevo enlazado con `caso_anterior_id`. Una transición no permitida MUST
+Los casos que abre Bambú (propios o derivaciones registradas por Bambú) nacen
+en `aceptada`. No hay reapertura: una recaída es un caso nuevo enlazado con
+`caso_anterior_id`. Una transición no permitida MUST
 responder 409 sin cambiar nada. Toda transición deja `historial` y publica su
 evento.
 
@@ -110,10 +111,51 @@ contacto del propietario de los pacientes de su clínica.
 - **WHEN** un fisio cambia el peso de 12,4 a 11,8 kg
 - **THEN** queda en el historial y el veterinario recibe la notificación
 
+### Requirement: Derivación registrada por Bambú
+Cuando una clínica deriva por teléfono o por correo, un usuario de Bambú SHALL
+poder registrar la derivación en su nombre: elige la clínica que la remite
+entre las validadas (o la da de alta en ese momento), y opcionalmente el
+veterinario, entre los usuarios de esa clínica o escrito a mano si no tiene
+cuenta. La derivación nace `aceptada`, con `origen = derivacion`, la clínica
+elegida y `registrado_por` = quien la registra; el consentimiento del
+propietario lo confirma el fisio. Se publica `derivacion.registrada` para el
+veterinario elegido o, si no hay ninguno con cuenta, para los veterinarios
+activos de la clínica.
+
+#### Scenario: Llamada de una clínica con cuenta
+- **WHEN** una fisio registra la derivación que le dicta por teléfono una veterinaria de una clínica validada
+- **THEN** el caso queda `aceptada` en esa clínica, la veterinaria lo ve en su lista y recibe la notificación y el correo
+
+#### Scenario: Clínica que no está en el portal
+- **WHEN** llama una clínica que no existe en el portal
+- **THEN** la fisio la da de alta (validada, sin usuarios) y registra la derivación con el nombre del veterinario escrito a mano
+
+### Requirement: Alta de clínicas por Bambú
+Bambú SHALL poder dar de alta clínicas a mano (nombre, población, dirección,
+teléfono, correo), que nacen validadas y sin usuarios, y marcar o desmarcar
+como validada cualquier clínica. Las clínicas validadas aparecen en las
+sugerencias del alta aunque no tengan usuarios, para que sus veterinarios se
+unan a ellas al registrarse.
+
+#### Scenario: El veterinario se registra después
+- **WHEN** un veterinario de una clínica que Bambú dio de alta se registra en el portal
+- **THEN** la sugerencia le ofrece su clínica y, al unirse, ve las derivaciones que Bambú registró a su nombre
+
+### Requirement: El paciente sigue siendo de su clínica
+Todo caso de un paciente con clínica de origen SHALL quedar ligado a esa
+clínica, lo abra un veterinario o Bambú: el caso guarda quién lo abrió, pero
+la clínica lo ve. Cuando Bambú abre un caso nuevo para un paciente de una
+clínica, se publica `caso.abierto_por_bambu` (notificación, sin correo) para
+los veterinarios interesados.
+
+#### Scenario: Recaída de un paciente derivado
+- **WHEN** el propietario vuelve por su cuenta meses después del alta y Bambú abre un caso nuevo
+- **THEN** el caso queda enlazado al anterior y en la clínica de origen, el veterinario lo ve y recibe la notificación en la campana
+
 ### Requirement: Pacientes propios de Bambú
 Bambú SHALL poder dar de alta pacientes y casos sin derivación (`origen =
-propio`), que nacen aceptados, sin clínica ni derivador, y que nunca ve un
-derivador.
+propio`) para animales que llegan sin veterinario: nacen aceptados, sin
+clínica ni derivador, y nunca los ve un derivador.
 
 #### Scenario: Paciente que llega solo
 - **WHEN** Bambú da de alta un paciente que llega sin veterinario

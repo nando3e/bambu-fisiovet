@@ -26,6 +26,15 @@ nada que seguir, comentar ni informar.
   no está aceptada. Los cambios de ficha publican `paciente.ficha_modificada`.
 - Listas con filtros, «amb novetats» a partir de las notificaciones no leídas,
   y marcar como leído al abrir un caso.
+- **Derivación registrada por Bambú**: cuando una clínica deriva por teléfono
+  o por correo, el fisio la registra en su nombre eligiendo la clínica
+  validada que la remite (y el veterinario, con cuenta o escrito a mano). Nace
+  aceptada y avisa al veterinario.
+- **Alta manual de clínicas** por Bambú, que nacen validadas. Las uniones a
+  clínicas no validadas solo las aprueba Bambú (decisión de Nando tras la
+  revisión del change 1).
+- **El paciente sigue siendo de su clínica**: una recaída que abre Bambú queda
+  ligada a la clínica de origen y el veterinario la ve y recibe el aviso.
 - `fusionarClinica` se amplía para mover también casos y pacientes.
 - Semilla `--demo` para entornos de prueba.
 
@@ -38,16 +47,18 @@ nada que seguir, comentar ni informar.
 
 ### Modified Capabilities
 
-_Ninguna a nivel de requisito: los eventos que publica ya están en el catálogo
-de `avisos`, y la fusión de clínicas de `acceso` ya dice «todo lo de su
-clínica provisional»._
+- `acceso`: sugerencias de clínica (validadas o con alguien verificado) y
+  unión a clínicas no validadas resuelta solo por Bambú.
+- `avisos`: dos eventos nuevos en el catálogo, `derivacion.registrada` y
+  `caso.abierto_por_bambu`.
 
 ## Impact
 
 - Migración `005_casos.sql` (`propietarios`, `pacientes`, `casos`).
 - Rutas `/api/pacientes`, `/api/propietarios`, `/api/casos` y sus transiciones.
-- Plantillas de correo `derivacion-nueva`, `derivacion-resuelta`,
-  `caso-estado` y `caso-asignado`.
+- Sin plantillas de correo nuevas: todos los eventos usan la genérica `aviso`
+  del change 1 (design D5).
+- `clinicas.validada` y `POST /api/clinicas` (Bambú).
 - Pantallas `/d`, `/d/nova`, `/d/casos/:id` (ficha), `/d/pacients`, `/b`,
   `/b/casos`, `/b/casos/:id`, `/b/pacients`, `/b/pacients/:id` y
   `/b/cliniques`.
@@ -61,6 +72,15 @@ clínica provisional»._
 - *(supuesto)* Texto del consentimiento del propietario y su versión inicial.
 - *(supuesto)* El veterinario que cambia de clínica deja sus casos en la
   clínica.
+
+## Decisiones de Nando (31/10)
+
+- Un borrador solo lo ve quien lo escribe.
+- El paciente sigue siendo de su clínica: los casos que abra Bambú para él
+  los ve la clínica, con aviso en la campana (sin correo).
+- Bambú registra derivaciones que llegan por teléfono o correo y da de alta
+  clínicas a mano.
+- Uniones a clínicas no validadas: solo Bambú.
 
 ## Fuera de alcance
 

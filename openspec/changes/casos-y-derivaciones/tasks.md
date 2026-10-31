@@ -64,9 +64,33 @@ corre con otro modelo.
 - [ ] 2.9 Ampliar `fusionarClinica` (design D8). Test de la spec: veterinario
       con dos derivaciones en su clínica provisional aceptado en otra → sus
       compañeros nuevos las ven y la clínica antigua queda sin casos.
+- [ ] 2.12 `POST /clinicas` (B, nace validada) y `validada` en
+      `PATCH /clinicas/:id`. Tests: la clínica creada por Bambú sale en las
+      sugerencias sin tener usuarios; derivador → 403.
+- [ ] 2.13 Derivación registrada por Bambú (design D12). Tests: nace
+      `aceptada` en la clínica elegida con `registrado_por`; el veterinario
+      elegido la ve y recibe `derivacion.registrada` (notificación y correo
+      encolado); sin veterinario con cuenta, avisa a los de la clínica; con
+      `derivador_nombre` y clínica sin usuarios no avisa a nadie y no falla;
+      clínica no validada → 400; un veterinario que se registra después y se
+      une a la clínica la ve.
+- [ ] 2.14 El paciente sigue siendo de su clínica (design D13). Tests:
+      recaída de un paciente derivado abierta por Bambú → misma clínica,
+      enlazada al caso anterior, visible para el veterinario, con
+      `caso.abierto_por_bambu` en su campana y sin correo; paciente propio
+      sin clínica sigue invisible.
+- [ ] 2.15 Catálogo de eventos: `derivacion.registrada` y
+      `caso.abierto_por_bambu` en `eventos.ts` y en el CHECK (005). Test: el
+      test que compara catálogo y CHECK sigue en verde; una base del change 1
+      recibe las filas nuevas de la matriz al arrancar sin tocar las demás.
 - [ ] 2.10 Test transversal: ninguna ruta de `casos`, `pacientes` o
       `propietarios` devuelve datos de otra clínica a un derivador (recorre
       todas las rutas con un caso ajeno y espera 404 o lista vacía).
+- [ ] 2.11 Uniones a clínicas no validadas (design D11): columna
+      `validada` en `005_casos.sql`, Bambú la marca, `decidirUnion` y
+      `resolverSolicitud` la aplican, el aviso solo va a Bambú. Tests: un
+      veterinario de una clínica no validada no aprueba (404) y no recibe el
+      aviso; validada, sí; la unión por dominio sigue siendo automática.
 
 ## 3. Web
 
@@ -83,7 +107,10 @@ corre con otro modelo.
       acciones de Bambú (acepta con fisio, rebutja, abandona, alta manual,
       reassigna); marca como leído al abrir.
 - [ ] 3.5 `Pacientes` (`/d/pacients`, `/b/pacients`, `/b/pacients/:id` con
-      casos e historial) y `NouCasPropi` (`/b/casos/nou`).
+      casos e historial) y `NouCas` (`/b/casos/nou`) con sus dos modos:
+      derivació rebuda (clínica validada, «+ Nova clínica», veterinari) i
+      pacient propi.
+- [ ] 3.8 `/b/cliniques`: alta manual de clínica y marca «Validada».
 - [ ] 3.6 Inici de Bambú con «Noves derivacions»; Configuració → Textos
       legals (consentimiento).
 - [ ] 3.7 `npm run build` en verde (las seis comprobaciones) y recorrido en

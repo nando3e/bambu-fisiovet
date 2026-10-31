@@ -50,6 +50,8 @@ pacientes     id, nombre, especie CHECK (perro|gato|conejo|ave|otro), especie_ot
               propietario_id → propietarios, clinica_origen_id → clinicas NULL,
               creado_por → usuarios, creado, actualizado
 casos         id, paciente_id, origen CHECK (derivacion|propio), clinica_id NULL, derivador_id NULL,
+              derivador_nombre (veterinario sin cuenta, derivaciones registradas por Bambú),
+              registrado_por → usuarios NULL (el fisio que registró la derivación), creado_por,
               estado CHECK (borrador|enviada|aceptada|en_tratamiento|alta|rechazada|abandonada),
               motivo, historia_clinica, tratamiento_actual, objetivos, notas_derivador,
               fisio_responsable_id NULL, motivo_cierre (rechazo o abandono),
@@ -58,8 +60,11 @@ casos         id, paciente_id, origen CHECK (derivacion|propio), clinica_id NULL
               ultima_actividad DEFAULT now(), creado, actualizado
 ```
 
-- CHECK nombrado `casos_origen_check`: `origen='derivacion'` ⇒ `clinica_id` y
-  `derivador_id` NOT NULL; `origen='propio'` ⇒ ambos NULL.
+- CHECK nombrado `casos_origen_check`: `origen='derivacion'` ⇒ `clinica_id`
+  NOT NULL y (`derivador_id` NOT NULL o `registrado_por` NOT NULL);
+  `origen='propio'` ⇒ `derivador_id` NULL. Un caso propio puede tener
+  clínica: es el de un paciente de esa clínica que abre Bambú (D13).
+- `clinicas.validada boolean NOT NULL DEFAULT false` (D11).
 - CHECK `pacientes_especie_otra_check`: `especie='otro'` ⇒ `especie_otra`
   no vacía.
 - Índices: `casos (clinica_id, ultima_actividad DESC)`,
@@ -87,8 +92,7 @@ ambitoPaciente(sesion, alias = 'p', n = 1) → { sql, params }
   para Bambú).
 - Derivador, caso: `c.clinica_id = $n AND (c.estado <> 'borrador' OR c.derivador_id = $n+1)`.
   **Un borrador solo lo ve quien lo escribe**, aunque el resto del caso sea de
-  toda la clínica. *(A validar por Nando: es trabajo a medias que nadie más
-  debería tocar.)*
+  toda la clínica (decisión de Nando).
 - Derivador, paciente: `p.clinica_origen_id = $n OR EXISTS (casos de su
   clínica de ese paciente)`. El propietario se ve a través del paciente.
 - Todas las consultas por id hacen `WHERE id = $x AND <ámbito>`; sin fila →
@@ -136,7 +140,10 @@ si el caso existe como si no, así que no filtra nada.
 | `PATCH /pacientes/:id` | B siempre · D solo si todos sus casos están en borrador/enviada | |
 | `PATCH /propietarios/:id` | B siempre · D contacto (`telefono`, `email`) de los de su clínica | |
 | `GET /pacientes/:id/historial` | B | |
-| `GET /consentimiento` | D | texto y versión vigentes |
+| `GET /consentimiento` | * | texto y versión vigentes |
+| `POST /casos` con `modo: 'registrada'` | B | derivación por teléfono o correo (D12) |
+| `POST /clinicas` | B | alta manual, nace validada |
+| `PATCH /clinicas/:id` | B | admite `validada` |
 
 `GET /casos/:id` no marca nada como leído: un GET sin efectos. La web llama a
 `leido` al abrir la ficha. Los textos de error van en valenciano, como en el
@@ -155,6 +162,13 @@ change 1.
 - Cada transición publica su evento con `derivadoresInteresados =
   [derivador_id]` y `fisioResponsableId`. `acepta` con fisio publica dos
   eventos: `derivacion.aceptada` y `caso.fisio_asignado`.
+- Eventos nuevos en el catálogo (y en el CHECK de `eventos.tipo`, ampliado en
+  la 005 con `DROP CONSTRAINT IF EXISTS … ADD CONSTRAINT`):
+  `derivacion.registrada` (derivador; notificación y correo) y
+  `caso.abierto_por_bambu` (derivador; notificación, sin correo).
+  `sembrarMatriz` ya inserta sin pisar, así que una base existente recibe sus
+  filas al arrancar. Destinatarios: el derivador del caso si tiene cuenta; si
+  no, los veterinarios activos de la clínica.
 - Plantillas de correo: **ninguna nueva**. El catálogo del change 1 ya resuelve
   todos estos eventos con la plantilla genérica `aviso` (título, cuerpo y
   enlace por evento). La propuesta listaba cuatro plantillas específicas que
@@ -206,7 +220,10 @@ web/src/pantallas/casos/
   NovaDerivacion.tsx   asistente de tres pasos; POST al terminar el paso 1, PATCH con autoguardado
                        (800 ms sin teclear) y aviso «Desat»; «Envia» en el paso 3
   Pacientes.tsx        /d/pacients, /b/pacients y /b/pacients/:id (casos, e historial para Bambú)
-  NouCasPropi.tsx      /b/casos/nou: paciente nuevo o existente, opción «recaiguda de»
+  NouCas.tsx           /b/casos/nou, con dos modos: «Derivació rebuda» (clínica validada con
+                       buscador y «+ Nova clínica» en una hoja, veterinari de la clínica o escrit
+                       a mà, mateixos passos que el veterinari) i «Pacient propi» (paciente nuevo
+                       o existente, opción «recaiguda de»)
 web/src/componentes/   ChipEstado.tsx · Hoja.tsx (modal inferior en móvil) · SelectorFisio.tsx
 ```
 
@@ -228,6 +245,50 @@ web/src/componentes/   ChipEstado.tsx · Hoja.tsx (modal inferior en móvil) · 
 veterinarios, 2 fisios, 15 casos repartidos por todos los estados y un
 paciente propio con recaída. Se niega si `URL_PUBLICA` es la de producción o
 si ya hay casos: nunca pisa datos.
+
+### D11. Uniones a clínicas no validadas: las aprueba Bambú
+
+Decisión de Nando (revisión del change 1). Columna `clinicas.validada`
+(boolean, `false` por defecto, también en las existentes) que Bambú marca en
+`/b/cliniques` (`PATCH /clinicas/:id`, con `historial`). Las clínicas que da
+de alta Bambú (`POST /clinicas`) nacen validadas.
+
+- Mientras la clínica destino no está validada, una solicitud de unión
+  pendiente solo la puede aprobar o rechazar Bambú; un veterinario de esa
+  clínica recibe 404 al intentarlo, y `usuario.solicita_union` solo avisa al
+  lado Bambú.
+- La unión automática por dominio de correo se mantiene: para que coincida
+  hay que haber verificado un buzón de ese dominio.
+- `decidirUnion` (puro) recibe `destinoValidado` y devuelve quién puede
+  resolver; `resolverSolicitud` lo aplica.
+- Sugerencias del alta: clínicas activas validadas o con algún usuario activo
+  y verificado. Así un veterinario encuentra la clínica que Bambú dio de alta
+  al registrar sus derivaciones por teléfono.
+
+### D12. Derivación registrada por Bambú
+
+`POST /casos` de Bambú con `modo: 'registrada'`, `clinica_id` (activa y
+validada; si no está, la hoja «Nova clínica» la crea antes con
+`POST /clinicas`), y `derivador_id` (un veterinario activo de esa clínica) o
+`derivador_nombre` (texto). Mismos datos de paciente, propietario y motivo
+que el asistente del veterinario, validados con `validacion-derivacion.ts`;
+el consentimiento lo marca el fisio («El propietari ha donat el
+consentiment»). Nace `aceptada` con `resuelto_el = enviado_el = now()`,
+`registrado_por` = sesión, fisio responsable opcional, y el paciente queda con
+`clinica_origen_id` = esa clínica. Publica `derivacion.registrada` (y
+`caso.fisio_asignado` si se asigna). La clínica y el veterinario lo ven igual
+que una derivación hecha desde el portal; en la ficha pone «Registrada per
+Bambú (telèfon)».
+
+### D13. El paciente sigue siendo de su clínica
+
+Al crear cualquier caso para un paciente existente, `casos.clinica_id` se
+copia de `pacientes.clinica_origen_id`; quién lo abrió queda en `origen`,
+`derivador_id` y `creado_por`. Un caso `propio` con clínica (recaída que
+abre Bambú) lo ve la clínica por la regla de ámbito de siempre
+(`c.clinica_id = $n`) y publica `caso.abierto_por_bambu`. Los pacientes sin
+clínica (llegaron solos) siguen invisibles para cualquier veterinario. En la
+lista, el chip dice «Derivat per …», «Registrat per Bambú» o «Propi».
 
 ## Risks / Trade-offs
 
@@ -255,9 +316,10 @@ uso; antes de abrir a veterinarios no hay datos reales que perder.
 
 ## Open Questions
 
-- ¿Los borradores los ve solo su autor (propuesta) o toda la clínica?
-- Recaída de un paciente derivado: ¿el caso nuevo es `propio` (el veterinario
-  no lo ve; propuesta) o sigue ligado a la clínica que lo derivó?
+- Resueltas por Nando el 31/10: borradores solo para su autor; el paciente
+  sigue siendo de su clínica (D13) con aviso sin correo; derivaciones por
+  teléfono (D12) y alta de clínicas; uniones a clínicas no validadas solo por
+  Bambú (D11).
 - Los supuestos de la propuesta (especies, obligatorios, texto del
   consentimiento) siguen pendientes de Bambú; quedan aislados en
   `validacion-derivacion.ts`, el CHECK de especie y la clave `consentimiento`.
