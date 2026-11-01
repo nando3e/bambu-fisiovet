@@ -1,27 +1,17 @@
 // Zona de Bambú: portada con lo que pide atención (derivaciones nuevas,
-// pendientes de cita, encalladas) y la lista de clínicas y veterinarios con
-// las solicitudes de unión.
+// pendientes de cita, encalladas) y la lista de clínicas y veterinarios. A una
+// clínica solo se entra por invitación: Bambú puede invitar en cualquiera.
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import {
-  AlertTriangle, Bell, Building2, CalendarClock, Check, ChevronDown, ChevronUp, ClipboardList, FileText, Inbox, MailWarning,
-  PhoneCall, Plus, ShieldCheck, Stethoscope, UserCheck, Users, X,
+  AlertTriangle, Bell, Building2, CalendarClock, ChevronDown, ChevronUp, ClipboardList, FileText, Inbox, MailWarning,
+  Pencil, PhoneCall, Plus, Stethoscope, UserPlus, Users,
 } from 'lucide-react';
-import { api, mensajeDe, type Notificacion } from '../../api.ts';
+import { api, ErrorApi, mensajeDe, type Notificacion } from '../../api.ts';
 import { haceCuanto, t, type ClaveTexto } from '../../i18n/index.ts';
 import { useSesion } from '../../sesion.tsx';
 import { Aviso, Campo, Cargando, TituloPagina, Vacio } from '../../componentes/comunes.tsx';
 import { ListaNotificaciones, useAbrirNotificacion } from '../../componentes/Notificaciones.tsx';
-
-interface Solicitud {
-  id: number;
-  creado: string;
-  nombre: string;
-  apellidos: string;
-  email: string;
-  clinica_origen: string;
-  clinica_destino: string;
-}
 
 interface Clinica {
   id: number;
@@ -31,7 +21,7 @@ interface Clinica {
   codigo_postal: string | null;
   telefono: string | null;
   email: string | null;
-  validada: boolean;
+  cif: string | null;
   veterinarios: number;
   derivaciones: number;
 }
@@ -64,7 +54,7 @@ export function InicioBambu() {
     noLeidas: number;
     contadores: Contadores;
     movimientos: Movimiento[];
-    solicitudes: number;
+    sinCif: number;
     clinicas: number;
     fallidos: number;
   } | null>(null);
@@ -73,7 +63,7 @@ export function InicioBambu() {
   useEffect(() => {
     Promise.all([
       api.get<{ notificaciones: Notificacion[]; no_leidas: number }>('/notificaciones?limite=8'),
-      api.get<{ clinicas: Clinica[]; solicitudes: Solicitud[] }>('/clinicas'),
+      api.get<{ clinicas: Clinica[] }>('/clinicas'),
       api.get<{ correos: { estado: string }[] }>('/configuracion/avisos/cola'),
       api.get<Contadores>('/panel/contadores'),
       api.get<{ movimientos: Movimiento[] }>('/panel/movimientos'),
@@ -84,7 +74,7 @@ export function InicioBambu() {
           noLeidas: n.no_leidas,
           contadores,
           movimientos: m.movimientos,
-          solicitudes: c.solicitudes.length,
+          sinCif: c.clinicas.filter((x) => !x.cif).length,
           clinicas: c.clinicas.length,
           fallidos: cola.correos.filter((x) => x.estado === 'fallido').length,
         }),
@@ -131,13 +121,15 @@ export function InicioBambu() {
           <div><strong>{datos.noLeidas}</strong><span>{t('bambu.noLeidas')}</span></div>
         </Link>
         <Link to="/b/cliniques" className="cifra">
-          <span className="icono-cifra"><UserCheck size={22} aria-hidden /></span>
-          <div><strong>{datos.solicitudes}</strong><span>{t('bambu.solicitudes')}</span></div>
-        </Link>
-        <Link to="/b/cliniques" className="cifra">
           <span className="icono-cifra"><Building2 size={22} aria-hidden /></span>
           <div><strong>{datos.clinicas}</strong><span>{t('bambu.clinicas')}</span></div>
         </Link>
+        {datos.sinCif > 0 ? (
+          <Link to="/b/cliniques" className="cifra">
+            <span className="icono-cifra" style={{ background: 'var(--aviso-fondo)', color: 'var(--aviso-texto)' }}><Building2 size={22} aria-hidden /></span>
+            <div><strong>{datos.sinCif}</strong><span>{t('bambu.sinCif')}</span></div>
+          </Link>
+        ) : null}
         {datos.fallidos > 0 ? (
           <Link to="/b/configuracio/avisos" className="cifra">
             <span className="icono-cifra" style={{ background: 'var(--alerta-fondo)', color: 'var(--alerta)' }}><MailWarning size={22} aria-hidden /></span>
@@ -167,11 +159,32 @@ export function InicioBambu() {
   );
 }
 
+interface FichaClinica { nombre: string; poblacion: string; cif: string; telefono: string; email: string }
+const FICHA_VACIA: FichaClinica = { nombre: '', poblacion: '', cif: '', telefono: '', email: '' };
+
+/** Los campos de una clínica, con los errores del servidor en cada uno. */
+function CamposClinica({ ficha, cambiar, errores }: {
+  ficha: FichaClinica; cambiar: (f: FichaClinica) => void; errores: Record<string, string>;
+}) {
+  return (
+    <div className="formulario dos">
+      <Campo etiqueta={t('clinica.nombre')} value={ficha.nombre} onChange={(e) => cambiar({ ...ficha, nombre: e.target.value })} error={errores.nombre} required />
+      <Campo etiqueta={t('clinica.poblacion')} value={ficha.poblacion} onChange={(e) => cambiar({ ...ficha, poblacion: e.target.value })} error={errores.poblacion} required />
+      <Campo etiqueta={t('alta.cif')} value={ficha.cif} onChange={(e) => cambiar({ ...ficha, cif: e.target.value })} error={errores.cif} autoCapitalize="characters" required />
+      <Campo etiqueta={t('clinica.telefono')} type="tel" value={ficha.telefono} onChange={(e) => cambiar({ ...ficha, telefono: e.target.value })} error={errores.telefono} />
+      <Campo className="entero" etiqueta={t('clinica.email')} type="email" value={ficha.email} onChange={(e) => cambiar({ ...ficha, email: e.target.value })} error={errores.email} />
+    </div>
+  );
+}
+
+const camposDe = (err: unknown) => (err instanceof ErrorApi && err.campos ? err.campos : {});
+
 export function Clinicas() {
-  const [datos, setDatos] = useState<{ clinicas: Clinica[]; solicitudes: Solicitud[] } | null>(null);
+  const [datos, setDatos] = useState<{ clinicas: Clinica[] } | null>(null);
   const [estado, setEstado] = useState<{ ok?: string; error?: string }>({});
   const [abierta, setAbierta] = useState<number | null>(null);
-  const [nueva, setNueva] = useState<{ nombre: string; poblacion: string; telefono: string; email: string } | null>(null);
+  const [nueva, setNueva] = useState<FichaClinica | null>(null);
+  const [errores, setErrores] = useState<Record<string, string>>({});
 
   const cargar = useCallback(async () => {
     try {
@@ -184,39 +197,17 @@ export function Clinicas() {
     void cargar();
   }, [cargar]);
 
-  async function resolver(id: number, aprobar: boolean) {
-    setEstado({});
-    try {
-      await api.post(aprobar ? `/solicitudes-union/${id}/aprueba` : `/solicitudes-union/${id}/rechaza`);
-      setEstado({ ok: aprobar ? t('clinica.aprobada') : t('clinica.rechazada') });
-      await cargar();
-    } catch (err) {
-      setEstado({ error: mensajeDe(err) });
-    }
-  }
-
   async function crear() {
     if (!nueva) return;
     setEstado({});
+    setErrores({});
     try {
       await api.post('/clinicas', nueva);
       setNueva(null);
       setEstado({ ok: t('clinicas.creada') });
       await cargar();
     } catch (err) {
-      setEstado({ error: mensajeDe(err) });
-    }
-  }
-
-  async function validar(c: Clinica) {
-    setEstado({});
-    try {
-      await api.patch(`/clinicas/${c.id}`, {
-        nombre: c.nombre, poblacion: c.poblacion ?? '', direccion: c.direccion ?? '', codigo_postal: c.codigo_postal ?? '',
-        telefono: c.telefono ?? '', email: c.email ?? '', validada: !c.validada,
-      });
-      await cargar();
-    } catch (err) {
+      setErrores(camposDe(err));
       setEstado({ error: mensajeDe(err) });
     }
   }
@@ -225,48 +216,20 @@ export function Clinicas() {
   return (
     <>
       <TituloPagina titulo={t('clinicas.titulo')} subtitulo={t('clinicas.subtitulo')} ayuda="ayuda.clinicas">
-        <button type="button" className="boton-secundario" onClick={() => setNueva({ nombre: '', poblacion: '', telefono: '', email: '' })}>
+        <button type="button" className="boton-secundario" onClick={() => { setErrores({}); setNueva({ ...FICHA_VACIA }); }}>
           <Plus size={18} aria-hidden /> {t('clinicas.nueva')}
         </button>
       </TituloPagina>
+      {estado.ok ? <Aviso>{estado.ok}</Aviso> : null}
+      {estado.error ? <Aviso tipo="error">{estado.error}</Aviso> : null}
       {nueva ? (
         <section className="tarjeta">
           <h2>{t('clinicas.nueva')}</h2>
-          <div className="formulario dos">
-            <Campo etiqueta={t('clinica.nombre')} value={nueva.nombre} onChange={(e) => setNueva({ ...nueva, nombre: e.target.value })} />
-            <Campo etiqueta={t('clinica.poblacion')} value={nueva.poblacion} onChange={(e) => setNueva({ ...nueva, poblacion: e.target.value })} />
-            <Campo etiqueta={t('clinica.telefono')} type="tel" value={nueva.telefono} onChange={(e) => setNueva({ ...nueva, telefono: e.target.value })} />
-            <Campo etiqueta={t('clinica.email')} type="email" value={nueva.email} onChange={(e) => setNueva({ ...nueva, email: e.target.value })} />
-          </div>
+          <CamposClinica ficha={nueva} cambiar={setNueva} errores={errores} />
           <div className="acciones">
             <button type="button" className="boton" disabled={nueva.nombre.trim().length < 2} onClick={() => void crear()}>{t('comun.guardar')}</button>
             <button type="button" className="boton-texto" onClick={() => setNueva(null)}>{t('caso.cancelar')}</button>
           </div>
-        </section>
-      ) : null}
-      <p className="texto-suave" style={{ fontSize: '0.88rem' }}>{t('clinicas.validarAyuda')}</p>
-      {estado.ok ? <Aviso>{estado.ok}</Aviso> : null}
-      {estado.error ? <Aviso tipo="error">{estado.error}</Aviso> : null}
-
-      {datos.solicitudes.length > 0 ? (
-        <section className="tarjeta">
-          <h2>{t('clinica.solicitudesRecibidas')}</h2>
-          <ul className="lista">
-            {datos.solicitudes.map((s) => (
-              <li key={s.id}>
-                <div className="principal">
-                  <strong>{`${s.nombre} ${s.apellidos}`.trim()} → {s.clinica_destino}</strong>
-                  <span>{s.email} · {t('clinicas.desde', { clinica: s.clinica_origen })} · {haceCuanto(s.creado)}</span>
-                </div>
-                <button type="button" className="boton-icono" aria-label={t('clinica.aprobar')} onClick={() => resolver(s.id, true)}>
-                  <Check size={20} aria-hidden />
-                </button>
-                <button type="button" className="boton-icono" aria-label={t('clinica.rechazar')} onClick={() => resolver(s.id, false)}>
-                  <X size={20} aria-hidden />
-                </button>
-              </li>
-            ))}
-          </ul>
         </section>
       ) : null}
 
@@ -279,16 +242,9 @@ export function Clinicas() {
               <span className="icono-fila"><Building2 size={18} aria-hidden /></span>
               <div className="principal">
                 <strong>{c.nombre}</strong>
-                <span>{[c.poblacion, c.telefono, c.email].filter(Boolean).join(' · ') || t('clinicas.sinDatos')}</span>
+                <span>{[c.cif, c.poblacion, c.telefono, c.email].filter(Boolean).join(' · ') || t('clinicas.sinDatos')}</span>
               </div>
-              <button
-                type="button"
-                className={c.validada ? 'chip' : 'chip gris'}
-                title={c.validada ? t('clinicas.desvalidar') : t('clinicas.validar')}
-                onClick={() => void validar(c)}
-              >
-                <ShieldCheck size={14} aria-hidden /> {c.validada ? t('clinicas.validada') : t('clinicas.sinValidar')}
-              </button>
+              {!c.cif ? <span className="chip atencion">{t('clinicas.sinCif')}</span> : null}
               <span className="chip gris" title={t('clinicas.derivaciones')}><ClipboardList size={14} aria-hidden /> {c.derivaciones}</span>
               <span className="chip"><Users size={14} aria-hidden /> {c.veterinarios}</span>
               <button
@@ -300,7 +256,7 @@ export function Clinicas() {
               >
                 {abierta === c.id ? <ChevronUp size={20} aria-hidden /> : <ChevronDown size={20} aria-hidden />}
               </button>
-              {abierta === c.id ? <Veterinarios clinicaId={c.id} alCambiar={cargar} /> : null}
+              {abierta === c.id ? <DetalleClinica clinica={c} alCambiar={cargar} /> : null}
             </li>
           ))}
         </ul>
@@ -309,23 +265,55 @@ export function Clinicas() {
   );
 }
 
-function Veterinarios({ clinicaId, alCambiar }: { clinicaId: number; alCambiar: () => Promise<void> }) {
+/** Al desplegar una clínica: sus veterinarios, invitar a uno y editar sus datos. */
+function DetalleClinica({ clinica, alCambiar }: { clinica: Clinica; alCambiar: () => Promise<void> }) {
   const [lista, setLista] = useState<{
     id: number; nombre: string; apellidos: string; email: string; telefono: string | null;
     activo: boolean; verificado: boolean; ultimo_acceso: string | null;
   }[] | null>(null);
-  const [error, setError] = useState('');
+  const [estado, setEstado] = useState<{ ok?: string; error?: string }>({});
+  const [invitado, setInvitado] = useState({ nombre: '', apellidos: '', email: '' });
+  const [ficha, setFicha] = useState<FichaClinica | null>(null);
+  const [errores, setErrores] = useState<Record<string, string>>({});
   const cargar = useCallback(async () => {
-    const r = await api.get<{ usuarios: NonNullable<typeof lista> }>(`/clinicas/${clinicaId}/usuarios`);
+    const r = await api.get<{ usuarios: NonNullable<typeof lista> }>(`/clinicas/${clinica.id}/usuarios`);
     setLista(r.usuarios);
-  }, [clinicaId]);
+  }, [clinica.id]);
   useEffect(() => {
-    cargar().catch((err) => setError(mensajeDe(err)));
+    cargar().catch((err) => setEstado({ error: mensajeDe(err) }));
   }, [cargar]);
+
+  async function invitar() {
+    setEstado({});
+    try {
+      await api.post(`/clinicas/${clinica.id}/invitaciones`, invitado);
+      setInvitado({ nombre: '', apellidos: '', email: '' });
+      setEstado({ ok: t('clinica.invitacionEnviada') });
+      await cargar();
+      await alCambiar();
+    } catch (err) {
+      setEstado({ error: mensajeDe(err) });
+    }
+  }
+
+  async function guardar() {
+    if (!ficha) return;
+    setEstado({});
+    setErrores({});
+    try {
+      await api.patch(`/clinicas/${clinica.id}`, ficha);
+      setFicha(null);
+      await alCambiar();
+    } catch (err) {
+      setErrores(camposDe(err));
+      setEstado({ error: mensajeDe(err) });
+    }
+  }
 
   return (
     <div style={{ flexBasis: '100%', paddingTop: 10 }}>
-      {error ? <Aviso tipo="error">{error}</Aviso> : null}
+      {estado.ok ? <Aviso>{estado.ok}</Aviso> : null}
+      {estado.error ? <Aviso tipo="error">{estado.error}</Aviso> : null}
       {!lista ? <p className="texto-suave">{t('comun.cargando')}</p> : (
         <ul className="lista">
           {lista.map((u) => (
@@ -344,7 +332,7 @@ function Veterinarios({ clinicaId, alCambiar }: { clinicaId: number; alCambiar: 
                     await cargar();
                     await alCambiar();
                   } catch (err) {
-                    setError(mensajeDe(err));
+                    setEstado({ error: mensajeDe(err) });
                   }
                 }}
               >
@@ -353,6 +341,46 @@ function Veterinarios({ clinicaId, alCambiar }: { clinicaId: number; alCambiar: 
             </li>
           ))}
         </ul>
+      )}
+
+      <h3 style={{ fontSize: '1rem', marginTop: 14 }}>{t('clinicas.invitarVet')}</h3>
+      <p className="texto-suave" style={{ fontSize: '0.88rem' }}>{t('clinicas.invitarVetAyuda')}</p>
+      <div className="formulario dos">
+        <Campo etiqueta={t('alta.nombre')} value={invitado.nombre} onChange={(e) => setInvitado({ ...invitado, nombre: e.target.value })} />
+        <Campo etiqueta={t('alta.apellidos')} value={invitado.apellidos} onChange={(e) => setInvitado({ ...invitado, apellidos: e.target.value })} />
+        <Campo className="entero" etiqueta={t('alta.email')} type="email" value={invitado.email} onChange={(e) => setInvitado({ ...invitado, email: e.target.value })} />
+      </div>
+      <div className="acciones">
+        <button type="button" className="boton-secundario" disabled={!invitado.nombre || !invitado.email} onClick={() => void invitar()}>
+          <UserPlus size={18} aria-hidden /> {t('clinica.enviarInvitacion')}
+        </button>
+      </div>
+
+      {ficha ? (
+        <>
+          <h3 style={{ fontSize: '1rem', marginTop: 14 }}>{t('clinicas.editar')}</h3>
+          <CamposClinica ficha={ficha} cambiar={setFicha} errores={errores} />
+          <div className="acciones">
+            <button type="button" className="boton" onClick={() => void guardar()}>{t('comun.guardar')}</button>
+            <button type="button" className="boton-texto" onClick={() => setFicha(null)}>{t('caso.cancelar')}</button>
+          </div>
+        </>
+      ) : (
+        <div className="acciones">
+          <button
+            type="button"
+            className="boton-texto"
+            onClick={() => {
+              setErrores({});
+              setFicha({
+                nombre: clinica.nombre, poblacion: clinica.poblacion ?? '', cif: clinica.cif ?? '',
+                telefono: clinica.telefono ?? '', email: clinica.email ?? '',
+              });
+            }}
+          >
+            <Pencil size={16} aria-hidden /> {t('clinicas.editar')}
+          </button>
+        </div>
       )}
     </div>
   );

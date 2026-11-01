@@ -13,6 +13,7 @@ proveedores de IA (Anthropic y OpenAI).
 | Quién | Datos | Para qué |
 |---|---|---|
 | Veterinarios derivadores | Nombre, apellidos, correo, teléfono, número de colegiado, clínica, contraseña (hash scrypt) | Cuenta, derivaciones y avisos |
+| Clínicas | Nombre, población, CIF/NIF, dirección, teléfono y correo de contacto. **El NIF de una clínica que es de un autónomo es su DNI o NIE: dato personal** | No duplicar clínicas y saber a quién se le dice «demana una invitació» |
 | Equipo de Bambú | Nombre, apellidos, correo, contraseña (hash) | Cuenta y trabajo de los casos |
 | Propietarios | Nombre, teléfono, correo y el consentimiento aceptado (texto y versión copiados, con fecha) | Contactar para dar cita |
 | Pacientes (animales) | Nombre, especie, raza, sexo, edad, peso | Tratamiento |
@@ -26,6 +27,14 @@ proveedores de IA (Anthropic y OpenAI).
   (404), no «prohibido», para no confirmar que el caso existe. Hay un test por
   ruta.
 - Un borrador solo lo ve quien lo escribe.
+- **Antes de entrar no se enseña ninguna clínica.** El alta no sugiere
+  clínicas ni confirma en pantalla si un CIF ya está en el portal: si lo está,
+  se lo dice un correo a la dirección que ha escrito quien se registra, y no
+  sale nada hacia la clínica. A una clínica que ya está en el portal solo se
+  entra por invitación de un compañero o de Bambú, porque entrar da acceso a
+  todos sus casos y a los datos de sus propietarios.
+- El CIF/NIF de la clínica lo ven sus veterinarios y Bambú; lo cambia solo
+  Bambú. No viaja a la IA.
 - Las notas internas y sus adjuntos solo los ve el equipo de Bambú. También
   los dictados y las propuestas de informe sin confirmar.
 - Los ficheros clínicos (adjuntos, audios) nunca se sirven como públicos:

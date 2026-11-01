@@ -7,7 +7,7 @@ import { join } from 'node:path';
 
 import { aplicarMigraciones, CARPETA_MIGRACIONES } from '../src/db/migraciones.ts';
 import { crearPool } from '../src/db/pool.ts';
-import { baseLimpia, ENTORNO_BASE, pedir, servidorDePrueba, type Servidor } from './ayuda.ts';
+import { baseLimpia, ENTORNO_BASE, pedir, servidorDePrueba, type Servidor, datosAlta } from './ayuda.ts';
 
 const MIGRACIONES = readdirSync(CARPETA_MIGRACIONES).filter((f) => f.endsWith('.sql')).length;
 const abiertos: Servidor[] = [];
@@ -81,9 +81,7 @@ test('web: las rutas que no son del API sirven el index sin caché; un .js que n
 test('JSON: un cuerpo que no es UTF-8 → 400 y no se guarda; en UTF-8 llega intacto', async () => {
   const s = await servidorDePrueba('utf8');
   abiertos.push(s);
-  const cuerpo = (email: string) => ({
-    nombre: 'Marta', apellidos: 'Puig', email, telefono: '600123456', clinica: { nombre: 'Clínica Sant Roc' }, privacidad: true,
-  });
+  const cuerpo = (email: string) => datosAlta(email, { clinica: 'Clínica Sant Roc', cif: 'B12345674' });
   // «í» en latin-1, como lo manda curl desde una consola de Windows.
   const mal = await s.app.inject({
     method: 'POST', url: '/api/auth/registro', headers: { 'content-type': 'application/json' },

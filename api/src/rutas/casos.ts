@@ -208,9 +208,9 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
       if (!d.clinica_id) {
         throw datosIncorrectos('Cal la clínica que deriva', { campos: { clinica_id: 'Tria la clínica' } });
       }
-      const { rows: cl } = await bd.query('SELECT 1 FROM clinicas WHERE id = $1 AND activa AND validada', [d.clinica_id]);
+      const { rows: cl } = await bd.query('SELECT 1 FROM clinicas WHERE id = $1 AND activa', [d.clinica_id]);
       if (!cl[0]) {
-        throw datosIncorrectos('La clínica ha d\'estar validada', { campos: { clinica_id: 'Clínica no validada' } });
+        throw datosIncorrectos('La clínica no existeix o no està activa', { campos: { clinica_id: 'Clínica no activa' } });
       }
       if (d.derivador_id) {
         const { rows: vet } = await bd.query(

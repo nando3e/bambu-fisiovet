@@ -3,6 +3,7 @@
 // Candado heredado de happydog y forestal: estos tests hacen DROP DATABASE. Si
 // el nombre no acaba en `_test`, se niegan a arrancar. Cada fichero tiene su
 // base, porque los ficheros corren en paralelo.
+import { nifValido } from '../src/dominio/nif.ts';
 import pg from 'pg';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { construirServidor, type Opciones } from '../src/servidor.ts';
@@ -117,23 +118,31 @@ export function correoUnico(prefijo = 'vet', dominio = 'gmail.com'): string {
 
 export const CONTRASENA = 'una-contrasena-larga';
 
+let cifs = 0;
+/** Un CIF de sociedad válido y distinto en cada llamada (B + 7 cifras + control). */
+export function cifUnico(): string {
+  cifs += 1;
+  const cifras = String((Date.now() * 7 + cifs * 7919) % 10_000_000).padStart(7, '0');
+  for (let d = 0; d < 10; d++) if (nifValido(`B${cifras}${d}`)) return `B${cifras}${d}`;
+  throw new Error('sin control');
+}
+
+/** Lo que pide el alta, con todos los campos obligatorios. */
+export function datosAlta(email: string, extra: { nombre?: string; clinica?: string; cif?: string } = {}) {
+  return {
+    nombre: extra.nombre ?? 'Marta', apellidos: 'Puig', email, telefono: '600123456', num_colegiado: '46-1234',
+    clinica: { nombre: extra.clinica ?? `Clínica ${email}`, poblacion: 'Dénia', cif: extra.cif ?? cifUnico() },
+    privacidad: true,
+  };
+}
+
 /** Da de alta a un veterinario, verifica su correo y devuelve su cookie. */
 export async function veterinarioVerificado(
   s: Servidor,
-  datos: { email?: string; clinica?: string; nombre?: string; union_clinica_id?: number } = {},
+  datos: { email?: string; clinica?: string; nombre?: string; cif?: string } = {},
 ) {
   const email = datos.email ?? correoUnico();
-  const alta = await pedir(s.app, 'POST', '/api/auth/registro', {
-    cuerpo: {
-      nombre: datos.nombre ?? 'Marta',
-      apellidos: 'Puig',
-      email,
-      telefono: '600123456',
-      clinica: { nombre: datos.clinica ?? `Clínica ${email}` },
-      privacidad: true,
-      ...(datos.union_clinica_id ? { union_clinica_id: datos.union_clinica_id } : {}),
-    },
-  });
+  const alta = await pedir(s.app, 'POST', '/api/auth/registro', { cuerpo: datosAlta(email, datos) });
   if (alta.estado !== 200) throw new Error(`Alta fallida: ${JSON.stringify(alta.cuerpo)}`);
   const token = await tokenDelCorreo(s.pool, email, 'verificacion');
   const r = await pedir(s.app, 'POST', '/api/auth/establece-contrasena', {
@@ -171,7 +180,7 @@ export async function fisioVerificada(s: Servidor, cookieAdmin: string, nombre =
 export async function casoDePrueba(bd: pg.Pool | pg.PoolClient): Promise<number> {
   const { rows: autor } = await bd.query<{ id: number }>('SELECT id FROM usuarios WHERE es_de_entorno LIMIT 1');
   const { rows: clinica } = await bd.query<{ id: number }>(
-    `INSERT INTO clinicas (nombre, validada) VALUES ('Clínica de prova', true) RETURNING id`,
+    `INSERT INTO clinicas (nombre, alta_por_bambu) VALUES ('Clínica de prova', true) RETURNING id`,
   );
   const { rows: propietario } = await bd.query<{ id: number }>(
     `INSERT INTO propietarios (nombre) VALUES ('Propietari de prova') RETURNING id`,

@@ -20,8 +20,6 @@ interface DefEvento {
   todoElEquipo?: boolean;
   /** En el lado Bambú solo avisa al fisio responsable (y a nadie si no hay). */
   soloFisio?: boolean;
-  /** Avisa a los dos lados aunque actúe uno de ellos. */
-  dosLados?: boolean;
   /** No manda otro correo a quien ya tiene una notificación sin leer del caso. */
   antiRuido?: boolean;
 }
@@ -116,23 +114,6 @@ export const CATALOGO = {
     titulo: (d) => `${nombre(d)} s'ha incorporat a l'equip`,
     cuerpo: () => 'Ja pot entrar al panell de Bambú.',
     enlace: () => '/b/configuracio/equip',
-  },
-  'usuario.solicita_union': {
-    audiencia: 'ambas', notificacion: true, correo: true, plantilla: 'aviso',
-    todoElEquipo: true, dosLados: true,
-    titulo: (d) => `${nombre(d)} vol unir-se a ${String(d.clinicaDestino ?? 'la clínica')}`,
-    cuerpo: () => 'Pots acceptar o rebutjar la sol·licitud.',
-    enlace: (_d, rol) => (rol === 'derivador' ? '/d/perfil' : '/b/cliniques'),
-  },
-  'usuario.union_resuelta': {
-    audiencia: 'derivador', notificacion: true, correo: true, plantilla: 'aviso',
-    titulo: (d) =>
-      d.aprobada
-        ? `Ja formes part de ${String(d.clinicaDestino ?? 'la clínica')}`
-        : `No s'ha acceptat la sol·licitud a ${String(d.clinicaDestino ?? 'la clínica')}`,
-    cuerpo: (d) =>
-      d.aprobada ? 'Ara veus els casos de la clínica.' : 'Continues a la teua clínica.',
-    enlace: () => '/d/perfil',
   },
   'caso.sin_noticias': {
     audiencia: 'bambu', notificacion: true, correo: true, plantilla: 'aviso', todoElEquipo: true,

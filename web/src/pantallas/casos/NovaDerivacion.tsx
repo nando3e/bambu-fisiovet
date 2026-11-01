@@ -395,7 +395,7 @@ function BuscarPaciente({ clinicaId, existente, bloqueado, elegir }: {
   );
 }
 
-interface ClinicaValidada { id: number; nombre: string; poblacion: string | null; validada: boolean }
+interface ClinicaElegible { id: number; nombre: string; poblacion: string | null; cif: string | null }
 interface Persona { id: number; nombre: string; apellidos: string; activo: boolean; verificado?: boolean; estado?: string; rol?: string }
 
 function PasoClinica(p: {
@@ -413,17 +413,18 @@ function PasoClinica(p: {
   setPrimeraVisita: (v: string) => void;
   errores: Errores;
 }) {
-  const [clinicas, setClinicas] = useState<ClinicaValidada[]>([]);
+  const [clinicas, setClinicas] = useState<ClinicaElegible[]>([]);
   const [veterinarios, setVeterinarios] = useState<Persona[]>([]);
   const [fisios, setFisios] = useState<Persona[]>([]);
   const [filtro, setFiltro] = useState('');
-  const [nueva, setNueva] = useState<{ nombre: string; poblacion: string; telefono: string } | null>(null);
+  const [nueva, setNueva] = useState<{ nombre: string; poblacion: string; cif: string; telefono: string } | null>(null);
+  const [erroresNueva, setErroresNueva] = useState<Record<string, string>>({});
   const [aviso, setAviso] = useState('');
   const [error, setError] = useState('');
 
   const cargarClinicas = useCallback(async () => {
-    const r = await api.get<{ clinicas: ClinicaValidada[] }>('/clinicas');
-    setClinicas(r.clinicas.filter((c) => c.validada));
+    const r = await api.get<{ clinicas: ClinicaElegible[] }>('/clinicas');
+    setClinicas(r.clinicas);
   }, []);
   useEffect(() => {
     cargarClinicas().catch((err) => setError(mensajeDe(err)));
@@ -444,6 +445,7 @@ function PasoClinica(p: {
   async function crear() {
     if (!nueva) return;
     setError('');
+    setErroresNueva({});
     try {
       const c = await api.post<{ id: number; nombre: string }>('/clinicas', nueva);
       await cargarClinicas();
@@ -451,11 +453,12 @@ function PasoClinica(p: {
       setNueva(null);
       setAviso(t('nova.clinicaCreada'));
     } catch (err) {
+      if (err instanceof ErrorApi && err.campos) setErroresNueva(err.campos);
       setError(mensajeDe(err));
     }
   }
 
-  const visibles = clinicas.filter((c) => !filtro || `${c.nombre} ${c.poblacion ?? ''}`.toLowerCase().includes(filtro.toLowerCase()));
+  const visibles = clinicas.filter((c) => !filtro || `${c.nombre} ${c.poblacion ?? ''} ${c.cif ?? ''}`.toLowerCase().includes(filtro.toLowerCase()));
   return (
     <>
       {aviso ? <Aviso>{aviso}</Aviso> : null}
@@ -479,7 +482,7 @@ function PasoClinica(p: {
               {visibles.slice(0, 8).map((c) => (
                 <li key={c.id}>
                   <button type="button" className="fila-enlace" onClick={() => p.setClinica({ id: c.id, nombre: c.nombre })}>
-                    <div className="principal"><strong>{c.nombre}</strong><span>{c.poblacion ?? ''}</span></div>
+                    <div className="principal"><strong>{c.nombre}</strong><span>{[c.poblacion, c.cif].filter(Boolean).join(' · ')}</span></div>
                   </button>
                 </li>
               ))}
@@ -488,8 +491,9 @@ function PasoClinica(p: {
               <div className="tarjeta interior">
                 <h2>{t('nova.clinicaNueva')}</h2>
                 <div className="formulario dos">
-                  <Campo etiqueta={t('clinica.nombre')} value={nueva.nombre} onChange={(e) => setNueva({ ...nueva, nombre: e.target.value })} />
-                  <Campo etiqueta={t('clinica.poblacion')} value={nueva.poblacion} onChange={(e) => setNueva({ ...nueva, poblacion: e.target.value })} />
+                  <Campo etiqueta={t('clinica.nombre')} value={nueva.nombre} onChange={(e) => setNueva({ ...nueva, nombre: e.target.value })} error={erroresNueva.nombre} required />
+                  <Campo etiqueta={t('clinica.poblacion')} value={nueva.poblacion} onChange={(e) => setNueva({ ...nueva, poblacion: e.target.value })} error={erroresNueva.poblacion} required />
+                  <Campo etiqueta={t('alta.cif')} value={nueva.cif} onChange={(e) => setNueva({ ...nueva, cif: e.target.value })} error={erroresNueva.cif} autoCapitalize="characters" required />
                   <Campo etiqueta={t('clinica.telefono')} type="tel" value={nueva.telefono} onChange={(e) => setNueva({ ...nueva, telefono: e.target.value })} />
                 </div>
                 <div className="acciones">
@@ -498,7 +502,7 @@ function PasoClinica(p: {
                 </div>
               </div>
             ) : (
-              <button type="button" className="boton-secundario" onClick={() => setNueva({ nombre: filtro, poblacion: '', telefono: '' })}>
+              <button type="button" className="boton-secundario" onClick={() => { setErroresNueva({}); setNueva({ nombre: filtro, poblacion: '', cif: '', telefono: '' }); }}>
                 <Plus size={18} aria-hidden /> {t('nova.clinicaNueva')}
               </button>
             )}

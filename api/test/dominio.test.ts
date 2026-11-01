@@ -7,7 +7,7 @@ import { join } from 'node:path';
 
 import { problemaDeContrasena } from '../src/dominio/contrasena-valida.ts';
 import { dominioDeClinica } from '../src/dominio/dominios-genericos.ts';
-import { decidirUnion } from '../src/dominio/union-clinica.ts';
+import { nifValido, normalizarNif } from '../src/dominio/nif.ts';
 import { resolverDestinatarios, type UsuarioAviso } from '../src/avisos/destinatarios.ts';
 import { cifrar, descifrar } from '../src/cifrado.ts';
 import { comprobarContrasena, hashearContrasena } from '../src/auth/contrasena.ts';
@@ -19,7 +19,7 @@ import { validarDerivacion } from '../src/dominio/validacion-derivacion.ts';
 import { nombreSeguro, tipoDeAdjunto } from '../src/ficheros/adjuntos.ts';
 import { horasLaborables, mediana } from '../src/dominio/indicadores.ts';
 
-test('cuentas y secretos: contraseña, scrypt, cifrado, dominios, unión a clínica y config', async () => {
+test('cuentas y secretos: contraseña, scrypt, cifrado, dominios, CIF/NIF y config', async () => {
   assert.match(problemaDeContrasena('123456789', null)!, /10 caràcters/);
   assert.match(problemaDeContrasena('marta@clinica.vet', 'Marta@clinica.vet')!, /correu/);
   const hash = await hashearContrasena('una-contrasena-larga');
@@ -33,10 +33,14 @@ test('cuentas y secretos: contraseña, scrypt, cifrado, dominios, unión a clín
 
   assert.equal(dominioDeClinica('a@gmail.com'), null);
   assert.equal(dominioDeClinica('a@SantRoc.vet'), 'santroc.vet');
-  const base = { clinicaOrigenId: 1, clinicaDestinoId: 2, miembrosClinicaOrigen: 1 };
-  assert.equal(decidirUnion({ ...base, emailSolicitante: 'a@santroc.vet', dominioClinicaDestino: 'santroc.vet' }), 'auto');
-  assert.equal(decidirUnion({ ...base, emailSolicitante: 'a@gmail.com', dominioClinicaDestino: 'gmail.com' }), 'pendiente');
-  assert.equal(decidirUnion({ ...base, miembrosClinicaOrigen: 2, emailSolicitante: 'a@santroc.vet', dominioClinicaDestino: 'santroc.vet' }), 'no_permitida');
+  // CIF de sociedad (control dígito, letra o cualquiera según la entidad), DNI y NIE de un autónomo.
+  for (const bueno of ['B12345674', 'Q1234567D', 'G1234567D', 'G12345674', '12345678Z', 'X1234567L', ' b-12.345.674 ']) {
+    assert.ok(nifValido(bueno), bueno);
+  }
+  for (const malo of ['B12345675', 'B1234567D', 'Q12345674', '12345678A', 'X1234567A', 'I12345674', '1234', '']) {
+    assert.ok(!nifValido(malo), malo);
+  }
+  assert.equal(normalizarNif(' b-12.345.674 '), 'B12345674');
 
   assert.throws(() => leerConfig({ DATABASE_URL: 'postgres://a/b', SECRETO_SESION: 'x'.repeat(20), URL_PUBLICA: 'https://a.b' }), /CLAVE_CIFRADO/);
   const c = leerConfig({ DATABASE_URL: 'postgres://a/b', SECRETO_SESION: 'x'.repeat(20), CLAVE_CIFRADO: 'y'.repeat(20), URL_PUBLICA: 'https://a.b/', SUPERADMIN_CONTRASENA: '' });
@@ -54,12 +58,12 @@ test('avisos: destinatarios según evento, fisio responsable y actor; plantillas
   // La derivación nueva, a todo el equipo aunque haya fisio; la asignación, solo al fisio.
   assert.deepEqual(ids(resolverDestinatarios({ tipo: 'derivacion.enviada', actor: { id: 10, rol: 'derivador' }, equipoBambu: equipo, fisioResponsableId: 2, derivadores: [] }).bambu), [1, 2]);
   assert.deepEqual(ids(resolverDestinatarios({ tipo: 'caso.fisio_asignado', actor: { id: 1, rol: 'bambu' }, equipoBambu: equipo, fisioResponsableId: null, derivadores: [] }).bambu), []);
-  // La solicitud de unión, a los dos lados; nunca al actor.
-  const union = resolverDestinatarios({ tipo: 'usuario.solicita_union', actor: { id: 10, rol: 'derivador' }, equipoBambu: [u(1)], fisioResponsableId: null, derivadores: [u(10, 'derivador'), u(20, 'derivador')] });
-  assert.deepEqual([ids(union.bambu), ids(union.derivadores)], [[1], [20]]);
+  // Un evento de los dos lados sin actor (lo provoca el sistema) avisa a los dos.
+  const sistema = resolverDestinatarios({ tipo: 'paciente.ficha_modificada', actor: null, equipoBambu: [u(1)], fisioResponsableId: null, derivadores: [u(10, 'derivador'), u(20, 'derivador')] });
+  assert.deepEqual([ids(sistema.bambu), ids(sistema.derivadores)], [[1], [10, 20]]);
 
   const datos = { nombre: 'Marta', invitador: 'Laia', clinica: 'Sant Roc', saludo: 'Hola', titulo: 'T', cuerpo: 'C', enlace: 'https://bambu.test/acces/estableix/abc', urlPublica: 'https://bambu.test' };
-  for (const p of ['verificacion', 'recuperacion', 'invitacion-bambu', 'invitacion-clinica', 'alta-existente', 'aviso', 'prueba']) {
+  for (const p of ['verificacion', 'recuperacion', 'invitacion-bambu', 'invitacion-clinica', 'alta-existente', 'clinica-existente', 'aviso', 'prueba']) {
     const r = renderizar(p, datos);
     assert.ok(r.asunto.length > 5 && r.texto.length > 20, p);
     assert.doesNotMatch(r.html, /\{\{/, p);

@@ -1,9 +1,9 @@
 // Perfil: datos, contraseña, avisos por correo y, para el veterinario, su
-// clínica (compañeros, invitar, solicitudes de unión).
+// clínica (compañeros e invitar).
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Building2, Check, KeyRound, LogOut, Mail, Search, UserPlus, X } from 'lucide-react';
-import { api, mensajeDe, type ClinicaSugerida, type Usuario } from '../../api.ts';
-import { t, haceCuanto } from '../../i18n/index.ts';
+import { Building2, KeyRound, LogOut, Mail, UserPlus } from 'lucide-react';
+import { api, mensajeDe, type Usuario } from '../../api.ts';
+import { t } from '../../i18n/index.ts';
 import { useSesion } from '../../sesion.tsx';
 import { Aviso, Campo, Interruptor, TituloPagina } from '../../componentes/comunes.tsx';
 
@@ -138,19 +138,16 @@ function CambioContrasena() {
 }
 
 interface DatosClinica {
-  clinica: { id: number; nombre: string; poblacion: string | null } | null;
+  clinica: { id: number; nombre: string; poblacion: string | null; cif: string | null } | null;
   companeros: { id: number; nombre: string; apellidos: string; email: string; activo: boolean; verificado: boolean }[];
-  solicitudes_recibidas: { id: number; creado: string; nombre: string; apellidos: string; email: string }[];
-  mi_solicitud: { id: number; creado: string; clinica_destino: string } | null;
 }
 
+// A la clínica solo se entra por invitación: aquí se ven los compañeros y se
+// invita a uno. El CIF se ve pero no se cambia (lo cambia Bambú).
 function MiClinica() {
-  const { recargar } = useSesion();
   const [datos, setDatos] = useState<DatosClinica | null>(null);
   const [estado, setEstado] = useState<{ ok?: string; error?: string }>({});
   const [invitado, setInvitado] = useState({ nombre: '', apellidos: '', email: '' });
-  const [busqueda, setBusqueda] = useState('');
-  const [encontradas, setEncontradas] = useState<ClinicaSugerida[]>([]);
 
   const cargar = useCallback(async () => {
     try {
@@ -163,26 +160,14 @@ function MiClinica() {
     void cargar();
   }, [cargar]);
 
-  useEffect(() => {
-    if (busqueda.trim().length < 3) {
-      setEncontradas([]);
-      return;
-    }
-    const temporizador = window.setTimeout(() => {
-      api.get<{ clinicas: ClinicaSugerida[] }>(`/clinicas/sugerencias?${new URLSearchParams({ nombre: busqueda.trim() })}`)
-        .then((r) => setEncontradas(r.clinicas.filter((c) => c.id !== datos?.clinica?.id)))
-        .catch(() => setEncontradas([]));
-    }, 350);
-    return () => window.clearTimeout(temporizador);
-  }, [busqueda, datos?.clinica?.id]);
-
-  async function accion(fn: () => Promise<unknown>, ok: string) {
+  async function invitar(e: FormEvent) {
+    e.preventDefault();
     setEstado({});
     try {
-      await fn();
-      setEstado({ ok });
+      await api.post('/clinicas/mia/invitaciones', invitado);
+      setInvitado({ nombre: '', apellidos: '', email: '' });
+      setEstado({ ok: t('clinica.invitacionEnviada') });
       await cargar();
-      await recargar();
     } catch (err) {
       setEstado({ error: mensajeDe(err) });
     }
@@ -192,31 +177,10 @@ function MiClinica() {
   return (
     <section className="tarjeta">
       <h2 style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Building2 size={18} aria-hidden /> {datos.clinica?.nombre}</h2>
+      {datos.clinica?.cif ? <p className="texto-suave" style={{ margin: '0 0 6px' }}>{t('clinica.cif', { cif: datos.clinica.cif })}</p> : null}
       <p className="ayuda texto-suave">{t('clinica.ayuda')}</p>
       {estado.ok ? <Aviso>{estado.ok}</Aviso> : null}
       {estado.error ? <Aviso tipo="error">{estado.error}</Aviso> : null}
-
-      {datos.solicitudes_recibidas.length > 0 ? (
-        <>
-          <h3 style={{ fontSize: '1rem', marginTop: 10 }}>{t('clinica.solicitudesRecibidas')}</h3>
-          <ul className="lista" style={{ marginBottom: 16 }}>
-            {datos.solicitudes_recibidas.map((s) => (
-              <li key={s.id}>
-                <div className="principal">
-                  <strong>{`${s.nombre} ${s.apellidos}`.trim()}</strong>
-                  <span>{s.email} · {haceCuanto(s.creado)}</span>
-                </div>
-                <button type="button" className="boton-icono" aria-label={t('clinica.aprobar')} onClick={() => accion(() => api.post(`/solicitudes-union/${s.id}/aprueba`), t('clinica.aprobada'))}>
-                  <Check size={20} aria-hidden />
-                </button>
-                <button type="button" className="boton-icono" aria-label={t('clinica.rechazar')} onClick={() => accion(() => api.post(`/solicitudes-union/${s.id}/rechaza`), t('clinica.rechazada'))}>
-                  <X size={20} aria-hidden />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
 
       <h3 style={{ fontSize: '1rem', marginTop: 10 }}>{t('clinica.companeros')}</h3>
       <ul className="lista" style={{ marginBottom: 16 }}>
@@ -233,16 +197,8 @@ function MiClinica() {
       </ul>
 
       <h3 style={{ fontSize: '1rem' }}>{t('clinica.invitar')}</h3>
-      <form
-        className="formulario dos"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void accion(async () => {
-            await api.post('/clinicas/mia/invitaciones', invitado);
-            setInvitado({ nombre: '', apellidos: '', email: '' });
-          }, t('clinica.invitacionEnviada'));
-        }}
-      >
+      <p className="texto-suave" style={{ fontSize: '0.88rem' }}>{t('clinica.invitarAyuda')}</p>
+      <form className="formulario dos" onSubmit={invitar}>
         <Campo etiqueta={t('alta.nombre')} value={invitado.nombre} onChange={(e) => setInvitado({ ...invitado, nombre: e.target.value })} />
         <Campo etiqueta={t('alta.apellidos')} value={invitado.apellidos} onChange={(e) => setInvitado({ ...invitado, apellidos: e.target.value })} />
         <Campo className="entero" etiqueta={t('alta.email')} type="email" value={invitado.email} onChange={(e) => setInvitado({ ...invitado, email: e.target.value })} />
@@ -252,36 +208,6 @@ function MiClinica() {
           </button>
         </div>
       </form>
-
-      <h3 style={{ fontSize: '1rem', marginTop: 20 }}>{t('clinica.unirOtra')}</h3>
-      {datos.mi_solicitud ? (
-        <Aviso tipo="atencion">{t('clinica.solicitudPendiente', { clinica: datos.mi_solicitud.clinica_destino })}</Aviso>
-      ) : (
-        <>
-          <p className="texto-suave" style={{ fontSize: '0.88rem' }}>{t('clinica.unirOtraAyuda')}</p>
-          <Campo etiqueta={t('clinica.buscar')} value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder={t('clinica.buscarEjemplo')} />
-          {encontradas.length > 0 ? (
-            <ul className="sugerencias">
-              {encontradas.map((c) => (
-                <li key={c.id}>
-                  <span><Search size={14} aria-hidden style={{ display: 'inline', marginRight: 6 }} /><strong>{c.nombre}</strong>{c.poblacion ? ` · ${c.poblacion}` : ''}</span>
-                  <button
-                    type="button"
-                    className="boton-texto"
-                    onClick={() => accion(async () => {
-                      const r = await api.post<{ resultado: 'auto' | 'pendiente' }>(`/clinicas/${c.id}/solicitudes-union`);
-                      setBusqueda('');
-                      if (r.resultado === 'auto') setEstado({ ok: t('clinica.unidoAuto', { clinica: c.nombre }) });
-                    }, t('clinica.solicitudEnviada'))}
-                  >
-                    {t('alta.unir')}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </>
-      )}
     </section>
   );
 }

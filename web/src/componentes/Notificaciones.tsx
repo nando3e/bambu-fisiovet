@@ -5,8 +5,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
-  Bell, BellOff, Building2, CheckCheck, FileText, MessageSquare, Paperclip, Stethoscope,
-  UserPlus, Users, type LucideIcon,
+  Bell, BellOff, CheckCheck, FileText, MessageSquare, Paperclip, Stethoscope,
+  UserPlus, type LucideIcon,
 } from 'lucide-react';
 import { api, mensajeDe, type Notificacion } from '../api.ts';
 import { haceCuanto, t } from '../i18n/index.ts';
@@ -18,8 +18,6 @@ const ICONOS: Record<string, LucideIcon> = {
   'intervencion.registrada': Stethoscope,
   'usuario.derivador_alta': UserPlus,
   'usuario.bambu_alta': UserPlus,
-  'usuario.solicita_union': Building2,
-  'usuario.union_resuelta': Users,
 };
 
 export const EVENTO_NOTIFICACIONES = 'bambu:notificaciones';

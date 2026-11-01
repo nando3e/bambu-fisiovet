@@ -1,9 +1,9 @@
 // Una sola puerta para todos: entrar (veterinarios y Bambú) o crear un compte
 // (solo veterinarios). Tras entrar, cada rol va a su zona.
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Building2, Check, LogIn, UserPlus } from 'lucide-react';
-import { api, ErrorApi, mensajeDe, type ClinicaSugerida, type Usuario } from '../../api.ts';
+import { ArrowLeft, LogIn, UserPlus } from 'lucide-react';
+import { api, ErrorApi, mensajeDe, type Usuario } from '../../api.ts';
 import { t } from '../../i18n/index.ts';
 import { useSesion, zonaDe } from '../../sesion.tsx';
 import { Aviso, Campo } from '../../componentes/comunes.tsx';
@@ -108,38 +108,23 @@ interface DatosAlta {
   num_colegiado: string;
   clinica: string;
   poblacion: string;
+  cif: string;
 }
 
+// El alta no enseña ninguna clínica que ya exista: si su CIF ya está en el
+// portal, se lo decimos a su correo (que pida una invitación), nunca aquí.
 function FormularioAlta() {
   const navegar = useNavigate();
   const [d, setD] = useState<DatosAlta>({
-    nombre: '', apellidos: '', email: '', telefono: '', num_colegiado: '', clinica: '', poblacion: '',
+    nombre: '', apellidos: '', email: '', telefono: '', num_colegiado: '', clinica: '', poblacion: '', cif: '',
   });
   const [privacidad, setPrivacidad] = useState(false);
-  const [sugerencias, setSugerencias] = useState<ClinicaSugerida[]>([]);
-  const [union, setUnion] = useState<ClinicaSugerida | null>(null);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
 
   const cambiar = (campo: keyof DatosAlta) => (e: { target: { value: string } }) =>
     setD((v) => ({ ...v, [campo]: e.target.value }));
-
-  // Mientras escribe la clínica (o el correo), clínicas parecidas que ya existen.
-  useEffect(() => {
-    if (d.clinica.trim().length < 3 && !d.email.includes('@')) {
-      setSugerencias([]);
-      return;
-    }
-    const temporizador = window.setTimeout(() => {
-      const q = new URLSearchParams({ nombre: d.clinica.trim(), email: d.email.trim() });
-      api
-        .get<{ clinicas: ClinicaSugerida[] }>(`/clinicas/sugerencias?${q}`)
-        .then((r) => setSugerencias(r.clinicas))
-        .catch(() => setSugerencias([]));
-    }, 350);
-    return () => window.clearTimeout(temporizador);
-  }, [d.clinica, d.email]);
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
@@ -153,9 +138,8 @@ function FormularioAlta() {
         email: d.email,
         telefono: d.telefono,
         num_colegiado: d.num_colegiado,
-        clinica: { nombre: union ? union.nombre : d.clinica, poblacion: d.poblacion },
+        clinica: { nombre: d.clinica, poblacion: d.poblacion, cif: d.cif },
         privacidad,
-        ...(union ? { union_clinica_id: union.id } : {}),
       });
       navegar('/acces/verifica-correu', { state: { email: d.email.trim().toLowerCase() } });
     } catch (err) {
@@ -178,49 +162,21 @@ function FormularioAlta() {
         value={d.email}
         onChange={cambiar('email')}
         error={errores.email}
-        ayuda={t('alta.emailAyuda')}
         required
       />
       <Campo etiqueta={t('alta.telefono')} type="tel" autoComplete="tel" value={d.telefono} onChange={cambiar('telefono')} error={errores.telefono} required />
+      <Campo etiqueta={t('alta.colegiado')} value={d.num_colegiado} onChange={cambiar('num_colegiado')} error={errores.num_colegiado} required />
+      <Campo etiqueta={t('alta.clinica')} autoComplete="organization" value={d.clinica} onChange={cambiar('clinica')} error={errores['clinica.nombre']} required />
+      <Campo etiqueta={t('alta.poblacion')} autoComplete="address-level2" value={d.poblacion} onChange={cambiar('poblacion')} error={errores['clinica.poblacion']} required />
       <Campo
-        etiqueta={t('alta.clinica')}
-        autoComplete="organization"
-        value={union ? union.nombre : d.clinica}
-        onChange={(e) => {
-          setUnion(null);
-          cambiar('clinica')(e);
-        }}
-        error={errores['clinica.nombre']}
+        etiqueta={t('alta.cif')}
+        value={d.cif}
+        onChange={cambiar('cif')}
+        error={errores['clinica.cif']}
+        ayuda={t('alta.cifAyuda')}
+        autoCapitalize="characters"
         required
       />
-      <Campo etiqueta={t('alta.poblacion')} autoComplete="address-level2" value={d.poblacion} onChange={cambiar('poblacion')} />
-      {sugerencias.length > 0 ? (
-        <div className="entero">
-          <small className="texto-suave">{t('alta.sugerencias')}</small>
-          <ul className="sugerencias">
-            {sugerencias.map((c) => (
-              <li key={c.id} className={union?.id === c.id ? 'elegida' : undefined}>
-                <span>
-                  <Building2 size={16} aria-hidden style={{ display: 'inline', verticalAlign: '-3px', marginRight: 6 }} />
-                  <strong>{c.nombre}</strong>
-                  {c.poblacion ? <span className="texto-suave"> · {c.poblacion}</span> : null}
-                </span>
-                {union?.id === c.id ? (
-                  <button type="button" className="boton-texto" onClick={() => setUnion(null)}>
-                    <Check size={16} aria-hidden /> {t('alta.unirElegida')}
-                  </button>
-                ) : (
-                  <button type="button" className="boton-texto" onClick={() => setUnion(c)}>
-                    {t('alta.unir')}
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-          {union ? <small className="texto-suave">{t('alta.unirExplicacion')}</small> : null}
-        </div>
-      ) : null}
-      <Campo etiqueta={t('alta.colegiado')} value={d.num_colegiado} onChange={cambiar('num_colegiado')} ayuda={t('comun.opcional')} />
       <label className="casilla entero">
         <input type="checkbox" checked={privacidad} onChange={(e) => setPrivacidad(e.target.checked)} />
         <span>

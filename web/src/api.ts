@@ -92,9 +92,3 @@ export interface Notificacion {
   tipo: string;
 }
 
-export interface ClinicaSugerida {
-  id: number;
-  nombre: string;
-  poblacion: string | null;
-  mismo_dominio: boolean;
-}

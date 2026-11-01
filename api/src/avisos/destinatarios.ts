@@ -47,7 +47,7 @@ export function resolverDestinatarios(e: EntradaDestinatarios): Destinatarios {
   let ladoDerivador = def.audiencia === 'derivador';
 
   if (def.audiencia === 'ambas') {
-    if (def.dosLados || !e.actor) {
+    if (!e.actor) {
       ladoBambu = true;
       ladoDerivador = true;
     } else if (e.actor.rol === 'derivador') {

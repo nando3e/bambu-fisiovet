@@ -4,7 +4,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  CONTRASENA, correoUnico, ENTORNO_BASE, entrarSuperadmin, fisioVerificada, pedir, servidorDePrueba,
+  CONTRASENA, datosAlta, correoUnico, ENTORNO_BASE, entrarSuperadmin, fisioVerificada, pedir, servidorDePrueba,
   tokenDelCorreo, veterinarioVerificado, type Servidor,
 } from './ayuda.ts';
 
@@ -20,7 +20,7 @@ after(async () => {
 
 const alta = (email: string, extra: Record<string, unknown> = {}) =>
   pedir(s.app, 'POST', '/api/auth/registro', {
-    cuerpo: { nombre: 'Pau', apellidos: 'Vidal', email, telefono: '600123456', clinica: { nombre: 'Clínica Vidal' }, privacidad: true, ...extra },
+    cuerpo: { ...datosAlta(email, { nombre: 'Pau', clinica: 'Clínica Vidal' }), ...extra },
   });
 const correosA = async (email: string) =>
   (await s.pool.query('SELECT count(*)::int AS n FROM correos_pendientes WHERE destinatario = $1', [email])).rows[0].n as number;
@@ -67,16 +67,11 @@ test('alta sin enumerar cuentas: correo ya registrado, alta repetida sin verific
   assert.deepEqual((await alta(registrado.toUpperCase())).cuerpo, respuestaNueva);
   await tokenDelCorreo(s.pool, registrado, 'alta-existente');
 
-  // Sin verificar: otra verificación, que conserva la clínica elegida.
+  // Sin verificar: otra verificación, y el enlace anterior deja de valer.
   const pendiente = correoUnico();
   await alta(pendiente);
   const primero = await tokenDelCorreo(s.pool, pendiente, 'verificacion');
-  const destino = await veterinarioVerificado(s);
-  await alta(pendiente, { union_clinica_id: destino.usuario.clinica.id });
-  const { rows } = await s.pool.query(
-    `SELECT t.datos FROM tokens_correo t JOIN usuarios u ON u.id = t.usuario_id WHERE lower(u.email) = $1 ORDER BY t.id DESC LIMIT 1`, [pendiente],
-  );
-  assert.equal(rows[0].datos.union_clinica_id, destino.usuario.clinica.id);
+  await alta(pendiente);
   assert.equal((await estadoToken(primero)).estado, 'caducado');
 
   // Reenvíos: pasado el freno, la respuesta es idéntica a la de un correo sin cuenta.
@@ -191,7 +186,7 @@ test('el usuario del superadmin con forma de correo no se puede dar de alta ni i
   const conCorreo = await servidorDePrueba('acceso_superadmin_correo', { SUPERADMIN_USUARIO: 'admin@bambu.test' });
   try {
     const r = await pedir(conCorreo.app, 'POST', '/api/auth/registro', {
-      cuerpo: { nombre: 'Pau', apellidos: 'Vidal', email: 'Admin@Bambu.test', telefono: '600123456', clinica: { nombre: 'Clínica Vidal' }, privacidad: true },
+      cuerpo: datosAlta('Admin@Bambu.test'),
     });
     assert.equal(r.estado, 200);
     const cookie = (await pedir(conCorreo.app, 'POST', '/api/auth/entrar', {

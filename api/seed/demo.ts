@@ -18,6 +18,8 @@ import { aplicarMigraciones } from '../src/db/migraciones.ts';
 import { crearPool, enTransaccion, type ClientePg } from '../src/db/pool.ts';
 
 const URL_PRODUCCION = /bambufisiovet\.com/i;
+/** CIF válidos e inventados de las tres clínicas de demo. */
+const CIF_DEMO = ['B12345674', 'B98765431', 'B11111119'];
 
 export async function sembrarDemo(pool: pg.Pool, urlPublica: string, contrasena: string, correo?: string): Promise<string> {
   if (URL_PRODUCCION.test(urlPublica)) throw new Error('Esto es producción: la semilla de demo no se ejecuta aquí.');
@@ -29,14 +31,18 @@ export async function sembrarDemo(pool: pg.Pool, urlPublica: string, contrasena:
     correoDe('marta', 'santroc.demo', true), correoDe('pau', 'santroc.demo'), correoDe('anna', 'montgo.demo'),
     correoDe('biel', 'marina.demo'), correoDe('laia', 'bambu.demo'), correoDe('jordi', 'bambu.demo'),
   ];
-  const { rows } = await pool.query<{ n: number }>('SELECT count(*)::int AS n FROM usuarios WHERE lower(email) = ANY($1)', [cuentas]);
+  const { rows } = await pool.query<{ n: number }>(
+    `SELECT (SELECT count(*) FROM usuarios WHERE lower(email) = ANY($1))
+           + (SELECT count(*) FROM clinicas WHERE activa AND cif = ANY($2))::int AS n`,
+    [cuentas, CIF_DEMO],
+  );
   if (rows[0]!.n > 0) throw new Error('La demo ya está sembrada: la semilla de demo no pisa datos.');
   const hash = await hashearContrasena(contrasena);
 
   return enTransaccion(pool, async (bd) => {
-    const clinica = async (nombre: string, poblacion: string) =>
+    const clinica = async (nombre: string, poblacion: string, cif: string) =>
       (await bd.query<{ id: number }>(
-        'INSERT INTO clinicas (nombre, poblacion, validada) VALUES ($1, $2, true) RETURNING id', [nombre, poblacion],
+        'INSERT INTO clinicas (nombre, poblacion, cif, alta_por_bambu) VALUES ($1, $2, $3, true) RETURNING id', [nombre, poblacion, cif],
       )).rows[0]!.id;
     const usuario = async (email: string, nombre: string, apellidos: string, rol: 'bambu' | 'derivador', clinicaId: number | null) =>
       (await bd.query<{ id: number }>(
@@ -46,9 +52,9 @@ export async function sembrarDemo(pool: pg.Pool, urlPublica: string, contrasena:
         [email, nombre, apellidos, rol, clinicaId, hash],
       )).rows[0]!.id;
 
-    const santRoc = await clinica('Clínica Veterinària Sant Roc', 'Dénia');
-    const montgo = await clinica('Hospital Veterinari Montgó', 'Xàbia');
-    const marina = await clinica('Centre Veterinari La Marina', 'Pedreguer');
+    const santRoc = await clinica('Clínica Veterinària Sant Roc', 'Dénia', CIF_DEMO[0]!);
+    const montgo = await clinica('Hospital Veterinari Montgó', 'Xàbia', CIF_DEMO[1]!);
+    const marina = await clinica('Centre Veterinari La Marina', 'Pedreguer', CIF_DEMO[2]!);
     const vets = [
       await usuario(cuentas[0]!, 'Marta', 'Puig', 'derivador', santRoc),
       await usuario(cuentas[1]!, 'Pau', 'Vidal', 'derivador', santRoc),

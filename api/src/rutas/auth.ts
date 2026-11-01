@@ -14,8 +14,8 @@ import { enTransaccion, type Consultable } from '../db/pool.ts';
 import { registrarCambio } from '../db/historial.ts';
 import { problemaDeContrasena } from '../dominio/contrasena-valida.ts';
 import { dominioDeClinica } from '../dominio/dominios-genericos.ts';
+import { nifValido, normalizarNif } from '../dominio/nif.ts';
 import { datosIncorrectos, prohibido } from '../errores.ts';
-import { solicitarUnion } from '../servicios/clinicas.ts';
 import {
   contrasenaSuperadminCorrecta, esUsuarioSuperadmin,
 } from '../superadmin.ts';
@@ -32,12 +32,13 @@ const esquemaRegistro = z.object({
   apellidos: texto(120).min(1, 'Cal els cognoms'),
   email: correo,
   telefono: texto(30).min(6, 'Cal un telèfon de contacte'),
-  num_colegiado: texto(40).optional().default(''),
+  num_colegiado: texto(40).min(1, 'Cal el número de col·legiat'),
   clinica: z.object({
     nombre: texto(150).min(2, 'Cal el nom de la clínica'),
-    poblacion: texto(100).optional().default(''),
+    poblacion: texto(100).min(1, 'Cal la població'),
+    cif: texto(20).min(1, 'Cal el CIF o NIF de la clínica').refine((v) => v === '' || nifValido(v), 'CIF o NIF no vàlid')
+      .transform(normalizarNif),
   }),
-  union_clinica_id: z.number().int().positive().optional(),
   privacidad: z.literal(true, { errorMap: () => ({ message: 'Cal acceptar la política de privacitat' }) }),
 });
 
@@ -107,8 +108,7 @@ export async function rutasAuth(app: FastifyInstance, deps: Deps): Promise<void>
           // tienen cuenta. Si aún no la verificó, le llega otra vez la
           // verificación; si ya la tiene, cómo recuperarla.
           if (existente.activo && !existente.es_de_entorno && !existente.verificado) {
-            const token = await emitirToken(bd, existente.id, 'verificacion',
-              d.union_clinica_id ? { union_clinica_id: d.union_clinica_id } : {});
+            const token = await emitirToken(bd, existente.id, 'verificacion');
             await encolarCorreo(bd, {
               destinatario: d.email, usuarioId: existente.id, plantilla: 'verificacion',
               datos: { nombre: existente.nombre, enlace: enlaceToken(token) },
@@ -123,29 +123,62 @@ export async function rutasAuth(app: FastifyInstance, deps: Deps): Promise<void>
           return;
         }
 
+        // El CIF no da acceso a nada (es público): solo evita clínicas
+        // repetidas. A una clínica que ya está en el portal se entra por
+        // invitación; a quien lo intenta se le dice a su propio correo, nunca
+        // en la pantalla ni a la clínica.
+        const { rows: conCif } = await bd.query<{ id: number; real: boolean }>(
+          `SELECT c.id, (c.alta_por_bambu OR EXISTS (SELECT 1 FROM usuarios u WHERE u.clinica_id = c.id
+                                                AND u.activo AND u.verificado_el IS NOT NULL)) AS real
+           FROM clinicas c WHERE c.activa AND c.cif = $1 FOR UPDATE`,
+          [d.clinica.cif],
+        );
+        const ocupada = conCif[0];
+        if (ocupada?.real) {
+          await encolarCorreo(bd, {
+            destinatario: d.email, plantilla: 'clinica-existente', datos: { nombre: d.nombre },
+          });
+          return;
+        }
+        if (ocupada) {
+          // Un alta que nunca se confirmó: sin datos, porque sin verificar no
+          // se entra. Se retira para que no bloquee el CIF para siempre.
+          const { rows: retirados } = await bd.query<{ id: number }>(
+            'UPDATE usuarios SET activo = false WHERE clinica_id = $1 AND verificado_el IS NULL RETURNING id',
+            [ocupada.id],
+          );
+          await bd.query(
+            'UPDATE tokens_correo SET caduca = least(caduca, now()) WHERE usuario_id = ANY($1) AND usado_el IS NULL',
+            [retirados.map((r) => r.id)],
+          );
+          await bd.query('UPDATE clinicas SET activa = false WHERE id = $1', [ocupada.id]);
+          await registrarCambio(bd, {
+            tabla: 'clinicas', filaId: ocupada.id, antes: { activa: true },
+            despues: { activa: false, motivo: 'alta sin confirmar con el mismo CIF que un alta nueva', usuarios_retirados: retirados.map((r) => r.id) },
+            usuarioId: null, origen: 'sistema',
+          });
+        }
+
         const { rows: clinicas } = await bd.query<{ id: number }>(
-          `INSERT INTO clinicas (nombre, poblacion, dominio_correo) VALUES ($1, $2, $3) RETURNING id`,
-          [d.clinica.nombre, d.clinica.poblacion || null, dominioDeClinica(d.email)],
+          `INSERT INTO clinicas (nombre, poblacion, cif, dominio_correo) VALUES ($1, $2, $3, $4) RETURNING id`,
+          [d.clinica.nombre, d.clinica.poblacion, d.clinica.cif, dominioDeClinica(d.email)],
         );
         const { rows: usuarios } = await bd.query<{ id: number }>(
           `INSERT INTO usuarios (email, nombre, apellidos, telefono, num_colegiado, rol, clinica_id,
                                  privacidad_version, privacidad_el)
            VALUES ($1, $2, $3, $4, $5, 'derivador', $6, $7, now()) RETURNING id`,
-          [d.email, d.nombre, d.apellidos, d.telefono, d.num_colegiado || null, clinicas[0]!.id,
+          [d.email, d.nombre, d.apellidos, d.telefono, d.num_colegiado, clinicas[0]!.id,
             VERSION_PRIVACIDAD],
         );
-        // Si eligió unirse a una clínica que ya existe, la solicitud se hace al
-        // confirmar el correo: así nadie recibe avisos de cuentas sin verificar.
-        const token = await emitirToken(bd, usuarios[0]!.id, 'verificacion',
-          d.union_clinica_id ? { union_clinica_id: d.union_clinica_id } : {});
+        const token = await emitirToken(bd, usuarios[0]!.id, 'verificacion');
         await encolarCorreo(bd, {
           destinatario: d.email, usuarioId: usuarios[0]!.id, plantilla: 'verificacion',
           datos: { nombre: d.nombre, enlace: enlaceToken(token) },
         });
       });
     } catch (error) {
-      // Dos altas a la vez con el mismo correo: la segunda choca con el índice
-      // único. Para quien la manda es la misma respuesta que la primera.
+      // Dos altas a la vez con el mismo correo o el mismo CIF: la segunda
+      // choca con el índice único. Para quien la manda, la misma respuesta.
       if ((error as { code?: string }).code !== '23505') throw error;
     }
     cola.despertar();
@@ -312,20 +345,6 @@ export async function rutasAuth(app: FastifyInstance, deps: Deps): Promise<void>
           clinicaId: u.clinica_id,
           datos: { nombre, clinica: u.clinica_nombre },
         });
-        const unionId = Number(consumido.datos.union_clinica_id);
-        if (u.rol === 'derivador' && Number.isInteger(unionId) && unionId > 0 && u.email && u.clinica_id) {
-          // Si la clínica ya no existe o no se puede, el alta sigue adelante:
-          // podrá pedirlo desde su perfil.
-          await bd.query('SAVEPOINT union_clinica');
-          try {
-            await solicitarUnion(bd, {
-              id: u.id, email: u.email, nombre: u.nombre, apellidos: u.apellidos, clinicaId: u.clinica_id,
-            }, unionId);
-            await bd.query('RELEASE SAVEPOINT union_clinica');
-          } catch {
-            await bd.query('ROLLBACK TO SAVEPOINT union_clinica');
-          }
-        }
       }
 
       await abrirSesion(bd, respuesta, config, u.id, peticion.headers['user-agent']);
