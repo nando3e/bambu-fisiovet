@@ -35,10 +35,23 @@ la IA y los plazos, con la lista de lo pendiente para el asesor.
 Redesplegar: un push no despliega. Skill `desplegar-dokploy`, `composeId`
 `KsDhH9XS4pHR4h-fPxCra`.
 
-**Datos de prueba en el portal de pruebas**: para probar el informe en
-producción se creó la clínica «PROVA — Clínica de proves» con un caso
-(paciente «Prova») y un informe de evolución. Se puede desactivar desde
-Clíniques cuando moleste.
+**Datos de prueba en el portal de pruebas**:
+
+- La clínica «PROVA — Clínica de proves» con un caso (paciente «Prova») y un
+  informe de evolución, de la prueba del informe a mano.
+- La semilla de demo (`api/seed/demo.ts`), sembrada el 2026-11-01: tres
+  clínicas (Sant Roc, Montgó, La Marina), cuatro veterinarios, dos fisios,
+  15 derivaciones en todos los estados y conversación en los hilos.
+  - Veterinaria Marta Puig (Sant Roc): `nando3e@gmail.com`.
+  - Las demás cuentas: `nando3e+pau|anna|biel|laia|jordi@gmail.com`. Laia y
+    Jordi son fisios de Bambú. Los avisos de todas llegan al Gmail de Nando.
+  - Contraseña de todas: `DEMO_CONTRASENA` en `.env.produccion`.
+  - Se lanzó con la tarea `sembrar-demo` de Dokploy (Compose `portal` →
+    Schedules, desactivada). El comando guardado lleva `<DEMO_CONTRASENA>`
+    en lugar de la contraseña. La semilla se niega si ya está sembrada o si
+    la URL es bambufisiovet.com.
+  - Antes de pasar el dominio de verdad, desactivar estas cuentas y clínicas
+    desde el panel.
 
 ## Lo que necesito de Nando (en este orden)
 
