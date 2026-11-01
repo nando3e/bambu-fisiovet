@@ -13,6 +13,7 @@ import { haceCuanto, t, type ClaveTexto } from '../../i18n/index.ts';
 import { useSesion } from '../../sesion.tsx';
 import { Aviso, Campo, Cargando, TituloPagina, Vacio } from '../../componentes/comunes.tsx';
 import { ListaNotificaciones, useAbrirNotificacion } from '../../componentes/Notificaciones.tsx';
+import { INFORMES_ACTIVOS } from '../../funciones.ts';
 
 interface Clinica {
   id: number;
@@ -107,7 +108,7 @@ export function InicioBambu() {
           <span className="icono-cifra"><Stethoscope size={22} aria-hidden /></span>
           <div><strong>{datos.contadores.en_tratamiento}</strong><span>{t('bambu.enTratamiento')}</span></div>
         </Link>
-        {datos.contadores.propuestas_pendientes > 0 ? (
+        {INFORMES_ACTIVOS && datos.contadores.propuestas_pendientes > 0 ? (
           <Link to="/b/casos?propuestas=1" className="cifra">
             <span className="icono-cifra" style={{ background: 'var(--aviso-fondo)', color: 'var(--aviso-texto)' }}><FileText size={22} aria-hidden /></span>
             <div><strong>{datos.contadores.propuestas_pendientes}</strong><span>{t('bambu.propuestasPendientes')}</span></div>

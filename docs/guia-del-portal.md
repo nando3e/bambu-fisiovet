@@ -157,8 +157,9 @@ aviso:
   adjuntar documentos (analíticas, radiografías), «Adjunta un fitxer»: quedan
   preparados junto al texto y salen con «Envia», pegados al mensaje. Las
   fotos se ven en el hilo; cualquier adjunto se abre al pulsarlo.
-- **Los informes** que publica Bambú le llegan al hilo y a la campana, y los
-  puede imprimir.
+- **Los informes** los hace Bambú en Wakyma y se los adjunta en el hilo del
+  caso: le llega el aviso «Document nou» a la campana (y por correo) y los
+  abre desde el hilo.
 - Los avisos le llegan a la campana y, si no lo ha apagado, también por
   correo. En «Perfil» → «Rebre avisos per correu» decide si quiere correos.
 
@@ -264,17 +265,13 @@ El círculo con la «i» de la lista lo recuerda, con las marcas dibujadas.
 - **Documentos**: «Adjunta un fitxer», se preparan junto al texto y salen con
   «Envia». Los de una nota interna, solo para Bambú. Las fotos se ven en el
   hilo y cualquier adjunto se abre al pulsarlo.
-- **Informes** (valoración, evolución, alta), en la pestaña «Informes»:
-  1. **«Genera un informe»**: se elige el tipo y se dicta con el micrófono (si
-     hay claves de IA) o se escribe a mano.
-  2. Sale una **propuesta**. Con «Edita» se escribe **todo junto en un solo
-     texto**, a criterio del fisio; las dudas de la IA se ven encima como
-     recordatorio pero no entran en el informe.
-  3. **«Confirma»**: se publica y **se añade solo al hilo** como un mensaje de
-     Bambú con la tarjeta del informe (para abrirlo e imprimirlo). Al
-     veterinario le llega el aviso. También queda en la pestaña «Informes».
-  - **Un informe nunca sale sin confirmar.** Corregir uno ya publicado es
-    publicar otro que lo sustituye.
+- **Informes: se hacen en Wakyma y se cuelgan en el hilo.** «Adjunta un
+  fitxer», si se quiere con un mensaje («us deixo l'informe»), y «Envia». Al
+  veterinario le llega el aviso «Document nou» a la campana y por correo.
+- **La pestaña «Informes» está desactivada de momento** (en gris). El portal
+  sabe generar informes (dictado con IA, propuesta, edición en un solo texto,
+  «Confirma» y publicación en el hilo), pero queda para el día que se quiera
+  usar: se enciende cambiando una línea (`web/src/funciones.ts`).
 - **Fisio responsable**: es quien lleva el caso, pero los avisos (mensajes,
   documentos, cambios de ficha) le llegan a todo el equipo igualmente.
 - Si el veterinario cambia datos de la ficha, llega un aviso.
@@ -303,7 +300,7 @@ Valores de serie; se cambian en «Configuració» → «Avisos».
 | Bambú acepta, rechaza, da el alta o cierra | El veterinario que derivó y los compañeros que escribieron en el hilo | sí | sí |
 | Bambú marca «Ja té cita» | El veterinario | sí | no |
 | Bambú escribe o adjunta en el hilo | El veterinario | sí | sí |
-| Bambú publica un informe | El veterinario | sí | sí |
+| Bambú adjunta un documento o informe | El veterinario | sí | sí |
 
 - Nadie recibe aviso de lo que hace él mismo.
 - **Sin correos repetidos**: en mensajes, documentos y cambios de ficha, si

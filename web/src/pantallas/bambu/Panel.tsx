@@ -8,6 +8,7 @@ import { AlertTriangle, CalendarClock, FileText, Inbox, Stethoscope } from 'luci
 import { api, mensajeDe } from '../../api.ts';
 import { haceCuanto, t, type ClaveTexto } from '../../i18n/index.ts';
 import { Aviso, CampoSelector, Cargando, TituloPagina } from '../../componentes/comunes.tsx';
+import { INFORMES_ACTIVOS } from '../../funciones.ts';
 
 interface Indicadores {
   rango: { desde: string; hasta: string };
@@ -106,7 +107,9 @@ function Bloques({ d }: { d: Indicadores }) {
           enlace="/b/casos?f=atascados" icono={<AlertTriangle size={22} aria-hidden />} n={d.operativos.atascados}
           texto={t('bambu.atascados', { n: d.operativos.dias_pendiente_cita })} alerta={d.operativos.atascados > 0}
         />
-        <Cifra enlace="/b/casos?propuestas=1" icono={<FileText size={22} aria-hidden />} n={d.operativos.propuestas_pendientes} texto={t('bambu.propuestasPendientes')} />
+        {INFORMES_ACTIVOS ? (
+          <Cifra enlace="/b/casos?propuestas=1" icono={<FileText size={22} aria-hidden />} n={d.operativos.propuestas_pendientes} texto={t('bambu.propuestasPendientes')} />
+        ) : null}
       </div>
 
       <div className="rejilla-panel">

@@ -12,6 +12,7 @@ import { accionesBambu, CERRADOS, EDITABLE_POR_DERIVADOR, type AccionCaso } from
 import { Aviso, Campo, CampoSelector, CampoTexto, Cargando, TituloPagina } from '../../componentes/comunes.tsx';
 import { avisarCambioNotificaciones } from '../../componentes/Notificaciones.tsx';
 import { CamposDerivacion, CamposPaciente, CamposPropietario, pacienteParaApi } from './Formularios.tsx';
+import { INFORMES_ACTIVOS } from '../../funciones.ts';
 import { Hilo } from './Hilo.tsx';
 import { LineaTemporal } from './LineaTemporal.tsx';
 import { Informes } from './Informes.tsx';
@@ -30,7 +31,7 @@ export function FichaCaso({ zona }: { zona: '/d' | '/b' }) {
   const [editando, setEditando] = useState(false);
   const [url] = useSearchParams();
   const [pestana, setPestana] = useState<'fil' | 'fitxa' | 'informes' | null>(
-    url.get('p') === 'informes' ? 'informes' : null,
+    url.get('p') === 'informes' && INFORMES_ACTIVOS ? 'informes' : null,
   );
 
   const cargar = useCallback(async () => {
@@ -98,6 +99,8 @@ export function FichaCaso({ zona }: { zona: '/d' | '/b' }) {
       <div className="pestanas" role="tablist">
         {(['fil', 'fitxa', 'informes'] as const).map((p) => (
           <button key={p} type="button" role="tab" aria-selected={vista === p} className={vista === p ? 'activo' : undefined}
+            disabled={p === 'informes' && !INFORMES_ACTIVOS}
+            title={p === 'informes' && !INFORMES_ACTIVOS ? t('informes.desactivados') : undefined}
             onClick={() => setPestana(p)}>
             {p === 'fil' ? t('hilo.titulo') : p === 'fitxa' ? t('hilo.fitxa') : t('informes.titulo')}
           </button>
@@ -105,7 +108,7 @@ export function FichaCaso({ zona }: { zona: '/d' | '/b' }) {
       </div>
 
       {vista === 'fil' ? <Hilo casoId={ficha.id} borrador={ficha.estado === 'borrador'} /> : null}
-      {vista === 'informes' ? <Informes casoId={ficha.id} zona={zona} estado={ficha.estado} /> : null}
+      {vista === 'informes' && INFORMES_ACTIVOS ? <Informes casoId={ficha.id} zona={zona} estado={ficha.estado} /> : null}
 
       {vista !== 'fitxa' ? null : editando ? (
         <Edicion ficha={ficha} alTerminar={(f) => {

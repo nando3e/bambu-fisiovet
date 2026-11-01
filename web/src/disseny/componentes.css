@@ -540,6 +540,11 @@
   margin: 0 0 4px;
   font-size: 0.9rem;
 }
+.pestanas button:disabled {
+  color: var(--texto-tenue);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 .pestanas .activo {
   color: var(--verde-oscuro);
   border-bottom-color: var(--verde-oscuro);
