@@ -529,7 +529,10 @@ Del change `informes-por-voz` y `panel-e-indicadores` (2026-11-01):
     (ignorado por git).
   - 2026-11-01: v1 completa desplegada (changes 1-5). Camino del informe a
     mano probado en producción con la clínica «PROVA — Clínica de proves».
-- Pendiente (decisión de Nando): pasar `bambufisiovet.com` del Application
-  antiguo al Compose `portal` (cambiar `APP_HOST`, quitar el dominio del
-  Application y redesplegar), configurar el SMTP de Dondominio desde el panel,
-  probarlo y poner `CORREO_DRY_RUN=false`.
+- 2026-11-01: `bambufisiovet.com` y `www` pasan al Compose `portal` como
+  dominios de Dokploy (interfaz, no labels en el compose, decisión de Nando).
+  Los del Application antiguo se renombraron a `web-antiga.…sslip.io` y
+  `www-web-antiga.…sslip.io`. `APP_HOST=bambufisiovet.com` y
+  `CORREO_DRY_RUN=false`.
+- Pendiente (Nando): configurar el SMTP de Dondominio desde el panel y
+  probarlo.

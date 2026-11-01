@@ -54,7 +54,9 @@ competidor; el aspecto visual sale de ella.
 - **Deploy**: Dokploy, `docker-compose.yml`. Stack = app + **Postgres propio** en la red interna
   `bambu-internal` (nunca en `dokploy-network`, sin puerto publicado); la app se
   conecta a `bambu-postgres:5432`, nunca a `postgres` a secas. Volumen
-  `bambu-datos` → `/datos` para adjuntos y audios.
+  `bambu-datos` → `/datos` para adjuntos y audios. **Dominios en la interfaz
+  de Dokploy** (Compose `portal` → Domains), nunca labels de Traefik en el
+  compose; `APP_HOST` solo da la URL de los correos.
 
 ## Idiomas
 

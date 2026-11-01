@@ -28,14 +28,19 @@ la IA y los plazos, con la lista de lo pendiente para el asesor.
 
 | Qué | Dónde |
 |---|---|
-| Portal nuevo (Compose `portal`, proyecto Dokploy **BambuFisioVet**) | https://bambu-fisiovet.91-99-128-20.sslip.io: v1 completa, `/salud` 200, camino del informe a mano probado |
-| Web antigua (Application `bambu-fisiovet`) | https://bambufisiovet.com: **intacta**, autodespliegue desactivado |
+| Portal nuevo (Compose `portal`, proyecto Dokploy **BambuFisioVet**) | **https://bambufisiovet.com** (y `www`) desde el 2026-11-01; también https://bambu-fisiovet.91-99-128-20.sslip.io |
+| Web antigua (Application `bambu-fisiovet`) | https://web-antiga.91-99-128-20.sslip.io: intacta, solo para consulta; sus dominios se renombraron, no se borraron |
 | Environment de producción | `.env.produccion` (raíz, ignorado por git) y Dokploy |
 
 Redesplegar: un push no despliega. Skill `desplegar-dokploy`, `composeId`
 `KsDhH9XS4pHR4h-fPxCra`.
 
-**Datos de prueba en el portal de pruebas**:
+**Dominios**: en la interfaz de Dokploy (Compose `portal` → Domains:
+servicio `bambu-app`, puerto 8105, HTTPS con Let's Encrypt), no con labels
+en el compose. `APP_HOST` solo da la URL de los enlaces de los correos.
+`www` sirve el mismo portal (no redirige).
+
+**Datos de prueba** (ahora en el dominio real):
 
 - La clínica «PROVA — Clínica de proves» con un caso (paciente «Prova») y un
   informe de evolución, de la prueba del informe a mano.
@@ -67,9 +72,8 @@ Redesplegar: un push no despliega. Skill `desplegar-dokploy`, `composeId`
    `CORREO_DRY_RUN=false` en Dokploy. Mientras tanto, ningún correo sale de
    verdad.
 4. **Correo del centro** para los avisos (Configuració → Avisos).
-5. **Pasar `bambufisiovet.com` al portal nuevo**: quitar los dominios del
-   Application antiguo, poner `APP_HOST=bambufisiovet.com` en el Compose
-   `portal` (y `www` como redirección) y redesplegar. El DNS ya apunta al VPS.
+5. **Datos de demo en el dominio real**: cuando acabe la prueba, desactivar
+   las cuentas `nando3e+…` y las clínicas de demo desde el panel.
 6. **Textos legales** definitivos (privacidad y consentimiento del
    propietario) y revisión del valenciano por un nativo; fotos reales.
 7. **Supuestos de Bambú** que siguen abiertos (cuaderno §6 y §10): plazo de
