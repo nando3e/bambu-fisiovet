@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { esHueco, TAMANO_MAXIMO, tipoDeImagen } from '../ficheros/imagenes-web.ts';
 import { exigirSesion, ROLES_BAMBU, SOLO_SUPERADMIN } from '../auth/permisos.ts';
 import { reintentarCorreo, trazarAviso } from '../avisos/cola.ts';
-import { actualizarFilaMatriz, leerMatriz } from '../avisos/matriz.ts';
+import { actualizarFilaMatriz, direccionesDe, leerMatriz } from '../avisos/matriz.ts';
 import { cifrar, descifrar } from '../cifrado.ts';
 import {
   guardarConfiguracion, leerConfiguracion, type ValorConfig,
@@ -66,8 +66,9 @@ export async function rutasConfiguracion(app: FastifyInstance, deps: Deps): Prom
         correo_a: z
           .string()
           .trim()
-          .max(200)
-          .refine((v) => v === '' || z.string().email().safeParse(v).success, 'Correu no vàlid')
+          .max(500)
+          .refine((v) => direccionesDe(v).every((d) => z.string().email().safeParse(d).success), 'Correu no vàlid')
+          .refine((v) => direccionesDe(v).length <= 5, 'Com a màxim cinc adreces')
           .nullable()
           .default(null),
       }),

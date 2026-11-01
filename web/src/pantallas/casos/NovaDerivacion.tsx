@@ -238,6 +238,7 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
       <TituloPagina
         titulo={bambu ? t('nova.registraTitulo') : t('nova.titulo')}
         subtitulo={bambu ? t('nova.registraSubtitulo') : t('nova.subtitulo')}
+        ayuda={bambu ? 'ayuda.novaB' : 'ayuda.novaD'}
       />
       <div className="pasos" aria-label={t('nova.paso', { n: paso + 1, total: pasos.length })}>
         {pasos.map((p, i) => (

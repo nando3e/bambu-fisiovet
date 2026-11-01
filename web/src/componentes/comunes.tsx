@@ -2,7 +2,7 @@
 import { useEffect, useRef, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import { Link } from 'react-router';
 import { AlertTriangle, CheckCircle2, Info, Loader2 } from 'lucide-react';
-import { t } from '../i18n/index.ts';
+import { t, type ClaveTexto } from '../i18n/index.ts';
 
 export function Marca({ a = '/', clara = false }: { a?: string; clara?: boolean }) {
   return (
@@ -105,17 +105,21 @@ export function Vacio({ icono, children }: { icono: ReactNode; children: ReactNo
   );
 }
 
-export function TituloPagina({ antetitulo, titulo, subtitulo, children }: {
+export function TituloPagina({ antetitulo, titulo, subtitulo, ayuda, ayudaTitulo, children }: {
   antetitulo?: string;
   titulo: string;
   subtitulo?: string;
+  /** Texto del botón (i) junto al título: qué hay en la pantalla y qué se hace en ella. */
+  ayuda?: ClaveTexto;
+  /** Título del diálogo de ayuda, si no es el de la página. */
+  ayudaTitulo?: string;
   children?: ReactNode;
 }) {
   return (
     <div className="titulo-pagina">
       <div>
         {antetitulo ? <div className="antetitulo">{antetitulo}</div> : null}
-        <h1>{titulo}</h1>
+        <h1>{titulo}{ayuda ? <Ayuda titulo={ayudaTitulo ?? titulo} texto={ayuda} /> : null}</h1>
         {subtitulo ? <p>{subtitulo}</p> : null}
       </div>
       {children}
@@ -148,4 +152,30 @@ export function useAparecer(dependencia: unknown = null) {
     return () => observador.disconnect();
   }, [dependencia]);
   return raiz;
+}
+
+/**
+ * Botón (i) que abre una explicación en un diálogo nativo (Esc o tocar fuera
+ * lo cierran). El texto va en el diccionario: una línea por párrafo, y una
+ * línea que acaba en «:» es un subtítulo.
+ */
+export function Ayuda({ titulo, texto }: { titulo: string; texto: ClaveTexto }) {
+  const dialogo = useRef<HTMLDialogElement>(null);
+  const etiqueta = t('ayuda.abrir', { titulo });
+  return (
+    <>
+      <button type="button" className="boton-info" aria-label={etiqueta} title={etiqueta} onClick={() => dialogo.current?.showModal()}>
+        <Info size={18} aria-hidden />
+      </button>
+      <dialog ref={dialogo} className="dialogo-ayuda" onClick={(e) => { if (e.target === dialogo.current) dialogo.current.close(); }}>
+        <div className="dialogo-ayuda-cuerpo">
+          <h2>{titulo}</h2>
+          {t(texto).split('\n').map((linea, i) => (linea.endsWith(':') ? <h3 key={i}>{linea.slice(0, -1)}</h3> : <p key={i}>{linea}</p>))}
+          <div className="acciones">
+            <button type="button" className="boton" onClick={() => dialogo.current?.close()}>{t('ayuda.entendido')}</button>
+          </div>
+        </div>
+      </dialog>
+    </>
+  );
 }

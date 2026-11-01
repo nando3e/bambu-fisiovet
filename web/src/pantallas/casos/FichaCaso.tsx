@@ -58,6 +58,8 @@ export function FichaCaso({ zona }: { zona: '/d' | '/b' }) {
       <TituloPagina
         antetitulo={ficha.clinica.nombre}
         titulo={`${ficha.paciente.nombre || '—'}${ficha.paciente.especie ? ` · ${nombreEspecie(ficha.paciente.especie, ficha.paciente.especie_otra)}` : ''}`}
+        ayuda={deriva ? 'ayuda.casoD' : 'ayuda.casoB'}
+        ayudaTitulo={t('ayuda.casoTitulo')}
       >
         <ChipEstado estado={ficha.estado} paraDerivador={deriva} />
       </TituloPagina>

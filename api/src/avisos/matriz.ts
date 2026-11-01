@@ -48,6 +48,11 @@ export async function leerMatriz(bd: Consultable): Promise<FilaMatriz[]> {
   });
 }
 
+/** Las direcciones de «Correu a»: una o varias, separadas por comas, punto y coma o espacios. */
+export function direccionesDe(texto: string | null | undefined): string[] {
+  return (texto ?? '').split(/[,;\s]+/).map((d) => d.trim()).filter(Boolean);
+}
+
 export interface CambioFila {
   notificacion: boolean;
   correo: boolean;
@@ -61,7 +66,8 @@ export async function actualizarFilaMatriz(
   usuarioId: number,
 ): Promise<FilaMatriz> {
   if (!esTipoEvento(evento)) throw noEncontrado('Aquest avís no existeix');
-  const correoA = cambio.correo_a?.trim() || null;
+  // Se guarda normalizado: «a@x.es, b@y.es».
+  const correoA = direccionesDe(cambio.correo_a).join(', ') || null;
   if (correoA && !admiteCorreoA(evento)) {
     throw datosIncorrectos('Aquest avís va als veterinaris: no admet una adreça pròpia');
   }

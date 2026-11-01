@@ -65,6 +65,12 @@ test('matriz: apagar notificación o correo vale al momento; «Correu a» manda 
   await pedir(s.app, 'PUT', '/api/configuracion/avisos', { cookie: admin, cuerpo: { correo_centro: 'avisos@bambufisiovet.com', dias_sin_noticias: 7 } });
   await matriz('derivacion.enviada', { notificacion: true, correo: true, correo_a: 'recepcio@bambufisiovet.com' });
   assert.deepEqual((await publicar({ tipo: 'derivacion.enviada', actor: null, casoId: await casoDePrueba(s.pool) })).correosEncolados, ['recepcio@bambufisiovet.com']);
+  // Varias direcciones: un correo a cada una, y se guardan normalizadas.
+  const varias = await matriz('derivacion.enviada', { notificacion: true, correo: true, correo_a: 'recepcio@bambufisiovet.com; laia@bambufisiovet.com ' });
+  assert.equal(varias.cuerpo.correo_a, 'recepcio@bambufisiovet.com, laia@bambufisiovet.com');
+  assert.deepEqual((await publicar({ tipo: 'derivacion.enviada', actor: null, casoId: await casoDePrueba(s.pool) })).correosEncolados,
+    ['recepcio@bambufisiovet.com', 'laia@bambufisiovet.com']);
+  assert.equal((await matriz('derivacion.enviada', { notificacion: true, correo: true, correo_a: 'recepcio@bambufisiovet.com, no-es-correu' })).estado, 400);
   await matriz('derivacion.enviada', { notificacion: true, correo: true, correo_a: null });
   assert.deepEqual((await publicar({ tipo: 'derivacion.enviada', actor: null, casoId: await casoDePrueba(s.pool) })).correosEncolados, ['avisos@bambufisiovet.com']);
   assert.equal((await matriz('derivacion.aceptada', { notificacion: true, correo: true, correo_a: 'x@y.es' })).estado, 400);

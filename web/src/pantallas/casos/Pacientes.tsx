@@ -35,7 +35,7 @@ export function ListaPacientes({ zona }: { zona: '/d' | '/b' }) {
 
   return (
     <>
-      <TituloPagina titulo={t('pacientes.titulo')} subtitulo={t('pacientes.subtitulo')} />
+      <TituloPagina titulo={t('pacientes.titulo')} subtitulo={t('pacientes.subtitulo')} ayuda={zona === '/b' ? 'ayuda.pacientesB' : 'ayuda.pacientesD'} />
       <div className="barra-filtros">
         <label className="campo buscador">
           <span className="oculto">{t('pacientes.buscar')}</span>

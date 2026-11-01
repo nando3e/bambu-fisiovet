@@ -34,6 +34,8 @@ COPY api/src ./api/src
 COPY api/migrations ./api/migrations
 COPY api/plantillas ./api/plantillas
 COPY api/comprova-produccio.ts ./api/
+# La semilla de demo, para el portal de pruebas (se lanza a mano; se niega en producción).
+COPY api/seed ./api/seed
 COPY --from=web /app/web/dist ./web/dist
 
 # Producción corre con --experimental-strip-types, que no admite enums,

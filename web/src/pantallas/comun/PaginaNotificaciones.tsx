@@ -36,7 +36,7 @@ export function PaginaNotificaciones() {
 
   return (
     <>
-      <TituloPagina titulo={t('notificaciones.titulo')} subtitulo={t('notificaciones.pendientes', { n: noLeidas })}>
+      <TituloPagina titulo={t('notificaciones.titulo')} subtitulo={t('notificaciones.pendientes', { n: noLeidas })} ayuda="ayuda.notificaciones">
         {noLeidas > 0 ? (
           <button
             type="button"

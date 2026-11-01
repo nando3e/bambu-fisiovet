@@ -8,7 +8,7 @@ import {
 import { api, ErrorApi, mensajeDe } from '../../../api.ts';
 import { fecha, t, type ClaveTexto } from '../../../i18n/index.ts';
 import { useSesion } from '../../../sesion.tsx';
-import { Aviso, Campo, CampoSelector, CampoTexto, Cargando, Interruptor, TituloPagina } from '../../../componentes/comunes.tsx';
+import { Aviso, Ayuda, Campo, CampoSelector, CampoTexto, Cargando, Interruptor, TituloPagina } from '../../../componentes/comunes.tsx';
 
 export function Configuracion() {
   const { usuario } = useSesion();
@@ -397,7 +397,7 @@ function Avisos() {
       {estado.error ? <Aviso tipo="error">{estado.error}</Aviso> : null}
 
       <section className="tarjeta">
-        <h2 style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Mail size={18} aria-hidden /> {t('avisos.correoCentro')}</h2>
+        <h2 style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Mail size={18} aria-hidden /> {t('avisos.correoCentro')} <Ayuda titulo={t('avisos.correoCentro')} texto="ayuda.avisosCentro" /></h2>
         <p className="ayuda">{t('avisos.correoCentroAyuda')}</p>
         <form className="formulario dos" onSubmit={guardarCentro}>
           <Campo
@@ -424,7 +424,7 @@ function Avisos() {
       </section>
 
       <section className="tarjeta">
-        <h2 style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Bell size={18} aria-hidden /> {t('avisos.matriz')}</h2>
+        <h2 style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Bell size={18} aria-hidden /> {t('avisos.matriz')} <Ayuda titulo={t('avisos.matriz')} texto="ayuda.avisosMatriz" /></h2>
         <p className="ayuda">{t('avisos.matrizAyuda')}</p>
         <table className="tabla">
           <thead>
@@ -515,9 +515,10 @@ function FilaAviso({ fila, correoCentro, alGuardar }: {
       <td data-etiqueta={t('avisos.columna.correoA')}>
         {fila.admite_correo_a ? (
           <input
-            type="email"
+            type="text"
+            inputMode="email"
             aria-label={`${t('avisos.columna.correoA')}: ${etiqueta}`}
-            placeholder={correoCentro || t('avisos.correoCentro')}
+            placeholder={correoCentro || t('avisos.correoAVacio')}
             value={correoA}
             disabled={!fila.correo}
             onChange={(e) => setCorreoA(e.target.value)}

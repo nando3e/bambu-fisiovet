@@ -10,6 +10,7 @@ import type { Consultable } from '../db/pool.ts';
 import { resolverDestinatarios, type UsuarioAviso } from './destinatarios.ts';
 import { definicion, esTipoEvento, type DatosEvento, type TipoEvento } from './eventos.ts';
 import { encolarCorreo, trazarAviso } from './cola.ts';
+import { direccionesDe } from './matriz.ts';
 
 export interface EventoAPublicar {
   tipo: TipoEvento;
@@ -124,18 +125,22 @@ export async function publicarEvento(bd: Consultable, ev: EventoAPublicar): Prom
       const avisados = destino.bambu;
       const yaSabian = def.antiRuido && avisados.length > 0 && avisados.every((u) => conNoLeida.has(u.id));
       const { correo_centro } = await leerConfiguracion(bd, 'avisos');
-      const direccion = (matriz.correo_a ?? '').trim() || correo_centro;
+      // «Correu a» (una o varias direcciones) manda sobre el correo del centro.
+      const direcciones = direccionesDe(matriz.correo_a);
+      if (direcciones.length === 0 && correo_centro) direcciones.push(correo_centro);
       if (yaSabian) {
         await trazarAviso(bd, {
-          canal: 'correo', eventoId, destinatario: direccion || 'equip', enviado: false,
+          canal: 'correo', eventoId, destinatario: direcciones.join(', ') || 'equip', enviado: false,
           motivo: 'ya tiene notificación no leída',
         });
-      } else if (direccion) {
-        await encolarCorreo(bd, {
-          eventoId, destinatario: direccion, plantilla: def.plantilla,
-          datos: datosCorreo('bambu', 'Hola, equip de Bambú'),
-        });
-        correosEncolados.push(direccion);
+      } else if (direcciones.length > 0) {
+        for (const direccion of direcciones) {
+          await encolarCorreo(bd, {
+            eventoId, destinatario: direccion, plantilla: def.plantilla,
+            datos: datosCorreo('bambu', 'Hola, equip de Bambú'),
+          });
+          correosEncolados.push(direccion);
+        }
       } else {
         // Sin «Correu a» ni correo del centro: a cada persona del equipo avisada.
         for (const u of avisados) {

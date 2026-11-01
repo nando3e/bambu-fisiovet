@@ -135,7 +135,7 @@ export function ListaCasos({ zona }: { zona: '/d' | '/b' }) {
             </button>
           ))}
         </div>
-        {deriva ? null : (
+        {(
           <button
             type="button"
             className="boton-ayuda"
@@ -148,7 +148,7 @@ export function ListaCasos({ zona }: { zona: '/d' | '/b' }) {
           </button>
         )}
       </div>
-      {ayuda && !deriva ? <AyudaFiltros /> : null}
+      {ayuda ? <AyudaFiltros deriva={deriva} /> : null}
 
       <div className="barra-filtros">
         <label className="campo buscador">
@@ -220,16 +220,18 @@ function ComoFunciona() {
   );
 }
 
-/** Qué hay en cada pestaña de Bambú y qué tiene que hacer Bambú con ello. */
-function AyudaFiltros() {
+/** Qué hay en cada pestaña y qué hay que hacer con ello (Bambú o el veterinario). */
+function AyudaFiltros({ deriva }: { deriva: boolean }) {
   const [dias, setDias] = useState<number | null>(null);
   useEffect(() => {
+    if (deriva) return;
     // Los días de «Encallades» son configurables: se leen de los contadores.
     api.get<{ dias_pendiente_cita: number }>('/panel/contadores')
       .then((r) => setDias(r.dias_pendiente_cita))
       .catch(() => setDias(null));
-  }, []);
-  const entradas = [...FILTROS_BAMBU.map((f) => ({ clave: f.clave, nombre: t(f.texto) })), { clave: 'novedades', nombre: t('casos.filtro.novedades') }];
+  }, [deriva]);
+  const entradas = [...(deriva ? FILTROS_DERIVADOR : FILTROS_BAMBU).map((f) => ({ clave: f.clave, nombre: t(f.texto) })), { clave: 'novedades', nombre: t('casos.filtro.novedades') }];
+  const prefijo = deriva ? 'casos.ayuda.d' : 'casos.ayuda';
   return (
     <section className="tarjeta ayuda-filtros">
       <h2>{t('casos.ayuda.titulo')}</h2>
@@ -238,9 +240,9 @@ function AyudaFiltros() {
           <div key={e.clave}>
             <dt>{e.nombre}</dt>
             <dd>
-              <p><strong>{t('casos.ayuda.hay')}:</strong> {t(`casos.ayuda.${e.clave}.hay` as ClaveTexto, { n: dias ?? '…' })}</p>
-              <p><strong>{t('casos.ayuda.hacer')}:</strong> {t(`casos.ayuda.${e.clave}.hacer` as ClaveTexto)}</p>
-              <p><strong>{t('casos.ayuda.enciende')}:</strong> {t(`casos.ayuda.${e.clave}.enciende` as ClaveTexto, { n: dias ?? '…' })}</p>
+              <p><strong>{t('casos.ayuda.hay')}:</strong> {t(`${prefijo}.${e.clave}.hay` as ClaveTexto, { n: dias ?? '…' })}</p>
+              <p><strong>{t(deriva ? 'casos.ayuda.hacerD' : 'casos.ayuda.hacer')}:</strong> {t(`${prefijo}.${e.clave}.hacer` as ClaveTexto)}</p>
+              {deriva ? null : <p><strong>{t('casos.ayuda.enciende')}:</strong> {t(`casos.ayuda.${e.clave}.enciende` as ClaveTexto, { n: dias ?? '…' })}</p>}
             </dd>
           </div>
         ))}

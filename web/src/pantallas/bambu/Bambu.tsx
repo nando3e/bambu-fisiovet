@@ -224,7 +224,7 @@ export function Clinicas() {
   if (!datos) return <Cargando />;
   return (
     <>
-      <TituloPagina titulo={t('clinicas.titulo')} subtitulo={t('clinicas.subtitulo')}>
+      <TituloPagina titulo={t('clinicas.titulo')} subtitulo={t('clinicas.subtitulo')} ayuda="ayuda.clinicas">
         <button type="button" className="boton-secundario" onClick={() => setNueva({ nombre: '', poblacion: '', telefono: '', email: '' })}>
           <Plus size={18} aria-hidden /> {t('clinicas.nueva')}
         </button>
