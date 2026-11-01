@@ -3,7 +3,7 @@
 // lista ya filtrada.
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { AlertTriangle, ClipboardList, PhoneCall, Plus, Search, Stethoscope } from 'lucide-react';
+import { AlertTriangle, ClipboardList, Info, PhoneCall, Plus, Search, Stethoscope } from 'lucide-react';
 import { api, mensajeDe } from '../../api.ts';
 import { haceCuanto, t, type ClaveTexto } from '../../i18n/index.ts';
 import { useSesion } from '../../sesion.tsx';
@@ -45,6 +45,7 @@ export function ListaCasos({ zona }: { zona: '/d' | '/b' }) {
   const [casos, setCasos] = useState<CasoLista[] | null>(null);
   const [siguiente, setSiguiente] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [ayuda, setAyuda] = useState(false);
 
   const consulta = (antes?: string) => {
     const p = new URLSearchParams(filtro.params);
@@ -119,20 +120,35 @@ export function ListaCasos({ zona }: { zona: '/d' | '/b' }) {
         )}
       </TituloPagina>
 
-      <div className="pestanas" role="tablist">
-        {filtros.map((f) => (
+      <div className="fila-pestanas">
+        <div className="pestanas" role="tablist">
+          {filtros.map((f) => (
+            <button
+              key={f.clave}
+              type="button"
+              role="tab"
+              aria-selected={f.clave === filtro.clave}
+              className={f.clave === filtro.clave ? 'activo' : undefined}
+              onClick={() => cambiar({ f: f.clave })}
+            >
+              {t(f.texto)}
+            </button>
+          ))}
+        </div>
+        {deriva ? null : (
           <button
-            key={f.clave}
             type="button"
-            role="tab"
-            aria-selected={f.clave === filtro.clave}
-            className={f.clave === filtro.clave ? 'activo' : undefined}
-            onClick={() => cambiar({ f: f.clave })}
+            className="boton-ayuda"
+            aria-label={t('casos.ayuda.boton')}
+            title={t('casos.ayuda.boton')}
+            aria-expanded={ayuda}
+            onClick={() => setAyuda((v) => !v)}
           >
-            {t(f.texto)}
+            <Info size={20} aria-hidden />
           </button>
-        ))}
+        )}
       </div>
+      {ayuda && !deriva ? <AyudaFiltros /> : null}
 
       <div className="barra-filtros">
         <label className="campo buscador">
@@ -200,6 +216,35 @@ function ComoFunciona() {
         <li>{t('derivador.paso3')}</li>
       </ol>
       <Link to="/d/nova" className="boton"><Plus size={18} aria-hidden /> {t('casos.nueva')}</Link>
+    </section>
+  );
+}
+
+/** Qué hay en cada pestaña de Bambú y qué tiene que hacer Bambú con ello. */
+function AyudaFiltros() {
+  const [dias, setDias] = useState<number | null>(null);
+  useEffect(() => {
+    // Los días de «Encallades» son configurables: se leen de los contadores.
+    api.get<{ dias_pendiente_cita: number }>('/panel/contadores')
+      .then((r) => setDias(r.dias_pendiente_cita))
+      .catch(() => setDias(null));
+  }, []);
+  const entradas = [...FILTROS_BAMBU.map((f) => ({ clave: f.clave, nombre: t(f.texto) })), { clave: 'novedades', nombre: t('casos.filtro.novedades') }];
+  return (
+    <section className="tarjeta ayuda-filtros">
+      <h2>{t('casos.ayuda.titulo')}</h2>
+      <dl>
+        {entradas.map((e) => (
+          <div key={e.clave}>
+            <dt>{e.nombre}</dt>
+            <dd>
+              <p><strong>{t('casos.ayuda.hay')}:</strong> {t(`casos.ayuda.${e.clave}.hay` as ClaveTexto, { n: dias ?? '…' })}</p>
+              <p><strong>{t('casos.ayuda.hacer')}:</strong> {t(`casos.ayuda.${e.clave}.hacer` as ClaveTexto)}</p>
+              <p><strong>{t('casos.ayuda.enciende')}:</strong> {t(`casos.ayuda.${e.clave}.enciende` as ClaveTexto, { n: dias ?? '…' })}</p>
+            </dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }
