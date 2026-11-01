@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 940" width="800" height="940" font-family="Arial, Helvetica, sans-serif" font-size="13">
+  <!-- Qué hace Bambú con una derivación nueva. Solo líneas horizontales y verticales. -->
+  <defs>
+    <marker id="flecha" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#344b3b"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="800" height="940" fill="#fffdf8"/>
+
+  <!-- Columna principal -->
+  <rect x="50" y="20" width="320" height="60" rx="10" fill="#ffffff" stroke="#344b3b" stroke-width="1.5"/>
+  <text x="210" y="46" text-anchor="middle" fill="#27372d">Llega el aviso «Nova derivació»</text>
+  <text x="210" y="64" text-anchor="middle" fill="#27372d">(campana de todo el equipo + correo)</text>
+
+  <rect x="50" y="120" width="320" height="60" rx="10" fill="#ffffff" stroke="#344b3b" stroke-width="1.5"/>
+  <text x="210" y="146" text-anchor="middle" fill="#27372d">Abrirla: queda «Rebuda per Bambú»</text>
+  <text x="210" y="164" text-anchor="middle" fill="#27372d">y deja de estar «Sense obrir»</text>
+
+  <rect x="50" y="220" width="320" height="60" rx="10" fill="#fbf0d9" stroke="#7a4f00" stroke-width="1.5"/>
+  <text x="210" y="255" text-anchor="middle" fill="#27372d" font-weight="bold">¿La aceptamos?</text>
+
+  <rect x="50" y="340" width="320" height="60" rx="10" fill="#ffffff" stroke="#344b3b" stroke-width="1.5"/>
+  <text x="210" y="366" text-anchor="middle" fill="#27372d">«Accepta» y, si se quiere,</text>
+  <text x="210" y="384" text-anchor="middle" fill="#27372d">elegir el fisio responsable</text>
+
+  <rect x="50" y="440" width="320" height="60" rx="10" fill="#ffffff" stroke="#344b3b" stroke-width="1.5"/>
+  <text x="210" y="466" text-anchor="middle" fill="#27372d">Llamar al propietario y</text>
+  <text x="210" y="484" text-anchor="middle" fill="#27372d">darle la cita en Wakyma</text>
+
+  <rect x="50" y="540" width="320" height="60" rx="10" fill="#fbf0d9" stroke="#7a4f00" stroke-width="1.5"/>
+  <text x="210" y="575" text-anchor="middle" fill="#27372d" font-weight="bold">¿Tiene cita?</text>
+
+  <rect x="50" y="660" width="320" height="60" rx="10" fill="#ffffff" stroke="#344b3b" stroke-width="1.5"/>
+  <text x="210" y="686" text-anchor="middle" fill="#27372d">«Ja té cita» (la fecha es opcional)</text>
+  <text x="210" y="704" text-anchor="middle" fill="#27372d">→ «En tractament», aviso al veterinario</text>
+
+  <rect x="50" y="760" width="320" height="60" rx="10" fill="#ffffff" stroke="#344b3b" stroke-width="1.5"/>
+  <text x="210" y="786" text-anchor="middle" fill="#27372d">Tratamiento: hilo, documentos e</text>
+  <text x="210" y="804" text-anchor="middle" fill="#27372d">informes (propuesta → «Confirma»)</text>
+
+  <rect x="50" y="860" width="320" height="60" rx="10" fill="#e7f0e3" stroke="#2f5f35" stroke-width="1.5"/>
+  <text x="210" y="886" text-anchor="middle" fill="#27372d" font-weight="bold">«Alta» o informe de alta</text>
+  <text x="210" y="904" text-anchor="middle" fill="#27372d" font-weight="bold">→ el veterinario recibe el aviso</text>
+
+  <!-- Columna derecha -->
+  <rect x="460" y="220" width="300" height="60" rx="10" fill="#f9e7e1" stroke="#a3261c" stroke-width="1.5"/>
+  <text x="610" y="246" text-anchor="middle" fill="#27372d">«Rebutja» con el motivo</text>
+  <text x="610" y="264" text-anchor="middle" fill="#27372d">→ el veterinario lo recibe</text>
+
+  <rect x="460" y="440" width="300" height="60" rx="10" fill="none" stroke="#5b665c" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <text x="610" y="466" text-anchor="middle" fill="#5b665c">Si pasan 3 días sin cita: sale en</text>
+  <text x="610" y="484" text-anchor="middle" fill="#5b665c">«Encallades» y llega un aviso (una vez)</text>
+
+  <rect x="460" y="540" width="300" height="60" rx="10" fill="#f9e7e1" stroke="#a3261c" stroke-width="1.5"/>
+  <text x="610" y="566" text-anchor="middle" fill="#27372d">No contesta, no viene o lo descarta:</text>
+  <text x="610" y="584" text-anchor="middle" fill="#27372d">«Tanca» con el motivo</text>
+
+  <rect x="460" y="760" width="300" height="60" rx="10" fill="none" stroke="#5b665c" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <text x="610" y="786" text-anchor="middle" fill="#5b665c">Las visitas se apuntan en Wakyma;</text>
+  <text x="610" y="804" text-anchor="middle" fill="#5b665c">el portal no lleva agenda</text>
+
+  <!-- Flechas -->
+  <g stroke="#344b3b" stroke-width="1.5" fill="none" marker-end="url(#flecha)">
+    <line x1="210" y1="80" x2="210" y2="120"/>
+    <line x1="210" y1="180" x2="210" y2="220"/>
+    <line x1="210" y1="280" x2="210" y2="340"/>
+    <line x1="210" y1="400" x2="210" y2="440"/>
+    <line x1="210" y1="500" x2="210" y2="540"/>
+    <line x1="210" y1="600" x2="210" y2="660"/>
+    <line x1="210" y1="720" x2="210" y2="760"/>
+    <line x1="210" y1="820" x2="210" y2="860"/>
+    <line x1="370" y1="250" x2="460" y2="250"/>
+    <line x1="370" y1="570" x2="460" y2="570"/>
+  </g>
+  <g stroke="#5b665c" stroke-width="1.2" stroke-dasharray="5 4" fill="none">
+    <line x1="370" y1="470" x2="460" y2="470"/>
+    <line x1="370" y1="790" x2="460" y2="790"/>
+  </g>
+  <text x="415" y="242" text-anchor="middle" fill="#7a4f00" font-weight="bold">No</text>
+  <text x="222" y="316" fill="#7a4f00" font-weight="bold">Sí</text>
+  <text x="415" y="562" text-anchor="middle" fill="#7a4f00" font-weight="bold">No</text>
+  <text x="222" y="636" fill="#7a4f00" font-weight="bold">Sí</text>
+</svg>

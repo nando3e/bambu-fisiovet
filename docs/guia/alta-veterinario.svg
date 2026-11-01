@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 790 700" width="790" height="700" font-family="Arial, Helvetica, sans-serif" font-size="13">
+  <!-- Alta del veterinario y entrada a una clínica. Solo líneas horizontales y verticales. -->
+  <defs>
+    <marker id="flecha" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#344b3b"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="790" height="700" fill="#fffdf8"/>
+
+  <!-- Columna izquierda: CIF nuevo -->
+  <rect x="60" y="20" width="300" height="60" rx="10" fill="#ffffff" stroke="#344b3b" stroke-width="1.5"/>
+  <text x="210" y="46" text-anchor="middle" fill="#27372d">La veterinaria entra en bambufisiovet.com</text>
+  <text x="210" y="64" text-anchor="middle" fill="#27372d">→ «Accedir» → «Crea un compte»</text>
+
+  <rect x="60" y="120" width="300" height="60" rx="10" fill="#ffffff" stroke="#344b3b" stroke-width="1.5"/>
+  <text x="210" y="146" text-anchor="middle" fill="#27372d">Rellena sus datos y los de la clínica</text>
+  <text x="210" y="164" text-anchor="middle" fill="#27372d">(todo obligatorio, CIF incluido)</text>
+
+  <rect x="60" y="220" width="300" height="60" rx="10" fill="#fbf0d9" stroke="#7a4f00" stroke-width="1.5"/>
+  <text x="210" y="246" text-anchor="middle" fill="#27372d" font-weight="bold">¿Ese CIF ya es de una clínica</text>
+  <text x="210" y="264" text-anchor="middle" fill="#27372d" font-weight="bold">que está en el portal?</text>
+
+  <rect x="60" y="340" width="300" height="60" rx="10" fill="#ffffff" stroke="#344b3b" stroke-width="1.5"/>
+  <text x="210" y="366" text-anchor="middle" fill="#27372d">Le llega un correo para confirmar</text>
+  <text x="210" y="384" text-anchor="middle" fill="#27372d">(el enlace vale 48 horas)</text>
+
+  <rect x="60" y="440" width="300" height="60" rx="10" fill="#ffffff" stroke="#344b3b" stroke-width="1.5"/>
+  <text x="210" y="475" text-anchor="middle" fill="#27372d">Pulsa el enlace y elige contraseña</text>
+
+  <rect x="60" y="540" width="300" height="60" rx="10" fill="#e7f0e3" stroke="#2f5f35" stroke-width="1.5"/>
+  <text x="210" y="566" text-anchor="middle" fill="#27372d" font-weight="bold">Dentro, con su clínica nueva:</text>
+  <text x="210" y="584" text-anchor="middle" fill="#27372d" font-weight="bold">ya puede derivar</text>
+
+  <rect x="60" y="630" width="300" height="56" rx="10" fill="none" stroke="#5b665c" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <text x="210" y="653" text-anchor="middle" fill="#5b665c">Bambú recibe el aviso «Nou veterinari»</text>
+  <text x="210" y="671" text-anchor="middle" fill="#5b665c">(solo informativo: nadie aprueba nada)</text>
+
+  <!-- Columna derecha: CIF que ya existe -->
+  <rect x="430" y="220" width="300" height="60" rx="10" fill="#ffffff" stroke="#344b3b" stroke-width="1.5"/>
+  <text x="580" y="246" text-anchor="middle" fill="#27372d">No se crea nada. A su correo le llega</text>
+  <text x="580" y="264" text-anchor="middle" fill="#27372d">«demana una invitació»</text>
+
+  <rect x="430" y="340" width="300" height="60" rx="10" fill="#ffffff" stroke="#344b3b" stroke-width="1.5"/>
+  <text x="580" y="366" text-anchor="middle" fill="#27372d">Pide a un compañero que le invite</text>
+  <text x="580" y="384" text-anchor="middle" fill="#27372d">(en persona: el portal no avisa a nadie)</text>
+
+  <rect x="430" y="440" width="300" height="60" rx="10" fill="#ffffff" stroke="#344b3b" stroke-width="1.5"/>
+  <text x="580" y="466" text-anchor="middle" fill="#27372d">El compañero le invita desde</text>
+  <text x="580" y="484" text-anchor="middle" fill="#27372d">«Perfil» → «Convida un company»</text>
+
+  <rect x="430" y="540" width="300" height="60" rx="10" fill="#e7f0e3" stroke="#2f5f35" stroke-width="1.5"/>
+  <text x="580" y="566" text-anchor="middle" fill="#27372d" font-weight="bold">Le llega la invitación (7 días), elige</text>
+  <text x="580" y="584" text-anchor="middle" fill="#27372d" font-weight="bold">contraseña y entra en esa clínica</text>
+
+  <!-- Flechas -->
+  <g stroke="#344b3b" stroke-width="1.5" fill="none" marker-end="url(#flecha)">
+    <line x1="210" y1="80" x2="210" y2="120"/>
+    <line x1="210" y1="180" x2="210" y2="220"/>
+    <line x1="210" y1="280" x2="210" y2="340"/>
+    <line x1="210" y1="400" x2="210" y2="440"/>
+    <line x1="210" y1="500" x2="210" y2="540"/>
+    <line x1="360" y1="250" x2="430" y2="250"/>
+    <line x1="580" y1="280" x2="580" y2="340"/>
+    <line x1="580" y1="400" x2="580" y2="440"/>
+    <line x1="580" y1="500" x2="580" y2="540"/>
+  </g>
+  <line x1="210" y1="600" x2="210" y2="630" stroke="#5b665c" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <text x="222" y="316" fill="#7a4f00" font-weight="bold">No</text>
+  <text x="395" y="242" text-anchor="middle" fill="#7a4f00" font-weight="bold">Sí</text>
+</svg>

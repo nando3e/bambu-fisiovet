@@ -1,6 +1,7 @@
 # Dónde estamos — 2026-11-01
 
-Leer esto primero al retomar. Después, `CLAUDE.md` y el cuaderno.
+Leer esto primero al retomar. Después, `CLAUDE.md` y el cuaderno. Cómo funciona
+el portal, para explicarlo a Bambú: `docs/guia-del-portal.md`.
 
 ## Estado: v1 construida, revisada y desplegada en el portal de pruebas
 

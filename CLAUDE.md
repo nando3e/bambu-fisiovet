@@ -13,6 +13,9 @@ competidor; el aspecto visual sale de ella.
   dictamen de arquitectura, supuestos, diseño funcional (modelo, estados, roles,
   pantallas, avisos, informe por voz, API) y riesgos. Ante cualquier duda de
   negocio, mirar ahí antes de preguntar.
+- **Guía del portal**: `docs/guia-del-portal.md` (flujo del veterinario y de
+  Bambú en lenguaje llano, con diagramas en `docs/guia/`). Se actualiza cuando
+  cambia un flujo.
 - **RGPD**: `docs/rgpd.md` (qué datos, quién los ve, qué viaja a la IA,
   plazos y lo pendiente para el asesor). Toda funcionalidad que toque datos
   personales lo actualiza.
