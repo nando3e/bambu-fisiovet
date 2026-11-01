@@ -12,6 +12,7 @@ import { accionesBambu, CERRADOS, EDITABLE_POR_DERIVADOR, type AccionCaso } from
 import { Aviso, Campo, CampoSelector, CampoTexto, Cargando, TituloPagina } from '../../componentes/comunes.tsx';
 import { avisarCambioNotificaciones } from '../../componentes/Notificaciones.tsx';
 import { CamposDerivacion, CamposPaciente, CamposPropietario, pacienteParaApi } from './Formularios.tsx';
+import { Hilo } from './Hilo.tsx';
 import { ChipEstado, fechaCorta, nombreEspecie, nombreEstado, type Ficha } from './comun.tsx';
 
 type Errores = Record<string, string>;
@@ -25,6 +26,7 @@ export function FichaCaso({ zona }: { zona: '/d' | '/b' }) {
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState((ubicacion.state as { aviso?: string } | null)?.aviso ?? '');
   const [editando, setEditando] = useState(false);
+  const [pestana, setPestana] = useState<'fil' | 'fitxa' | null>(null);
 
   const cargar = useCallback(async () => {
     const f = await api.get<Ficha>(`/casos/${id}`);
@@ -43,6 +45,8 @@ export function FichaCaso({ zona }: { zona: '/d' | '/b' }) {
   if (!ficha) return <Cargando />;
 
   const puedeEditar = deriva ? EDITABLE_POR_DERIVADOR.includes(ficha.estado) : ficha.estado !== 'borrador';
+  // El hilo es lo primero de un caso en marcha; un borrador solo tiene ficha.
+  const vista = pestana ?? (ficha.estado === 'borrador' ? 'fitxa' : 'fil');
   const veterinario = ficha.derivador?.nombre ?? ficha.derivador_nombre;
   return (
     <>
@@ -93,7 +97,18 @@ export function FichaCaso({ zona }: { zona: '/d' | '/b' }) {
         {!deriva ? <Acciones ficha={ficha} alCambiar={(f, msg) => { setFicha(f); setAviso(msg); }} setError={setError} /> : null}
       </section>
 
-      {editando ? (
+      <div className="pestanas" role="tablist">
+        {(['fil', 'fitxa'] as const).map((p) => (
+          <button key={p} type="button" role="tab" aria-selected={vista === p} className={vista === p ? 'activo' : undefined}
+            onClick={() => setPestana(p)}>
+            {p === 'fil' ? t('hilo.titulo') : t('hilo.fitxa')}
+          </button>
+        ))}
+      </div>
+
+      {vista === 'fil' ? <Hilo casoId={ficha.id} borrador={ficha.estado === 'borrador'} /> : null}
+
+      {vista !== 'fitxa' ? null : editando ? (
         <Edicion ficha={ficha} alTerminar={(f) => {
           setEditando(false);
           if (f) {
@@ -142,7 +157,7 @@ export function FichaCaso({ zona }: { zona: '/d' | '/b' }) {
         </>
       )}
 
-      {ficha.otros_casos.length > 0 ? (
+      {vista === 'fitxa' && ficha.otros_casos.length > 0 ? (
         <section className="tarjeta">
           <h2>{t('caso.otrosCasos')}</h2>
           <ul className="lista">
@@ -158,7 +173,7 @@ export function FichaCaso({ zona }: { zona: '/d' | '/b' }) {
         </section>
       ) : null}
 
-      {!deriva ? <Historial casoId={ficha.id} /> : null}
+      {vista === 'fitxa' && !deriva ? <Historial casoId={ficha.id} /> : null}
     </>
   );
 }

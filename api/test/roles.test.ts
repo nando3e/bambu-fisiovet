@@ -8,7 +8,7 @@ import {
 } from './ayuda.ts';
 
 type Quien = 'cualquiera' | 'bambu' | 'derivador' | 'superadmin';
-type Metodo = 'GET' | 'POST' | 'PUT' | 'PATCH';
+type Metodo = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 const RUTAS: [Metodo, string, Quien][] = [
   ['GET', '/api/auth/yo', 'cualquiera'],
@@ -65,6 +65,13 @@ const RUTAS: [Metodo, string, Quien][] = [
   ['PATCH', '/api/pacientes/1', 'cualquiera'],
   ['GET', '/api/pacientes/1/historial', 'bambu'],
   ['PATCH', '/api/propietarios/1', 'cualquiera'],
+  ['GET', '/api/casos/1/mensajes', 'cualquiera'],
+  ['POST', '/api/casos/1/mensajes', 'cualquiera'],
+  ['POST', '/api/casos/1/adjuntos', 'cualquiera'],
+  ['GET', '/api/adjuntos/1/fichero', 'cualquiera'],
+  ['GET', '/api/adjuntos/1/miniatura', 'cualquiera'],
+  ['DELETE', '/api/adjuntos/1', 'cualquiera'],
+  ['GET', '/api/panel/movimientos', 'bambu'],
 ];
 
 let s: Servidor;
@@ -80,7 +87,7 @@ after(async () => {
   await s.app.close();
 });
 
-const conCuerpo = (metodo: Metodo) => (metodo === 'GET' ? {} : { cuerpo: {} });
+const conCuerpo = (metodo: Metodo) => (metodo === 'GET' || metodo === 'DELETE' ? {} : { cuerpo: {} });
 
 test('sin sesión: todas las rutas privadas → 401', async () => {
   for (const [metodo, ruta] of RUTAS) {

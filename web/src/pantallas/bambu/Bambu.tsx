@@ -8,7 +8,7 @@ import {
   PhoneCall, Plus, ShieldCheck, Stethoscope, UserCheck, Users, X,
 } from 'lucide-react';
 import { api, mensajeDe, type Notificacion } from '../../api.ts';
-import { haceCuanto, t } from '../../i18n/index.ts';
+import { haceCuanto, t, type ClaveTexto } from '../../i18n/index.ts';
 import { useSesion } from '../../sesion.tsx';
 import { Aviso, Campo, Cargando, TituloPagina, Vacio } from '../../componentes/comunes.tsx';
 import { ListaNotificaciones, useAbrirNotificacion } from '../../componentes/Notificaciones.tsx';
@@ -36,6 +36,16 @@ interface Clinica {
   derivaciones: number;
 }
 
+interface Movimiento {
+  id: number;
+  tipo: string;
+  creado: string;
+  caso_id: number;
+  paciente: string;
+  clinica: string;
+  actor: string | null;
+}
+
 interface Contadores {
   sin_abrir: number;
   noves: number;
@@ -52,6 +62,7 @@ export function InicioBambu() {
     notificaciones: Notificacion[];
     noLeidas: number;
     contadores: Contadores;
+    movimientos: Movimiento[];
     solicitudes: number;
     clinicas: number;
     fallidos: number;
@@ -64,12 +75,14 @@ export function InicioBambu() {
       api.get<{ clinicas: Clinica[]; solicitudes: Solicitud[] }>('/clinicas'),
       api.get<{ correos: { estado: string }[] }>('/configuracion/avisos/cola'),
       api.get<Contadores>('/panel/contadores'),
+      api.get<{ movimientos: Movimiento[] }>('/panel/movimientos'),
     ])
-      .then(([n, c, cola, contadores]) =>
+      .then(([n, c, cola, contadores, m]) =>
         setDatos({
           notificaciones: n.notificaciones,
           noLeidas: n.no_leidas,
           contadores,
+          movimientos: m.movimientos,
           solicitudes: c.solicitudes.length,
           clinicas: c.clinicas.length,
           fallidos: cola.correos.filter((x) => x.estado === 'fallido').length,
@@ -125,6 +138,21 @@ export function InicioBambu() {
           </Link>
         ) : null}
       </div>
+      <h2 style={{ fontSize: '1.15rem' }}>{t('bambu.movimientos')}</h2>
+      {datos.movimientos.length === 0 ? <p className="texto-suave">{t('bambu.sinMovimientos')}</p> : (
+        <ul className="lista" style={{ marginBottom: 22 }}>
+          {datos.movimientos.map((m) => (
+            <li key={m.id}>
+              <Link to={`/b/casos/${m.caso_id}`} className="fila-enlace">
+                <div className="principal">
+                  <strong>{t(`evento.${m.tipo}` as ClaveTexto)} · {m.paciente}</strong>
+                  <span>{[m.clinica, m.actor, haceCuanto(m.creado)].filter(Boolean).join(' · ')}</span>
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
       <h2 style={{ fontSize: '1.15rem' }}>{t('bambu.ultimosAvisos')}</h2>
       <ListaNotificaciones notificaciones={datos.notificaciones} alAbrir={(n) => void abrir(n)} />
       <p style={{ marginTop: 18 }}><Link to="/b/casos" className="boton-texto"><ClipboardList size={16} aria-hidden /> {t('menu.casos')}</Link></p>

@@ -1,11 +1,10 @@
 ## Why
 
 Una derivación aceptada necesita conversación: el veterinario sube la
-radiografía que faltaba, el fisio pregunta por la medicación, Bambú registra
-las sesiones y el veterinario ve que su paciente avanza. Hoy eso se hace por
-WhatsApp y correo sueltos, y se pierde. Este change convierte cada caso en una
-**línea de tiempo compartida**: hilo, adjuntos, sesiones y eventos del
-sistema, con notas internas que solo ve Bambú.
+radiografía que faltaba, el fisio pregunta por la medicación y los dos ven en
+qué punto está el caso. Hoy eso se hace por WhatsApp y correo sueltos, y se
+pierde. Este change convierte cada caso en una **línea de tiempo compartida**:
+hilo, adjuntos y eventos del sistema, con notas internas que solo ve Bambú.
 
 ## What Changes
 
@@ -17,41 +16,49 @@ sistema, con notas internas que solo ve Bambú.
   SHA-256 y miniatura para las imágenes. Siempre se sirven por una ruta con
   permisos, nunca como estáticos. Las imágenes se reducen en el móvil antes de
   subirlas y se ven al momento.
-- Sesiones de fisioterapia (valoración, sesión, revisión) con notas internas y
-  una línea opcional para el veterinario. La primera pasa el caso a
-  `en_tratamiento`.
-- Eventos `mensaje.nuevo`, `adjunto.nuevo`, `intervencion.registrada` y
-  `caso.en_tratamiento`, y mensajes de sistema en las transiciones y en los
-  cambios de ficha.
-- Tarea diaria «casos sense notícies»: evento por caso y un solo correo
-  resumen.
-- Inicio de Bambú con «Últims moviments» y el contador de casos sin noticias.
+- Mensajes de sistema en las transiciones y en los cambios de ficha, y eventos
+  `mensaje.nuevo` y `adjunto.nuevo`.
+- Inicio de Bambú con «Últims moviments».
+
+## Recorte respecto a la propuesta inicial (decisión de Nando, 31/10)
+
+Las visitas y sesiones se llevan en Wakyma, que no tiene API, y el portal no
+debe obligar a apuntar nada dos veces. Por eso este change **ya no incluye**:
+
+- Registro de sesiones de fisioterapia ni la transición automática a
+  `en_tratamiento` por la primera sesión: la sustituye el botón «Ja té cita»
+  del change `casos-y-derivaciones`.
+- La tarea diaria «casos sense notícies» de casos en tratamiento: sin sesiones
+  en el portal, un caso en tratamiento sin actividad aquí es lo normal. El
+  control útil es el de derivaciones aceptadas sin cita, que ya existe.
+- El evento `intervencion.registrada` sale del catálogo.
+
+El nombre del change se mantiene para no romper las referencias del cuaderno.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `hilo`: hilo por caso, notas internas, adjuntos, sesiones de fisioterapia y
-  aviso de casos sin noticias.
+- `hilo`: hilo por caso, notas internas, mensajes de sistema, adjuntos y
+  últimos movimientos.
 
 ### Modified Capabilities
 
-_Ninguna._
+- `avisos`: el catálogo pierde `intervencion.registrada`.
 
 ## Impact
 
-- Migración `006_hilo.sql` (`mensajes`, `adjuntos`, `intervenciones`,
-  `casos.ultima_actividad`).
-- Dependencia `sharp` (miniaturas, fuera del event loop).
+- Migración `006_hilo.sql` (`mensajes`, `adjuntos`).
+- Dependencia `sharp` (miniaturas, en el pool de hilos de libuv, fuera del
+  event loop), cargada de forma que si falla el adjunto se guarda sin
+  miniatura.
 - Volumen `/datos/adjuntos`.
 - Rutas `/api/casos/:id/mensajes`, `/api/casos/:id/adjuntos`,
-  `/api/adjuntos/:id/{fichero,miniatura}` e `/api/casos/:id/intervenciones`.
-- Plantillas `actividad-caso` y `sin-noticias`.
+  `/api/adjuntos/:id/{fichero,miniatura}`, `DELETE /api/adjuntos/:id` y
+  `/api/panel/movimientos`.
 
 ## Supuestos pendientes de confirmar con Bambú
 
-- *(supuesto)* Tras cuántos días sin actividad un caso en tratamiento se
-  considera «sin noticias» (7 por defecto, configurable).
 - *(supuesto)* El vídeo no se sube como fichero: se pega un enlace (YouTube no
   listado, Drive).
 - *(supuesto)* Un derivador puede retirar un adjunto propio durante 15
@@ -61,3 +68,4 @@ _Ninguna._
 
 - Informes y notas de voz → `informes-por-voz`.
 - Purga física de adjuntos (aplazada en el cuaderno).
+- Agenda y sesiones (en Wakyma).

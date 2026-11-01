@@ -16,8 +16,9 @@ import { ambitoCaso } from '../dominio/visibilidad.ts';
 import { conflicto, datosIncorrectos, ErrorHttp, noEncontrado, prohibido } from '../errores.ts';
 import {
   avisarCaso, CAMPOS_CASO, CAMPOS_PACIENTE, CAMPOS_PROPIETARIO, casoVisible, crearPaciente,
-  guardarCambios, pacienteVisible, tocarActividad, type FilaCaso,
+  guardarCambios, nombrePersona, pacienteVisible, tocarActividad, type FilaCaso,
 } from '../servicios/casos.ts';
+import { fechaVisible, mensajeSistema, textoCambios } from '../servicios/hilo.ts';
 import { idDeRuta, validar, type Deps } from './index.ts';
 
 const textoLibre = (max: number) => z.string().trim().max(max);
@@ -246,6 +247,8 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
         despues: { estado, registrada: true, clinica_id: d.clinica_id, ...d.caso }, usuarioId: sesion.usuarioId,
       });
       const caso = await casoVisible(bd, sesion, casoId);
+      await mensajeSistema(bd, casoId, `${nombrePersona(sesion)} ha registrat la derivació en nom de ${caso.clinica_nombre}`
+        + (caso.estado === 'en_tratamiento' ? ', que ja té cita.' : '.'));
       await avisarCaso(bd, sesion, caso, 'derivacion.registrada');
       if (caso.fisio_responsable_id) await avisarCaso(bd, sesion, caso, 'caso.fisio_asignado');
       return casoId;
@@ -292,17 +295,18 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
         );
         if (rows[0]) throw conflicto(NO_EDITABLE);
       }
-      const campos = [
+      const cambios = [
         ...await guardarCambios(bd, 'casos', caso.id, CAMPOS_CASO, d.caso ?? {}, sesion.usuarioId),
         ...await guardarCambios(bd, 'pacientes', caso.paciente_id, CAMPOS_PACIENTE, d.paciente ?? {}, sesion.usuarioId),
         ...await guardarCambios(bd, 'propietarios', caso.propietario_id, CAMPOS_PROPIETARIO, d.propietario ?? {}, sesion.usuarioId),
       ];
-      if (campos.length === 0) return;
+      if (cambios.length === 0) return;
       await tocarActividad(bd, caso.id);
       if (caso.estado !== 'borrador') {
+        await mensajeSistema(bd, caso.id, textoCambios(nombrePersona(sesion), cambios));
         await avisarCaso(bd, sesion, caso, 'paciente.ficha_modificada', {
-          nombre: `${sesion.nombre} ${sesion.apellidos}`.trim(),
-          campos: campos.join(', '),
+          nombre: nombrePersona(sesion),
+          campos: cambios.map((c) => c.campo).join(', '),
         });
       }
     });
@@ -346,6 +350,7 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
     return transicion(sesion, idDeRuta(peticion.params), 'enviar', async (bd, caso, a) => {
       await comprobarParaEnviar(bd, caso.id, d.acepta_consentimiento === true);
       await bd.query('UPDATE casos SET estado = $2, enviado_el = now() WHERE id = $1', [caso.id, a]);
+      await mensajeSistema(bd, caso.id, `${nombrePersona(sesion)} ha enviat la derivació.`);
       await avisarCaso(bd, sesion, caso, 'derivacion.enviada');
     });
   });
@@ -372,6 +377,9 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
         [caso.id, a, d.fisio_id ?? null],
       );
       const actualizado = await casoVisible(bd, sesion, caso.id);
+      await mensajeSistema(bd, caso.id, actualizado.fisio
+        ? `Bambú ha acceptat la derivació i ${actualizado.fisio} en serà la fisio responsable.`
+        : 'Bambú ha acceptat la derivació.');
       await avisarCaso(bd, sesion, actualizado, 'derivacion.aceptada');
       if (d.fisio_id) await avisarCaso(bd, sesion, actualizado, 'caso.fisio_asignado');
     });
@@ -385,6 +393,7 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
         `UPDATE casos SET estado = $2, motivo_cierre = $3, resuelto_el = now(), cerrado_el = now() WHERE id = $1`,
         [caso.id, a, d.motivo],
       );
+      await mensajeSistema(bd, caso.id, `Bambú no ha acceptat la derivació. Motiu: ${d.motivo}`);
       await avisarCaso(bd, sesion, caso, 'derivacion.rechazada', { motivo: d.motivo });
     });
   });
@@ -398,7 +407,8 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
         'UPDATE casos SET estado = $2, en_tratamiento_el = now(), primera_visita = $3 WHERE id = $1',
         [caso.id, a, d.primera_visita ?? null],
       );
-      const visita = d.primera_visita ? d.primera_visita.split('-').reverse().join('/') : null;
+      const visita = fechaVisible(d.primera_visita);
+      await mensajeSistema(bd, caso.id, visita ? `Ja té cita: primera visita el ${visita}.` : 'Ja té cita a Bambú.');
       await avisarCaso(bd, sesion, caso, 'caso.en_tratamiento', { primeraVisita: visita });
     });
   });
@@ -408,6 +418,7 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
     const d = validar(motivo, peticion.body);
     return transicion(sesion, idDeRuta(peticion.params), 'abandonar', async (bd, caso, a) => {
       await bd.query('UPDATE casos SET estado = $2, motivo_cierre = $3, cerrado_el = now() WHERE id = $1', [caso.id, a, d.motivo]);
+      await mensajeSistema(bd, caso.id, `Bambú ha tancat el cas. Motiu: ${d.motivo}`);
       await avisarCaso(bd, sesion, caso, 'caso.abandonado', { motivo: d.motivo });
     });
   });
@@ -416,6 +427,7 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
     const sesion = await exigirSesion(peticion, respuesta, deps, ROLES_BAMBU);
     return transicion(sesion, idDeRuta(peticion.params), 'alta_manual', async (bd, caso, a) => {
       await bd.query('UPDATE casos SET estado = $2, cerrado_el = now() WHERE id = $1', [caso.id, a]);
+      await mensajeSistema(bd, caso.id, 'Bambú ha donat l’alta.');
       await avisarCaso(bd, sesion, caso, 'caso.alta');
     });
   });
@@ -437,7 +449,9 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
         despues: { fisio_responsable_id: d.fisio_id }, usuarioId: sesion.usuarioId,
       });
       await tocarActividad(bd, caso.id);
-      await avisarCaso(bd, sesion, await casoVisible(bd, sesion, caso.id), 'caso.fisio_asignado');
+      const actualizado = await casoVisible(bd, sesion, caso.id);
+      await mensajeSistema(bd, caso.id, `${actualizado.fisio} és ara la fisio responsable.`);
+      await avisarCaso(bd, sesion, actualizado, 'caso.fisio_asignado');
     });
     cola.despertar();
     return fichaCaso(pool, sesion, id);

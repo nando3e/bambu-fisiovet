@@ -1,0 +1,234 @@
+// Hilo del caso: mensajes, notas internas de Bambú, adjuntos protegidos y los
+// últimos movimientos del inicio de Bambú. Los ficheros nunca se sirven como
+// estáticos: pasan por aquí con sesión y ámbito (principio duro 7).
+import { createHash, randomBytes } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import type { FastifyBaseLogger, FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import { esBambu, exigirSesion, ROLES_BAMBU } from '../auth/permisos.ts';
+import { enTransaccion } from '../db/pool.ts';
+import { ambitoCaso } from '../dominio/visibilidad.ts';
+import { conflicto, datosIncorrectos, noEncontrado, prohibido } from '../errores.ts';
+import {
+  esImagen, MIME_ADJUNTO, nombreSeguro, seMuestraEnLinea, TAMANO_MAXIMO_ADJUNTO, tipoDeAdjunto, type TipoAdjunto,
+} from '../ficheros/adjuntos.ts';
+import { avisarCaso, casoVisible, nombrePersona, tocarActividad } from '../servicios/casos.ts';
+import { mensajeSistema } from '../servicios/hilo.ts';
+import { idDeRuta, validar, type Deps } from './index.ts';
+
+/** Minutos en los que el veterinario puede retirar su propio adjunto. */
+const MINUTOS_RETIRAR = 15;
+
+type Sharp = typeof import('sharp');
+let sharp: Promise<Sharp | null> | null = null;
+
+/**
+ * `sharp` trae un binario nativo: si no carga (otra plataforma, imagen
+ * rota), el adjunto se guarda igual, sin miniatura, y queda en el log.
+ */
+function cargarSharp(log: FastifyBaseLogger): Promise<Sharp | null> {
+  sharp ??= import('sharp')
+    // Módulo CommonJS: según el cargador llega como default o tal cual.
+    .then((m) => ((m as { default?: Sharp }).default ?? m) as Sharp)
+    .catch((error) => {
+      log.error({ err: error }, 'sharp no carga: los adjuntos se guardan sin miniatura');
+      return null;
+    });
+  return sharp;
+}
+
+export async function rutasHilo(app: FastifyInstance, deps: Deps): Promise<void> {
+  const { pool, config, cola } = deps;
+  const carpeta = resolve(config.RUTA_DATOS, 'adjuntos');
+
+  app.get('/casos/:id/mensajes', async (peticion, respuesta) => {
+    const sesion = await exigirSesion(peticion, respuesta, deps);
+    const caso = await casoVisible(pool, sesion, idDeRuta(peticion.params));
+    const { rows } = await pool.query(
+      `SELECT m.id, m.tipo, m.visibilidad, m.cuerpo, m.creado, m.autor_id, m.informe_id,
+              nullif(trim(u.nombre || ' ' || u.apellidos), '') AS autor,
+              u.rol IN ('bambu', 'superadmin') AS autor_bambu,
+              a.id AS adjunto_id, a.nombre_original AS adjunto_nombre, a.mime AS adjunto_mime,
+              a.bytes AS adjunto_bytes, a.miniatura_ruta IS NOT NULL AS adjunto_miniatura,
+              a.eliminado_el IS NOT NULL AS adjunto_retirado, a.subido_por AS adjunto_subido_por
+       FROM mensajes m
+       LEFT JOIN usuarios u ON u.id = m.autor_id
+       LEFT JOIN adjuntos a ON a.id = m.adjunto_id
+       WHERE m.caso_id = $1 AND ($2::boolean OR m.visibilidad = 'todos')
+       ORDER BY m.creado, m.id`,
+      [caso.id, esBambu(sesion)],
+    );
+    return { mensajes: rows };
+  });
+
+  app.post('/casos/:id/mensajes', async (peticion, respuesta) => {
+    const sesion = await exigirSesion(peticion, respuesta, deps);
+    const id = idDeRuta(peticion.params);
+    const d = validar(z.object({
+      cuerpo: z.string().trim().min(1, 'Escriu el missatge').max(8000),
+      interna: z.boolean().optional(),
+    }), peticion.body);
+    // Un veterinario nunca crea notas internas: el servidor lo fuerza.
+    const interna = esBambu(sesion) && d.interna === true;
+    const mensaje = await enTransaccion(pool, async (bd) => {
+      const caso = await casoVisible(bd, sesion, id, true);
+      if (caso.estado === 'borrador') throw conflicto('Envia la derivació abans d’escriure al fil');
+      const { rows } = await bd.query<{ id: number }>(
+        `INSERT INTO mensajes (caso_id, autor_id, tipo, visibilidad, cuerpo) VALUES ($1, $2, 'texto', $3, $4) RETURNING id`,
+        [caso.id, sesion.usuarioId, interna ? 'bambu' : 'todos', d.cuerpo],
+      );
+      await tocarActividad(bd, caso.id);
+      // Una nota interna no avisa a nadie: no debe llegar nunca al veterinario.
+      if (!interna) await avisarCaso(bd, sesion, caso, 'mensaje.nuevo', { nombre: nombrePersona(sesion) });
+      return rows[0]!;
+    });
+    cola.despertar();
+    return respuesta.code(201).send(mensaje);
+  });
+
+  app.post('/casos/:id/adjuntos', async (peticion, respuesta) => {
+    const sesion = await exigirSesion(peticion, respuesta, deps);
+    const id = idDeRuta(peticion.params);
+    // El caso se mira antes de leer el fichero: sin ámbito, 404 sin gastar disco.
+    const previo = await casoVisible(pool, sesion, id);
+    if (previo.estado === 'borrador') throw conflicto('Envia la derivació abans d’adjuntar fitxers');
+
+    const archivo = await peticion.file({ limits: { fileSize: TAMANO_MAXIMO_ADJUNTO, files: 1 } });
+    if (!archivo) throw datosIncorrectos('Falta el fitxer');
+    // Más de 12 MB: toBuffer lanza el error del complemento con su 413.
+    const datos = await archivo.toBuffer();
+    const nombre = nombreSeguro(archivo.filename);
+    const tipo = tipoDeAdjunto(datos, nombre);
+    if (!tipo) throw datosIncorrectos('Aquest tipus de fitxer no s’admet. Puja PDF, imatges, Word, Excel o ZIP.');
+    const campoInterna = archivo.fields.interna as { value?: unknown } | undefined;
+    const interna = esBambu(sesion) && campoInterna?.value === 'true';
+
+    await mkdir(carpeta, { recursive: true });
+    const base = randomBytes(16).toString('hex');
+    const ruta = `${base}.${tipo}`;
+    await writeFile(join(carpeta, ruta), datos);
+    let miniatura: string | null = null;
+    if (esImagen(tipo)) miniatura = await crearMiniatura(datos, base, tipo, peticion.log);
+
+    try {
+      const resultado = await enTransaccion(pool, async (bd) => {
+        const caso = await casoVisible(bd, sesion, id, true);
+        if (caso.estado === 'borrador') throw conflicto('Envia la derivació abans d’adjuntar fitxers');
+        const { rows: adj } = await bd.query<{ id: number }>(
+          `INSERT INTO adjuntos (caso_id, subido_por, nombre_original, mime, bytes, ruta, miniatura_ruta, sha256)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+          [caso.id, sesion.usuarioId, nombre, MIME_ADJUNTO[tipo], datos.length, ruta, miniatura,
+            createHash('sha256').update(datos).digest('hex')],
+        );
+        const { rows: men } = await bd.query<{ id: number }>(
+          `INSERT INTO mensajes (caso_id, autor_id, tipo, visibilidad, cuerpo, adjunto_id)
+           VALUES ($1, $2, 'adjunto', $3, $4, $5) RETURNING id`,
+          [caso.id, sesion.usuarioId, interna ? 'bambu' : 'todos', nombre, adj[0]!.id],
+        );
+        await tocarActividad(bd, caso.id);
+        if (!interna) await avisarCaso(bd, sesion, caso, 'adjunto.nuevo', { nombre: nombrePersona(sesion) });
+        return { id: adj[0]!.id, mensaje_id: men[0]!.id };
+      });
+      cola.despertar();
+      return respuesta.code(201).send(resultado);
+    } catch (error) {
+      // Si la transacción no llega a guardar nada, el fichero escrito sobra.
+      await rm(join(carpeta, ruta), { force: true });
+      if (miniatura) await rm(join(carpeta, miniatura), { force: true });
+      throw error;
+    }
+  });
+
+  async function crearMiniatura(datos: Buffer, base: string, tipo: TipoAdjunto, log: FastifyBaseLogger) {
+    const s = await cargarSharp(log);
+    if (!s) return null;
+    try {
+      const nombre = `${base}-min.webp`;
+      // sharp trabaja en el pool de hilos de libuv: no bloquea el event loop.
+      await s(datos).rotate().resize({ width: 480, height: 480, fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 78 }).toFile(join(carpeta, nombre));
+      return nombre;
+    } catch (error) {
+      log.error({ err: error, tipo }, 'no se ha podido crear la miniatura');
+      return null;
+    }
+  }
+
+  /** Un adjunto visible para la sesión (ámbito del caso, nota interna, no retirado) o 404. */
+  async function adjuntoVisible(sesion: Parameters<typeof casoVisible>[1], id: number) {
+    const ambito = ambitoCaso(sesion, 'c', 3);
+    const { rows } = await pool.query<{
+      id: number; ruta: string; miniatura_ruta: string | null; mime: string; nombre_original: string;
+      subido_por: number; creado: Date; caso_id: number; eliminado: boolean;
+    }>(
+      `SELECT a.id, a.ruta, a.miniatura_ruta, a.mime, a.nombre_original, a.subido_por, a.creado, a.caso_id,
+              a.eliminado_el IS NOT NULL AS eliminado
+       FROM adjuntos a
+       JOIN mensajes m ON m.adjunto_id = a.id
+       JOIN casos c ON c.id = a.caso_id
+       WHERE a.id = $1 AND ($2::boolean OR m.visibilidad = 'todos') AND ${ambito.sql}`,
+      [id, sesion.rol !== 'derivador', ...ambito.params],
+    );
+    if (!rows[0]) throw noEncontrado('Aquest fitxer no existeix');
+    return rows[0];
+  }
+
+  for (const cual of ['fichero', 'miniatura'] as const) {
+    app.get(`/adjuntos/:id/${cual}`, async (peticion, respuesta) => {
+      const sesion = await exigirSesion(peticion, respuesta, deps);
+      const a = await adjuntoVisible(sesion, idDeRuta(peticion.params));
+      if (a.eliminado) throw noEncontrado('Aquest fitxer s’ha retirat');
+      const ruta = cual === 'miniatura' ? a.miniatura_ruta : a.ruta;
+      if (!ruta) throw noEncontrado('Aquest fitxer no té miniatura');
+      const tipo = (Object.entries(MIME_ADJUNTO).find(([, m]) => m === a.mime)?.[0] ?? 'zip') as TipoAdjunto;
+      const enLinea = cual === 'miniatura' || seMuestraEnLinea(tipo);
+      return respuesta
+        .header('Content-Type', cual === 'miniatura' ? 'image/webp' : a.mime)
+        .header('X-Content-Type-Options', 'nosniff')
+        .header('Cache-Control', 'private, max-age=3600')
+        .header('Content-Disposition',
+          `${enLinea ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(a.nombre_original)}`)
+        .send(createReadStream(join(carpeta, ruta)));
+    });
+  }
+
+  app.delete('/adjuntos/:id', async (peticion, respuesta) => {
+    const sesion = await exigirSesion(peticion, respuesta, deps);
+    const id = idDeRuta(peticion.params);
+    await enTransaccion(pool, async (bd) => {
+      const a = await adjuntoVisible(sesion, id);
+      if (a.eliminado) throw noEncontrado('Aquest fitxer ja s’ha retirat');
+      if (sesion.rol === 'derivador') {
+        const fueraDePlazo = Date.now() - new Date(a.creado).getTime() > MINUTOS_RETIRAR * 60_000;
+        if (a.subido_por !== sesion.usuarioId || fueraDePlazo) {
+          throw prohibido(`Només pots retirar els teus fitxers durant ${MINUTOS_RETIRAR} minuts. Demana-ho a Bambú.`);
+        }
+      }
+      const { rowCount } = await bd.query(
+        'UPDATE adjuntos SET eliminado_el = now(), eliminado_por = $2 WHERE id = $1 AND eliminado_el IS NULL',
+        [id, sesion.usuarioId],
+      );
+      if (!rowCount) throw noEncontrado('Aquest fitxer ja s’ha retirat');
+      await mensajeSistema(bd, a.caso_id, `${nombrePersona(sesion)} ha retirat l’adjunt «${a.nombre_original}».`);
+      await tocarActividad(bd, a.caso_id);
+    });
+    return { ok: true };
+  });
+
+  app.get('/panel/movimientos', async (peticion, respuesta) => {
+    await exigirSesion(peticion, respuesta, deps, ROLES_BAMBU);
+    const { rows } = await pool.query(
+      `SELECT e.id, e.tipo, e.creado, e.caso_id, p.nombre AS paciente, cl.nombre AS clinica,
+              nullif(trim(u.nombre || ' ' || u.apellidos), '') AS actor
+       FROM eventos e
+       JOIN casos c ON c.id = e.caso_id
+       JOIN pacientes p ON p.id = c.paciente_id
+       JOIN clinicas cl ON cl.id = c.clinica_id
+       LEFT JOIN usuarios u ON u.id = e.actor_id
+       ORDER BY e.creado DESC, e.id DESC LIMIT 15`,
+    );
+    return { movimientos: rows };
+  });
+}

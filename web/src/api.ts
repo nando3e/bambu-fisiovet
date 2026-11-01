@@ -47,10 +47,14 @@ export const api = {
   post: <T>(ruta: string, cuerpo: unknown = {}) => peticion<T>('POST', ruta, cuerpo),
   put: <T>(ruta: string, cuerpo: unknown) => peticion<T>('PUT', ruta, cuerpo),
   patch: <T>(ruta: string, cuerpo: unknown) => peticion<T>('PATCH', ruta, cuerpo),
+  delete: <T>(ruta: string) => peticion<T>('DELETE', ruta),
   /** Sube un fichero (POST multipart). */
-  subir: <T>(ruta: string, fichero: File, campo = 'fichero') => {
+  /** Los campos van antes que el fichero: el servidor los lee al leer el fichero. */
+  subir: <T>(ruta: string, fichero: File | Blob, campo = 'fichero', campos: Record<string, string> = {}, nombre?: string) => {
     const datos = new FormData();
-    datos.append(campo, fichero);
+    for (const [k, v] of Object.entries(campos)) datos.append(k, v);
+    if (nombre) datos.append(campo, fichero, nombre);
+    else datos.append(campo, fichero);
     return peticion<T>('POST', ruta, datos);
   },
 };

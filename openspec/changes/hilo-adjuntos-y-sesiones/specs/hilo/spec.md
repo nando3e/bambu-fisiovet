@@ -32,8 +32,8 @@ el mensaje como visible para todos.
 ### Requirement: Mensajes del sistema
 Cada transición de estado y cada cambio de ficha SHALL dejar en el hilo un
 mensaje de sistema legible, en valenciano y en la misma transacción. Por
-ejemplo: «Bambú ha acceptat la derivació», «Bambú ha actualitzat el pes:
-12,4 → 11,8 kg».
+ejemplo: «Bambú ha acceptat la derivació», «Laia Serra ha canviat el pes:
+12,4 → 11,8».
 
 #### Scenario: Cambio de peso
 - **WHEN** Bambú corrige el peso del paciente
@@ -81,39 +81,6 @@ deja en el hilo «Adjunt retirat»; el fichero no se borra en v1.
 #### Scenario: Derivador fuera de plazo
 - **WHEN** un derivador intenta retirar su adjunto media hora después
 - **THEN** 403
-
-### Requirement: Sesiones de fisioterapia
-Bambú SHALL registrar sesiones con fecha, hora opcional, fisio, tipo
-(valoración, sesión o revisión), duración, notas internas y una línea opcional
-para el veterinario. Registrar una sesión publica `intervencion.registrada`.
-La primera sesión de un caso aceptado lo pasa a `en_tratamiento`, fija
-`primera_sesion_el` y publica `caso.en_tratamiento`. El derivador ve la lista
-de sesiones (fecha, tipo, fisio y la línea para el veterinario), nunca las
-notas internas.
-
-#### Scenario: Primera sesión
-- **WHEN** Bambú registra la primera sesión de un caso aceptado
-- **THEN** el caso pasa a en tratamiento y el veterinario recibe la notificación
-
-#### Scenario: Notas internas ocultas
-- **WHEN** un derivador lista las sesiones de su caso
-- **THEN** ninguna incluye el campo de notas
-
-### Requirement: Casos sin noticias
-Una tarea diaria (al arrancar y cada 24 horas) SHALL detectar los casos en
-tratamiento sin sesión ni mensaje en el plazo configurado (7 días por
-defecto), publicar `caso.sin_noticias` por cada uno y encolar **un único**
-correo resumen con todos ellos. El inicio de Bambú muestra cuántos hay, con
-enlace a la lista filtrada. Un caso no se vuelve a señalar hasta que tenga
-actividad nueva y vuelva a quedarse parado.
-
-#### Scenario: Tres casos parados
-- **WHEN** la tarea encuentra tres casos sin actividad
-- **THEN** se crean tres notificaciones y se encola un solo correo que lista los tres
-
-#### Scenario: Sin repetir
-- **WHEN** la tarea corre al día siguiente sin cambios en esos casos
-- **THEN** no publica nada nuevo
 
 ### Requirement: Últimos movimientos
 El inicio de Bambú SHALL mostrar los últimos eventos de todos los casos (qué,

@@ -7,6 +7,7 @@ import { registrarCambio } from '../db/historial.ts';
 import type { EstadoCaso } from '../dominio/estados-caso.ts';
 import { ambitoCaso, ambitoPaciente, type QuienMira } from '../dominio/visibilidad.ts';
 import { noEncontrado } from '../errores.ts';
+import { mensajeSistema, textoCambios, type CambioCampo } from './hilo.ts';
 
 export interface DatosPaciente {
   nombre?: string;
@@ -140,7 +141,7 @@ export async function crearPaciente(
 
 /**
  * Actualiza los campos que llegan y que cambian de verdad, y deja historial.
- * Devuelve los nombres de los campos cambiados (vacío = no ha cambiado nada).
+ * Devuelve cada campo cambiado con su antes y su después (vacío = nada).
  */
 export async function guardarCambios(
   bd: Consultable,
@@ -149,7 +150,7 @@ export async function guardarCambios(
   permitidos: readonly string[],
   datos: Record<string, unknown>,
   usuarioId: number,
-): Promise<string[]> {
+): Promise<CambioCampo[]> {
   const claves = permitidos.filter((c) => datos[c] !== undefined);
   if (claves.length === 0) return [];
   const { rows } = await bd.query<Record<string, unknown>>(
@@ -183,8 +184,11 @@ export async function guardarCambios(
     despues: Object.fromEntries(cambiados.map((c, i) => [c, valores[i] ?? null])),
     usuarioId,
   });
-  return cambiados;
+  return cambiados.map((campo, i) => ({ tabla, campo, antes: actual[campo] ?? null, despues: valores[i] ?? null }));
 }
+
+/** Nombre de quien actúa, para los textos del hilo y de los avisos. */
+export const nombrePersona = (s: { nombre: string; apellidos: string }) => `${s.nombre} ${s.apellidos}`.trim();
 
 /** Veterinarios a los que avisar: el que derivó o, si no tiene cuenta, los de la clínica. */
 export async function interesadosDe(bd: Consultable, caso: { derivador_id: number | null; clinica_id: number }) {
@@ -227,7 +231,7 @@ export async function avisarFichaModificada(
   bd: Consultable,
   sesion: Sesion,
   pacienteIds: number[],
-  campos: string[],
+  cambios: CambioCampo[],
 ): Promise<void> {
   for (const pacienteId of pacienteIds) {
     const ambito = ambitoCaso(sesion, 'c', 2);
@@ -240,9 +244,10 @@ export async function avisarFichaModificada(
     if (!rows[0]) continue;
     const caso = await casoVisible(bd, sesion, rows[0].id);
     await tocarActividad(bd, caso.id);
+    await mensajeSistema(bd, caso.id, textoCambios(nombrePersona(sesion), cambios));
     await avisarCaso(bd, sesion, caso, 'paciente.ficha_modificada', {
-      nombre: `${sesion.nombre} ${sesion.apellidos}`.trim(),
-      campos: campos.join(', '),
+      nombre: nombrePersona(sesion),
+      campos: cambios.map((c) => c.campo).join(', '),
     });
   }
 }

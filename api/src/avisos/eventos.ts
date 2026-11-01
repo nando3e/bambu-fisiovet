@@ -93,12 +93,6 @@ export const CATALOGO = {
     cuerpo: (d) => `${nombre(d)} ha afegit un document al cas.`,
     enlace: enlaceCaso,
   },
-  'intervencion.registrada': {
-    audiencia: 'derivador', notificacion: true, correo: false, plantilla: 'aviso', antiRuido: true,
-    titulo: (d) => `Sessió registrada: ${paciente(d)}`,
-    cuerpo: () => 'Bambú ha registrat una sessió nova.',
-    enlace: enlaceCaso,
-  },
   'informe.publicado': {
     audiencia: 'derivador', notificacion: true, correo: true, plantilla: 'aviso',
     titulo: (d) => `Informe nou: ${paciente(d)}`,
