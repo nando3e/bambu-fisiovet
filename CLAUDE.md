@@ -88,7 +88,10 @@ competidor; el aspecto visual sale de ella.
 7. **Ficheros clínicos nunca por estáticos**: se sirven por ruta con permisos.
 8. **El portal recibe derivaciones; las visitas van en Wakyma** (sin API). Ni
    agenda, ni sesiones, ni casos propios de Bambú: los estados acaban en «Ja té
-   cita» → alta, y los indicadores solo miden lo que el portal sabe.
+   cita» → alta, y los indicadores solo miden lo que el portal sabe. **Bambú no
+   registra derivaciones ni crea clínicas**: si una clínica llama, que se
+   registre. A una clínica que ya está solo se entra por invitación de un
+   compañero (D17, D18).
 
 ## Trampas conocidas
 

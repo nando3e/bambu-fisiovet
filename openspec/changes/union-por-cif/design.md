@@ -31,20 +31,21 @@ En la transacción del alta, con el CIF normalizado:
    tecleada la plantilla `clinica-existente` («demana a algú de la teua
    clínica que et convide; si no hi ha ningú, parla amb Bambú»). Pasa por el
    mismo freno que el alta.
-3. **Hay una clínica activa sin nadie verificado y que no es de Bambú** (un alta que
-   nunca se confirmó) → no tiene datos (sin verificar no se entra): se
-   desactiva, se desactivan sus usuarios sin verificar y se caducan sus
-   enlaces, con historial, y sigue como en 1. Así un alta abandonada no
-   bloquea el CIF para siempre.
+3. **Hay una clínica activa sin nadie verificado y que no es de Bambú**:
+   - si alguno de sus enlaces sigue vigente, o tiene casos o pacientes, es de
+     quien se registró primero → como en 2 («demana una invitació»);
+   - si no (un alta que nunca se confirmó y cuyo enlace caducó) → se
+     desactiva con sus usuarios sin verificar, con historial, y sigue como en
+     1. Se bloquean sus usuarios antes de mirar, para no cruzarse con una
+     confirmación en curso.
 
 La respuesta es la misma en los tres casos. Un 23505 del índice (dos altas a la
 vez con el mismo CIF) da también la misma respuesta.
 
 ## D5. Invitaciones
 
-- El veterinario invita desde su perfil, como hasta ahora.
-- Bambú invita a cualquier clínica activa (`POST /api/clinicas/:id/invitaciones`):
-  es como entra el primer veterinario de una clínica que Bambú dio de alta.
+- El veterinario invita desde su perfil, como hasta ahora. Es la única forma
+  de entrar en una clínica que ya está en el portal.
 - Invitar a un correo que ya tiene cuenta responde lo mismo y no hace nada
   (no se revela quién tiene cuenta). La ayuda lo explica: si ya tiene cuenta
   en otra clínica, lo resuelve Bambú.
@@ -66,6 +67,22 @@ reglas (el registro telefónico elige cualquier clínica activa). En la base
 queda `clinicas.alta_por_bambu`, que es lo único que importa para D4; la
 migración la pone a las que estaban validadas (en la práctica, las de Bambú)
 y la columna `validada` se queda sin uso.
+
+## D8. Bambú no registra derivaciones (revisión de Sol)
+
+La revisión encontró que un impostor podía registrarse antes que nadie con el
+CIF de una clínica real y, cuando esa clínica llamara, recibir la derivación
+que Bambú registrara en su nombre. Nando decidió que el portal solo recibe:
+fuera `POST /api/casos` para Bambú, `POST /api/clinicas`, la invitación por
+Bambú y el evento `derivacion.registrada` (fuera del catálogo, la matriz y
+el CHECK; NOT VALID para los eventos antiguos). Así un impostor solo ve los
+casos que deriva él. Bambú conserva editar clínicas y desactivar usuarios.
+
+## D9. Freno por destinatario
+
+Además del freno por IP, como mucho tres correos de cuenta por hora a una
+misma dirección (alta, recuperación, «clínica existent»); pasado el freno no
+se emite enlace nuevo, así que los anteriores siguen valiendo.
 
 ## D7. RGPD
 

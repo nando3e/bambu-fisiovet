@@ -115,9 +115,7 @@ export function ListaCasos({ zona }: { zona: '/d' | '/b' }) {
       >
         {deriva ? (
           <Link to="/d/nova" className="boton oculto-movil"><Plus size={18} aria-hidden /> {t('casos.nueva')}</Link>
-        ) : (
-          <Link to="/b/casos/nou" className="boton-secundario"><PhoneCall size={18} aria-hidden /> {t('bambu.registrar')}</Link>
-        )}
+        ) : null}
       </TituloPagina>
 
       <div className="fila-pestanas">

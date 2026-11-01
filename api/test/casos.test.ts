@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { aplicarMigraciones } from '../src/db/migraciones.ts';
 import { comprobarPendientesCita } from '../src/tareas/pendientes-cita.ts';
 import {
-  CONTRASENA, cifUnico, correoUnico, entrarSuperadmin, fisioVerificada, pedir, servidorDePrueba, tokenDelCorreo,
+  CONTRASENA, correoUnico, entrarSuperadmin, fisioVerificada, pedir, servidorDePrueba, tokenDelCorreo,
   veterinarioVerificado, type Servidor,
 } from './ayuda.ts';
 
@@ -81,11 +81,11 @@ test('datos: la base rechaza lo incoherente, el consentimiento versiona solo y u
   await pedir(s.app, 'PUT', '/api/configuracion/consentimiento', { cookie: admin, cuerpo: { texto, version: 99 } });
   assert.equal((await leer()).version, v0 + 1);
 
-  await s.pool.query(`DELETE FROM configuracion_avisos WHERE evento = 'derivacion.registrada'`);
+  await s.pool.query(`DELETE FROM configuracion_avisos WHERE evento = 'derivacion.aceptada'`);
   const otro = await servidorDePrueba('casos', {}, { url: s.url });
   await otro.app.close();
   admin = await entrarSuperadmin(s);
-  assert.equal((await s.pool.query(`SELECT correo FROM configuracion_avisos WHERE evento = 'derivacion.registrada'`)).rows[0].correo, true);
+  assert.equal((await s.pool.query(`SELECT correo FROM configuracion_avisos WHERE evento = 'derivacion.aceptada'`)).rows[0].correo, true);
 });
 
 test('una derivación de punta a punta: borrador privado, envío validado, vista, aceptación con fisio, cita y alta, con sus avisos', async () => {
@@ -189,42 +189,6 @@ test('quién edita qué: el veterinario hasta que se acepta (ficha incluida), Ba
   assert.equal((await pedir(s.app, 'GET', `/api/pacientes/${c.paciente.id}`, { cookie: vet.cookie })).cuerpo.casos.length, 2);
 });
 
-test('derivación registrada por Bambú: nace aceptada en una clínica activa, avisa al veterinario o a su clínica y la ve quien entra invitado después', async () => {
-  const vet = await veterinarioVerificado(s);
-  const base = { ...DATOS, acepta_consentimiento: true };
-  assert.equal((await pedir(s.app, 'POST', '/api/casos', { cookie: fisio.cookie, cuerpo: base })).estado, 400);
-  // Una clínica que no existe o está desactivada, no.
-  assert.equal((await pedir(s.app, 'POST', '/api/casos', { cookie: fisio.cookie, cuerpo: { ...base, clinica_id: 999999 } })).estado, 400);
-  assert.ok((await pedir(s.app, 'POST', '/api/casos', { cookie: fisio.cookie, cuerpo: { ...DATOS, clinica_id: vet.usuario.clinica.id } })).cuerpo.campos.consentimiento);
-  const ajeno = await veterinarioVerificado(s);
-  assert.equal((await pedir(s.app, 'POST', '/api/casos', { cookie: fisio.cookie, cuerpo: { ...base, clinica_id: vet.usuario.clinica.id, derivador_id: ajeno.usuario.id } })).estado, 400);
-
-  const r = await pedir(s.app, 'POST', '/api/casos', { cookie: fisio.cookie, cuerpo: { ...base, clinica_id: vet.usuario.clinica.id, derivador_id: vet.usuario.id } });
-  assert.deepEqual([r.cuerpo.estado, r.cuerpo.registrado_por.id], ['aceptada', fisio.id]);
-  assert.equal((await ver(vet.cookie, r.cuerpo.id)).estado, 200);
-  assert.equal(await notificaciones(vet.usuario.id, 'derivacion.registrada', r.cuerpo.id), 1);
-  const { rows } = await s.pool.query(`SELECT c.destinatario FROM correos_pendientes c JOIN eventos e ON e.id = c.evento_id WHERE e.tipo = 'derivacion.registrada' AND e.caso_id = $1`, [r.cuerpo.id]);
-  assert.deepEqual(rows.map((x) => x.destinatario), [vet.email]);
-  // Sin veterinario con cuenta, avisa a los de la clínica.
-  const sinCuenta = await pedir(s.app, 'POST', '/api/casos', { cookie: fisio.cookie, cuerpo: { ...base, clinica_id: vet.usuario.clinica.id, derivador_nombre: 'Dra. Pons' } });
-  assert.equal(await notificaciones(vet.usuario.id, 'derivacion.registrada', sinCuenta.cuerpo.id), 1);
-
-  // Clínica que no estaba en el portal, con cita ya dada: en tratamiento; quien se une después la ve.
-  const nueva = await pedir(s.app, 'POST', '/api/clinicas', { cookie: fisio.cookie, cuerpo: { nombre: 'Clínica Arribada Tard', poblacion: 'Ondara', cif: cifUnico() } });
-  const tel = await pedir(s.app, 'POST', '/api/casos', {
-    cookie: fisio.cookie,
-    cuerpo: { ...base, clinica_id: nueva.cuerpo.id, derivador_nombre: 'Dra. Mas', ja_te_cita: true, primera_visita: '2026-11-05' },
-  });
-  assert.equal(tel.cuerpo.estado, 'en_tratamiento');
-  // Su primer veterinario entra por invitación de Bambú y ve lo registrado a su nombre.
-  const tarde = correoUnico();
-  assert.equal((await pedir(s.app, 'POST', `/api/clinicas/${nueva.cuerpo.id}/invitaciones`, { cookie: fisio.cookie, cuerpo: { nombre: 'Dra. Mas', email: tarde } })).estado, 201);
-  const cookie = (await pedir(s.app, 'POST', '/api/auth/establece-contrasena', {
-    cuerpo: { token: await tokenDelCorreo(s.pool, tarde, 'invitacion-clinica'), contrasena: CONTRASENA, privacidad: true },
-  })).cookie;
-  assert.equal((await ver(cookie, tel.cuerpo.id)).estado, 200);
-});
-
 test('listas y control: solo lo de su clínica, orden y paginación, búsqueda sin acentos, novedades, contadores y pendientes de cita', async () => {
   const vet = await veterinarioVerificado(s, { clinica: 'Clínica Montgó' });
   const ajeno = await derivar(await veterinarioVerificado(s));
@@ -264,7 +228,7 @@ test('listas y control: solo lo de su clínica, orden y paginación, búsqueda s
   assert.equal(await notificaciones(fisio.id, 'caso.sin_noticias', b), 1);
 });
 
-test('ámbito: ninguna ruta da nada de otra clínica, la fusión lleva los casos y el aviso de ficha no salta de clínica', async () => {
+test('ámbito: ninguna ruta da nada de otra clínica y el aviso de ficha no salta de clínica', async () => {
   const vet = await veterinarioVerificado(s);
   const c = await derivar(vet);
   const ajeno = await veterinarioVerificado(s);
@@ -283,7 +247,7 @@ test('ámbito: ninguna ruta da nada de otra clínica, la fusión lleva los casos
   }
 
   // Un caso incoherente del mismo paciente en otra clínica: el aviso de ficha va al de la clínica de quien edita.
-  const otra = await pedir(s.app, 'POST', '/api/clinicas', { cookie: fisio.cookie, cuerpo: { nombre: 'Clínica Aliena', poblacion: 'Xàbia', cif: cifUnico() } });
+  const otra = { cuerpo: { id: (await veterinarioVerificado(s, { clinica: 'Clínica Aliena' })).usuario.clinica.id } };
   const { rows } = await s.pool.query(
     `INSERT INTO casos (paciente_id, clinica_id, registrado_por, creado_por, estado, motivo, enviado_el, creado)
      VALUES ($1, $2, $3, $3, 'enviada', 'x', now(), now() + interval '1 minute') RETURNING id`,
@@ -291,7 +255,6 @@ test('ámbito: ninguna ruta da nada de otra clínica, la fusión lleva los casos
   );
   await pedir(s.app, 'PATCH', `/api/propietarios/${c.propietario.id}`, { cookie: vet.cookie, cuerpo: { telefono: '688777666' } });
   assert.deepEqual([await eventos('paciente.ficha_modificada', rows[0].id), await eventos('paciente.ficha_modificada', c.id)], [0, 1]);
-
 });
 
 test('autoguardado: devolver la ficha tal como llega (con null en lo vacío) no da 400', async () => {

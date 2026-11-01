@@ -76,7 +76,7 @@ export function App() {
 
           <Route path="/d" element={<Guarda zona="/d"><Esqueleto zona="/d" menu={MENU_DERIVADOR} /></Guarda>}>
             <Route index element={<ListaCasos zona="/d" />} />
-            <Route path="nova" element={<NovaDerivacion modo="derivador" />} />
+            <Route path="nova" element={<NovaDerivacion />} />
             <Route path="casos/:id" element={<FichaCaso zona="/d" />} />
             <Route path="casos/:id/informes/:iid" element={<InformeVista zona="/d" />} />
             <Route path="pacients" element={<ListaPacientes zona="/d" />} />
@@ -89,7 +89,6 @@ export function App() {
           <Route path="/b" element={<Guarda zona="/b"><Esqueleto zona="/b" menu={MENU_BAMBU} /></Guarda>}>
             <Route index element={<InicioBambu />} />
             <Route path="casos" element={<ListaCasos zona="/b" />} />
-            <Route path="casos/nou" element={<NovaDerivacion modo="bambu" />} />
             <Route path="casos/:id" element={<FichaCaso zona="/b" />} />
             <Route path="casos/:id/informes/:iid" element={<InformeVista zona="/b" />} />
             <Route path="pacients" element={<ListaPacientes zona="/b" />} />

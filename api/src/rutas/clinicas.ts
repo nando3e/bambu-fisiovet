@@ -1,8 +1,10 @@
-// Clínicas: la propia del veterinario, invitar compañeros y, para Bambú, todas.
+// Clínicas: la propia del veterinario, invitar compañeros y, para Bambú, verlas
+// todas y corregir sus datos.
 //
-// A una clínica que ya está en el portal solo se entra por invitación (de un
-// compañero o de Bambú): no hay sugerencias ni solicitudes de unión. El CIF
-// solo evita clínicas repetidas; el veterinario no lo cambia.
+// Las clínicas las dan de alta sus veterinarios al registrarse. A una que ya
+// está en el portal solo se entra por invitación de un compañero: no hay
+// sugerencias ni solicitudes de unión, y Bambú no crea clínicas ni invita. El
+// CIF solo evita clínicas repetidas; el veterinario no lo cambia.
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Sesion } from '../auth/sesion.ts';
@@ -25,7 +27,7 @@ const datosClinica = z.object({
   email: z.string().trim().toLowerCase().max(200).default('')
     .refine((v) => v === '' || z.string().email().safeParse(v).success, 'Correu no vàlid'),
 });
-/** Lo que da de alta o edita Bambú: con población y CIF obligatorios. */
+/** Lo que corrige Bambú: con población y CIF obligatorios. */
 const datosClinicaBambu = datosClinica.extend({
   poblacion: z.string().trim().min(1, 'Cal la població').max(100),
   cif: z.string().trim().min(1, 'Cal el CIF o NIF').max(20).refine((v) => v === '' || nifValido(v), 'CIF o NIF no vàlid')
@@ -111,28 +113,6 @@ export async function rutasClinicas(app: FastifyInstance, deps: Deps): Promise<v
     return { ok: true };
   });
 
-  // Bambú da de alta una clínica que llama por teléfono y no está en el
-  // portal. Queda marcada como suya: quien se registre con su CIF pide
-  // invitación, y su primer veterinario entra invitado por Bambú.
-  app.post('/clinicas', async (peticion, respuesta) => {
-    const sesion = await exigirSesion(peticion, respuesta, deps, ROLES_BAMBU);
-    const d = validar(datosClinicaBambu, peticion.body);
-    const clinica = await conCifUnico(() => enTransaccion(pool, async (bd) => {
-      const { rows } = await bd.query<{ id: number; nombre: string }>(
-        `INSERT INTO clinicas (nombre, poblacion, cif, direccion, codigo_postal, telefono, email, alta_por_bambu)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, true) RETURNING id, nombre`,
-        [d.nombre, d.poblacion, d.cif, d.direccion || null, d.codigo_postal || null,
-          d.telefono || null, d.email || null],
-      );
-      await registrarCambio(bd, {
-        tabla: 'clinicas', filaId: rows[0]!.id, antes: null, despues: { ...d, alta_por_bambu: true },
-        usuarioId: sesion.usuarioId,
-      });
-      return rows[0]!;
-    }));
-    return respuesta.code(201).send(clinica);
-  });
-
   async function guardarClinica(
     id: number,
     d: z.infer<typeof datosClinica> & { cif?: string },
@@ -176,7 +156,7 @@ export async function rutasClinicas(app: FastifyInstance, deps: Deps): Promise<v
     await encolarCorreo(bd, {
       destinatario: d.email, usuarioId: rows[0]!.id, plantilla: 'invitacion-clinica',
       datos: {
-        nombre: d.nombre, invitador: `${sesion.nombre} ${sesion.apellidos}`.trim() || 'Bambú',
+        nombre: d.nombre, invitador: `${sesion.nombre} ${sesion.apellidos}`.trim(),
         clinica: clinica[0]?.nombre, enlace: `/acces/estableix/${token}`,
       },
     });
@@ -187,21 +167,6 @@ export async function rutasClinicas(app: FastifyInstance, deps: Deps): Promise<v
     const sesion = await exigirSesion(peticion, respuesta, deps, SOLO_DERIVADOR);
     const d = validar(datosInvitacion, peticion.body);
     await enTransaccion(pool, (bd) => invitar(bd, sesion.clinicaId!, sesion, d));
-    cola.despertar();
-    return respuesta.code(201).send({ ok: true });
-  });
-
-  // Bambú invita a un veterinario a cualquier clínica activa: así entra el
-  // primero de una clínica que Bambú dio de alta por teléfono.
-  app.post('/clinicas/:id/invitaciones', { config: frenoIntentos(config) }, async (peticion, respuesta) => {
-    const sesion = await exigirSesion(peticion, respuesta, deps, ROLES_BAMBU);
-    const id = idDeRuta(peticion.params);
-    const d = validar(datosInvitacion, peticion.body);
-    await enTransaccion(pool, async (bd) => {
-      const { rows } = await bd.query('SELECT 1 FROM clinicas WHERE id = $1 AND activa', [id]);
-      if (!rows.length) throw noEncontrado('Aquesta clínica no existeix');
-      await invitar(bd, id, sesion, d);
-    });
     cola.despertar();
     return respuesta.code(201).send({ ok: true });
   });

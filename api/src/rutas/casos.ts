@@ -166,94 +166,35 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
   });
 
   // --- Crear ---
+  // Solo el veterinario: el portal recibe derivaciones y Bambú no las registra
+  // en nombre de nadie (si una clínica llama, se le dice que se registre).
   app.post('/casos', async (peticion, respuesta) => {
-    const sesion = await exigirSesion(peticion, respuesta, deps);
+    const sesion = await exigirSesion(peticion, respuesta, deps, SOLO_DERIVADOR);
     const d = validar(z.object({
       paciente_id: z.number().int().positive().optional(),
       paciente: esquemaPaciente.default({}),
       propietario: esquemaPropietario.default({}),
       caso: esquemaCaso.default({}),
-      // Solo Bambú, al registrar una derivación que llegó por teléfono o correo.
-      clinica_id: z.number().int().positive().optional(),
-      derivador_id: z.number().int().positive().nullable().optional(),
-      derivador_nombre: textoLibre(120).optional(),
-      acepta_consentimiento: z.boolean().optional(),
-      fisio_id: z.number().int().positive().nullable().optional(),
-      ja_te_cita: z.boolean().optional(),
-      primera_visita: fecha.optional(),
     }), peticion.body);
 
     const id = await enTransaccion(pool, async (bd) => {
-      if (sesion.rol === 'derivador') {
-        const clinicaId = sesion.clinicaId!;
-        const pacienteId = d.paciente_id
-          ? (await pacienteVisible(bd, sesion, d.paciente_id)).id
-          : await crearPaciente(bd, clinicaId, sesion.usuarioId, d.paciente, d.propietario);
-        const { rows } = await bd.query<{ id: number }>(
-          `INSERT INTO casos (paciente_id, clinica_id, derivador_id, creado_por, estado,
-                              motivo, historia_clinica, tratamiento_actual, objetivos, notas_derivador)
-           VALUES ($1, $2, $3, $3, 'borrador', $4, $5, $6, $7, $8) RETURNING id`,
-          [pacienteId, clinicaId, sesion.usuarioId, d.caso.motivo ?? '', d.caso.historia_clinica ?? '',
-            d.caso.tratamiento_actual ?? '', d.caso.objetivos ?? '', d.caso.notas_derivador ?? ''],
-        );
-        await registrarCambio(bd, {
-          tabla: 'casos', filaId: rows[0]!.id, antes: null, despues: { estado: 'borrador', ...d.caso },
-          usuarioId: sesion.usuarioId,
-        });
-        return rows[0]!.id;
-      }
-
-      // Bambú registra una derivación en nombre de una clínica: el portal
-      // solo recibe derivaciones, así que sin clínica no hay caso.
-      if (!d.clinica_id) {
-        throw datosIncorrectos('Cal la clínica que deriva', { campos: { clinica_id: 'Tria la clínica' } });
-      }
-      const { rows: cl } = await bd.query('SELECT 1 FROM clinicas WHERE id = $1 AND activa', [d.clinica_id]);
-      if (!cl[0]) {
-        throw datosIncorrectos('La clínica no existeix o no està activa', { campos: { clinica_id: 'Clínica no activa' } });
-      }
-      if (d.derivador_id) {
-        const { rows: vet } = await bd.query(
-          `SELECT 1 FROM usuarios WHERE id = $1 AND clinica_id = $2 AND rol = 'derivador' AND activo`,
-          [d.derivador_id, d.clinica_id],
-        );
-        if (!vet[0]) throw datosIncorrectos("Aquest veterinari no és d'aquesta clínica", { campos: { derivador_id: 'No vàlid' } });
-      }
-      if (d.fisio_id) await fisioDelEquipo(bd, d.fisio_id);
-      let pacienteId: number;
-      if (d.paciente_id) {
-        const { rows: p } = await bd.query('SELECT id FROM pacientes WHERE id = $1 AND clinica_origen_id = $2', [d.paciente_id, d.clinica_id]);
-        if (!p[0]) throw datosIncorrectos("Aquest pacient no és d'aquesta clínica", { campos: { paciente_id: 'No vàlid' } });
-        pacienteId = d.paciente_id;
-      } else {
-        pacienteId = await crearPaciente(bd, d.clinica_id, sesion.usuarioId, d.paciente, d.propietario);
-      }
-      const estado: EstadoCaso = d.ja_te_cita ? 'en_tratamiento' : 'aceptada';
+      const clinicaId = sesion.clinicaId!;
+      const pacienteId = d.paciente_id
+        ? (await pacienteVisible(bd, sesion, d.paciente_id)).id
+        : await crearPaciente(bd, clinicaId, sesion.usuarioId, d.paciente, d.propietario);
       const { rows } = await bd.query<{ id: number }>(
-        `INSERT INTO casos (paciente_id, clinica_id, derivador_id, derivador_nombre, registrado_por, creado_por,
-                            estado, fisio_responsable_id, motivo, historia_clinica, tratamiento_actual, objetivos,
-                            notas_derivador, enviado_el, resuelto_el, en_tratamiento_el, primera_visita)
-         VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9, $10, $11, $12, now(), now(),
-                 CASE WHEN $6 = 'en_tratamiento' THEN now() END, $13)
-         RETURNING id`,
-        [pacienteId, d.clinica_id, d.derivador_id ?? null, d.derivador_nombre || null, sesion.usuarioId, estado,
-          d.fisio_id ?? null, d.caso.motivo ?? '', d.caso.historia_clinica ?? '', d.caso.tratamiento_actual ?? '',
-          d.caso.objetivos ?? '', d.caso.notas_derivador ?? '', d.ja_te_cita ? (d.primera_visita ?? null) : null],
+        `INSERT INTO casos (paciente_id, clinica_id, derivador_id, creado_por, estado,
+                            motivo, historia_clinica, tratamiento_actual, objetivos, notas_derivador)
+         VALUES ($1, $2, $3, $3, 'borrador', $4, $5, $6, $7, $8) RETURNING id`,
+        [pacienteId, clinicaId, sesion.usuarioId, d.caso.motivo ?? '', d.caso.historia_clinica ?? '',
+          d.caso.tratamiento_actual ?? '', d.caso.objetivos ?? '', d.caso.notas_derivador ?? ''],
       );
-      const casoId = rows[0]!.id;
-      await comprobarParaEnviar(bd, casoId, d.acepta_consentimiento === true);
       await registrarCambio(bd, {
-        tabla: 'casos', filaId: casoId, antes: null,
-        despues: { estado, registrada: true, clinica_id: d.clinica_id, ...d.caso }, usuarioId: sesion.usuarioId,
+        tabla: 'casos', filaId: rows[0]!.id, antes: null, despues: { estado: 'borrador', ...d.caso },
+        usuarioId: sesion.usuarioId,
       });
-      const caso = await casoVisible(bd, sesion, casoId);
-      await mensajeSistema(bd, casoId, `${nombrePersona(sesion)} ha registrat la derivació en nom de ${caso.clinica_nombre}`
-        + (caso.estado === 'en_tratamiento' ? ', que ja té cita.' : '.'));
-      await avisarCaso(bd, sesion, caso, 'derivacion.registrada');
-      if (caso.fisio_responsable_id) await avisarCaso(bd, sesion, caso, 'caso.fisio_asignado');
-      return casoId;
+      return rows[0]!.id;
     });
-    cola.despertar();
     return respuesta.code(201).send(await fichaCaso(pool, sesion, id));
   });
 

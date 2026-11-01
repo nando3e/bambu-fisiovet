@@ -97,8 +97,7 @@ export async function sembrarDemo(pool: pg.Pool, urlPublica: string, contrasena:
     let primerPaciente = 0;
     for (const [i, estado] of estados.entries()) {
       const v = i % vets.length;
-      const registrada = i === 4 || i === 13;
-      const autor = registrada ? laia : vets[v]!;
+      const autor = vets[v]!;
       // El último reutiliza el paciente del primero ya enviado: derivado dos veces.
       const pacienteId = i === estados.length - 1 ? primerPaciente : await crearPaciente(bd, i, clinicaDe[v]!, autor);
       if (i === 1) primerPaciente = pacienteId;
@@ -117,14 +116,13 @@ export async function sembrarDemo(pool: pg.Pool, urlPublica: string, contrasena:
                  ${['alta', 'rechazada', 'abandonada'].includes(estado) ? `now() - interval '${Math.max(dias - 10, 1)} days'` : 'NULL'},
                  $12, now() - interval '${Math.max(dias - 5, 0)} days', now() - interval '${dias} days')
          RETURNING id`,
-        [pacienteId, clinicaDe[v], registrada ? null : vets[v], registrada ? 'Dr. Andreu Climent' : null,
-          registrada ? laia : null, autor, estado, ['borrador', 'enviada'].includes(estado) ? null : (i % 2 ? laia : jordi),
+        [pacienteId, clinicaDe[v], vets[v], null, null, autor, estado, ['borrador', 'enviada'].includes(estado) ? null : (i % 2 ? laia : jordi),
           pacientes[i % pacientes.length]![3], 'Sense altres patologies rellevants.', 'Recuperar la funcionalitat i reduir el dolor.',
           estado === 'rechazada' ? 'Cas quirúrgic: cal valoració de traumatologia abans.'
             : estado === 'abandonada' ? 'El propietari no contesta.' : null],
       );
       casos.push({
-        id: creado[0]!.id, estado, vet: registrada ? null : vets[v]!, dias,
+        id: creado[0]!.id, estado, vet: vets[v]!, dias,
         fisio: ['borrador', 'enviada'].includes(estado) ? null : (i % 2 ? laia : jordi),
       });
     }

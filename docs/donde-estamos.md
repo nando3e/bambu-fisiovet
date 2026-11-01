@@ -12,7 +12,7 @@ se hizo con cada uno.
 | Change | Qué trae |
 |---|---|
 | 1 `fundamentos-acceso-y-avisos` | Alta y acceso, equipo, clínicas, avisos (matriz, cola de correo, campana), configuración, landing |
-| 2 `casos-y-derivaciones` | Nova derivació (autoguardado), estados, Bambú registra derivaciones por teléfono, pacientes, «Ja té cita», aviso de pendientes de cita |
+| 2 `casos-y-derivaciones` | Nova derivació (autoguardado), estados, pacientes, «Ja té cita», aviso de pendientes de cita. El registro telefónico por Bambú se retiró después (D18) |
 | 3 `hilo-adjuntos-y-sesiones` | Hilo por caso, notas internas, adjuntos protegidos con miniaturas, últimos movimientos |
 | 4 `informes-por-voz` | Dictado, propuesta con IA o a mano, confirmar, informe imprimible; IA cifrada en el panel; anonimización antes del modelo |
 | 5 `panel-e-indicadores` | `/b/panell`: seis indicadores sin sesiones, con enlaces a la lista filtrada |
@@ -60,8 +60,8 @@ en el compose. `APP_HOST` solo da la URL de los enlaces de los correos.
 
 ## Lo que necesito de Nando (en este orden)
 
-1. **Mirar el portal de pruebas**: el inicio de Bambú, una derivación por
-   teléfono, el informe a mano y `/b/panell`.
+1. **Mirar el portal**: el alta de un veterinario con CIF, una derivación, el
+   informe a mano y `/b/panell`.
 2. **Claves de IA** (Configuració → Intel·ligència artificial, como
    superadmin): Anthropic para redactar y OpenAI para Whisper. Sin ellas, los
    informes se redactan a mano y el micrófono no aparece. Antes, que el

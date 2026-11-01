@@ -52,6 +52,22 @@ const RESPUESTA_RECUPERA = {
 };
 const ENLACE_INVALIDO = "Aquest enllaç ja s'ha fet servir o ha caducat";
 
+/**
+ * Correos de cuenta que se pueden provocar desde fuera hacia una dirección:
+ * como mucho tres por hora. Pasado el freno no se emite enlace nuevo (los
+ * anteriores siguen valiendo) y la respuesta es la de siempre, para que nadie
+ * pueda saturar el buzón de un veterinario ni dejarle sin enlace válido.
+ */
+const PLANTILLAS_DE_CUENTA = ['verificacion', 'recuperacion', 'alta-existente', 'clinica-existente'];
+async function frenoPorDestinatario(bd: Consultable, email: string): Promise<boolean> {
+  const { rows } = await bd.query<{ n: number }>(
+    `SELECT count(*)::int AS n FROM correos_pendientes
+     WHERE lower(destinatario) = $1 AND plantilla = ANY($2) AND creado > now() - interval '1 hour'`,
+    [email, PLANTILLAS_DE_CUENTA],
+  );
+  return rows[0]!.n >= 3;
+}
+
 export interface DatosYo {
   id: number;
   nombre: string;
@@ -103,6 +119,7 @@ export async function rutasAuth(app: FastifyInstance, deps: Deps): Promise<void>
           [d.email],
         );
         const existente = existentes[0];
+        if (await frenoPorDestinatario(bd, d.email)) return;
         if (existente) {
           // Misma respuesta que un alta nueva: no se le dice a nadie qué correos
           // tienen cuenta. Si aún no la verificó, le llega otra vez la
@@ -134,15 +151,34 @@ export async function rutasAuth(app: FastifyInstance, deps: Deps): Promise<void>
           [d.clinica.cif],
         );
         const ocupada = conCif[0];
-        if (ocupada?.real) {
+        // Una clínica con ese CIF solo se retira si es una reserva caducada:
+        // nadie verificado, ningún enlace vigente y sin casos ni pacientes. Se
+        // bloquean sus usuarios antes de mirar, para no cruzarse con quien la
+        // está confirmando en ese momento. Mientras haya un enlace vigente, la
+        // clínica es de quien se registró primero: nadie se la puede quitar.
+        let retirable = false;
+        if (ocupada && !ocupada.real) {
+          await bd.query('SELECT id FROM usuarios WHERE clinica_id = $1 FOR UPDATE', [ocupada.id]);
+          const { rows: viva } = await bd.query(
+            `SELECT 1 FROM usuarios u WHERE u.clinica_id = $1 AND (u.verificado_el IS NOT NULL
+               OR EXISTS (SELECT 1 FROM tokens_correo t WHERE t.usuario_id = u.id AND t.usado_el IS NULL AND t.caduca > now()))
+             UNION ALL SELECT 1 FROM casos WHERE clinica_id = $1
+             UNION ALL SELECT 1 FROM pacientes WHERE clinica_origen_id = $1
+             LIMIT 1`,
+            [ocupada.id],
+          );
+          retirable = viva.length === 0;
+        }
+        if (ocupada && !retirable) {
           await encolarCorreo(bd, {
             destinatario: d.email, plantilla: 'clinica-existente', datos: { nombre: d.nombre },
           });
           return;
         }
         if (ocupada) {
-          // Un alta que nunca se confirmó: sin datos, porque sin verificar no
-          // se entra. Se retira para que no bloquee el CIF para siempre.
+          // Un alta que nunca se confirmó y cuyo enlace ya caducó: sin datos,
+          // porque sin verificar no se entra. Se retira para que no bloquee el
+          // CIF para siempre.
           const { rows: retirados } = await bd.query<{ id: number }>(
             'UPDATE usuarios SET activo = false WHERE clinica_id = $1 AND verificado_el IS NULL RETURNING id',
             [ocupada.id],
@@ -154,7 +190,7 @@ export async function rutasAuth(app: FastifyInstance, deps: Deps): Promise<void>
           await bd.query('UPDATE clinicas SET activa = false WHERE id = $1', [ocupada.id]);
           await registrarCambio(bd, {
             tabla: 'clinicas', filaId: ocupada.id, antes: { activa: true },
-            despues: { activa: false, motivo: 'alta sin confirmar con el mismo CIF que un alta nueva', usuarios_retirados: retirados.map((r) => r.id) },
+            despues: { activa: false, motivo: 'alta sin confirmar y caducada, con el mismo CIF que un alta nueva', usuarios_retirados: retirados.map((r) => r.id) },
             usuarioId: null, origen: 'sistema',
           });
         }
@@ -368,7 +404,7 @@ export async function rutasAuth(app: FastifyInstance, deps: Deps): Promise<void>
         [email],
       );
       const u = rows[0];
-      if (!u) return;
+      if (!u || await frenoPorDestinatario(bd, email)) return;
       const token = await emitirToken(bd, u.id, 'recuperacion');
       await encolarCorreo(bd, {
         destinatario: email, usuarioId: u.id, plantilla: 'recuperacion',

@@ -28,6 +28,11 @@ const contar = async (sql: string, params: unknown[] = []) => (await s.pool.quer
 const publicar = (ev: Parameters<typeof publicarEvento>[1]) => enTransaccion(s.pool, (bd) => publicarEvento(bd, ev));
 
 test('catálogo: coincide con el CHECK vivo, la semilla no pisa lo editado y un evento desconocido o una acción deshecha no dejan nada', async () => {
+  // Los eventos de la unión retirados (change union-por-cif) ya no entran en la base.
+  await assert.rejects(
+    s.pool.query(`INSERT INTO eventos (tipo, datos) VALUES ('usuario.solicita_union', '{}')`),
+    /eventos_tipo_check/,
+  );
   const { rows } = await s.pool.query<{ def: string }>(`SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname = 'eventos_tipo_check'`);
   assert.deepEqual([...rows[0]!.def.matchAll(/'([^']+)'/g)].map((m) => m[1]).sort(), [...TIPOS_EVENTO].sort());
   assert.equal(await contar('SELECT count(*)::int AS n FROM configuracion_avisos'), TIPOS_EVENTO.length);

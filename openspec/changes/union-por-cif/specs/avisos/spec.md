@@ -9,7 +9,6 @@ valores por defecto son:
 | Evento | Audiencia | Notificación | Correo |
 |---|---|---|---|
 | `derivacion.enviada` | bambu | sí | sí, al correo del centro |
-| `derivacion.registrada` | derivador | sí | sí |
 | `derivacion.aceptada` | derivador | sí | sí |
 | `derivacion.rechazada` | derivador | sí | sí |
 | `caso.fisio_asignado` | bambu | sí | no |
@@ -24,9 +23,8 @@ valores por defecto son:
 | `usuario.bambu_alta` | bambu | sí | no |
 | `caso.sin_noticias` | bambu | sí | sí, al correo del centro, una vez por derivación atascada |
 
-`derivacion.registrada` avisa al veterinario de que Bambú ha registrado en el
-portal la derivación que hizo por teléfono o por correo, para que pueda
-seguirla. Las sesiones se llevan en Wakyma, así que no hay evento de sesión registrada. `caso.sin_noticias` avisa de una derivación que lleva más de N días
+Bambú no registra derivaciones en nombre de nadie, así que no hay evento de
+derivación registrada; los de una base antigua se quedan como están. Las sesiones se llevan en Wakyma, así que no hay evento de sesión registrada. `caso.sin_noticias` avisa de una derivación que lleva más de N días
 aceptada sin cita.
 
 Publicar un tipo que no está en la lista MUST fallar en el servidor.

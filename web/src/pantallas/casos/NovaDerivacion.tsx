@@ -1,12 +1,12 @@
-// «Nova derivació» del veterinario (tres pasos, con borrador que se guarda
-// solo) y «Registra una derivació» de Bambú (las que llegan por teléfono o
-// correo: un paso más para la clínica, sin borrador, nace aceptada).
+// «Nova derivació» del veterinario: tres pasos, con borrador que se guarda
+// solo. Bambú no registra derivaciones: el portal solo las recibe (si una
+// clínica llama, se le dice que se registre).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, ArrowRight, Check, Loader2, Plus, Search, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Loader2, Search, Send, Trash2 } from 'lucide-react';
 import { api, ErrorApi, mensajeDe } from '../../api.ts';
 import { t, type ClaveTexto } from '../../i18n/index.ts';
-import { Aviso, Campo, CampoSelector, Cargando, TituloPagina } from '../../componentes/comunes.tsx';
+import { Aviso, Cargando, TituloPagina } from '../../componentes/comunes.tsx';
 import {
   CamposDerivacion, CamposPaciente, CamposPropietario, DERIVACION_VACIA, PACIENTE_VACIO, PROPIETARIO_VACIO,
   pacienteParaApi,
@@ -24,23 +24,22 @@ interface PacienteBuscado {
   telefono: string | null;
 }
 
+const PASOS: ClaveTexto[] = ['nova.paso1', 'nova.paso2', 'nova.paso3'];
+
 /** En qué paso está cada campo, para saltar al primero que falla. */
-function pasoDelError(campos: Errores, conClinica: boolean): number {
-  const base = conClinica ? 1 : 0;
+function pasoDelError(campos: Errores): number {
   const claves = Object.keys(campos);
-  if (claves.some((c) => c.startsWith('clinica') || c.startsWith('derivador') || c === 'fisio_id')) return 0;
-  if (claves.some((c) => c.startsWith('paciente') || c.startsWith('propietario'))) return base;
-  if (claves.some((c) => c.startsWith('caso'))) return base + 1;
-  return base + 2;
+  if (claves.some((c) => c.startsWith('paciente') || c.startsWith('propietario'))) return 0;
+  if (claves.some((c) => c.startsWith('caso'))) return 1;
+  return 2;
 }
 
-export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
-  const bambu = modo === 'bambu';
+export function NovaDerivacion() {
   const navegar = useNavigate();
   const [url, setUrl] = useSearchParams();
   const casoUrl = Number(url.get('cas')) || null;
 
-  const [cargando, setCargando] = useState(!bambu);
+  const [cargando, setCargando] = useState(true);
   const [borradorPendiente, setBorradorPendiente] = useState<CasoLista | null>(null);
   const [casoId, setCasoId] = useState<number | null>(null);
   const [paso, setPaso] = useState(0);
@@ -55,18 +54,6 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
   const [error, setError] = useState('');
   const [guardado, setGuardado] = useState<'nada' | 'guardando' | 'guardado'>('nada');
   const [enviando, setEnviando] = useState(false);
-  // Solo Bambú.
-  const [clinica, setClinica] = useState<{ id: number; nombre: string } | null>(null);
-  const [derivadorId, setDerivadorId] = useState<number | null>(null);
-  const [derivadorNombre, setDerivadorNombre] = useState('');
-  const [fisioId, setFisioId] = useState<number | null>(null);
-  const [cita, setCita] = useState(false);
-  const [primeraVisita, setPrimeraVisita] = useState('');
-
-  const pasos: ClaveTexto[] = bambu
-    ? ['nova.pasoClinica', 'nova.paso1', 'nova.paso2', 'nova.paso3']
-    : ['nova.paso1', 'nova.paso2', 'nova.paso3'];
-  const pasoPaciente = bambu ? 1 : 0;
 
   useEffect(() => {
     api.get<{ texto: string; version: number }>('/consentimiento').then(setConsentimiento).catch(() => {});
@@ -76,9 +63,8 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
   // tarde y pisaría lo que ya se está escribiendo en el paso siguiente.
   const creadoAqui = useRef<number | null>(null);
 
-  // El veterinario: retomar el borrador de la URL, u ofrecer el que tenga a medias.
+  // Retomar el borrador de la URL, u ofrecer el que tenga a medias.
   useEffect(() => {
-    if (bambu) return;
     if (casoUrl !== null && casoUrl === creadoAqui.current) return;
     setCargando(true);
     const cargar = casoUrl
@@ -96,7 +82,7 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
       })
       : api.get<{ casos: CasoLista[] }>('/casos?estado=borrador').then((r) => setBorradorPendiente(r.casos[0] ?? null));
     cargar.catch((err) => setError(mensajeDe(err))).finally(() => setCargando(false));
-  }, [bambu, casoUrl, navegar]);
+  }, [casoUrl, navegar]);
 
   // Autoguardado del borrador: 800 ms después de dejar de escribir. Los
   // guardados van en fila (uno detrás de otro), para que una respuesta lenta
@@ -120,7 +106,7 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
   }, [casoId, existente, derivacion, paciente, propietario]);
 
   useEffect(() => {
-    if (bambu || !casoId) return;
+    if (!casoId) return;
     if (primeraVez.current) {
       primeraVez.current = false;
       return;
@@ -138,7 +124,7 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
       if (pendiente.current) clearTimeout(pendiente.current);
       pendiente.current = null;
     };
-  }, [bambu, casoId, guardarAhora]);
+  }, [casoId, guardarAhora]);
 
   const crearBorrador = useCallback(async () => {
     const r = await api.post<Ficha>('/casos', existente
@@ -154,7 +140,7 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
   async function siguiente() {
     setError('');
     try {
-      if (!bambu && paso === 0 && !casoId) await crearBorrador();
+      if (paso === 0 && !casoId) await crearBorrador();
       setPaso((p) => p + 1);
       window.scrollTo({ top: 0 });
     } catch (err) {
@@ -167,21 +153,6 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
     setError('');
     setEnviando(true);
     try {
-      if (bambu) {
-        const r = await api.post<Ficha>('/casos', {
-          ...(existente ? { paciente_id: existente.id } : { paciente: pacienteParaApi(paciente), propietario }),
-          caso: derivacion,
-          clinica_id: clinica?.id,
-          derivador_id: derivadorId,
-          derivador_nombre: derivadorId ? '' : derivadorNombre,
-          fisio_id: fisioId,
-          ja_te_cita: cita,
-          primera_visita: cita && primeraVisita ? primeraVisita : null,
-          acepta_consentimiento: acepta,
-        });
-        navegar(`/b/casos/${r.id}`, { replace: true });
-        return;
-      }
       // Lo último que se ha escrito, guardado antes de enviar.
       if (pendiente.current) clearTimeout(pendiente.current);
       pendiente.current = null;
@@ -191,7 +162,7 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
     } catch (err) {
       if (err instanceof ErrorApi && err.campos) {
         setErrores(err.campos);
-        setPaso(pasoDelError(err.campos, bambu));
+        setPaso(pasoDelError(err.campos));
         setError(t('nova.faltan'));
       } else {
         setError(mensajeDe(err));
@@ -232,22 +203,18 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
     );
   }
 
-  const ultimo = paso === pasos.length - 1;
+  const ultimo = paso === PASOS.length - 1;
   return (
     <>
-      <TituloPagina
-        titulo={bambu ? t('nova.registraTitulo') : t('nova.titulo')}
-        subtitulo={bambu ? t('nova.registraSubtitulo') : t('nova.subtitulo')}
-        ayuda={bambu ? 'ayuda.novaB' : 'ayuda.novaD'}
-      />
-      <div className="pasos" aria-label={t('nova.paso', { n: paso + 1, total: pasos.length })}>
-        {pasos.map((p, i) => (
+      <TituloPagina titulo={t('nova.titulo')} subtitulo={t('nova.subtitulo')} ayuda="ayuda.novaD" />
+      <div className="pasos" aria-label={t('nova.paso', { n: paso + 1, total: PASOS.length })}>
+        {PASOS.map((p, i) => (
           <span key={p} className={i === paso ? 'activo' : i < paso ? 'hecho' : undefined}>
             <b>{i < paso ? <Check size={14} aria-hidden /> : i + 1}</b> {t(p)}
           </span>
         ))}
       </div>
-      {!bambu && casoId ? (
+      {casoId ? (
         <p className="estado-guardado" role="status">
           {guardado === 'guardando' ? <><Loader2 className="girando" size={14} aria-hidden /> {t('nova.desando')}</>
             : guardado === 'guardado' ? <><Check size={14} aria-hidden /> {t('nova.desado')}</> : null}
@@ -256,37 +223,23 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
       {error ? <Aviso tipo="error">{error}</Aviso> : null}
 
       <section className="tarjeta">
-        {bambu && paso === 0 ? (
-          <PasoClinica
-            clinica={clinica} setClinica={(c) => { setClinica(c); setDerivadorId(null); setExistente(null); }}
-            derivadorId={derivadorId} setDerivadorId={setDerivadorId}
-            derivadorNombre={derivadorNombre} setDerivadorNombre={setDerivadorNombre}
-            fisioId={fisioId} setFisioId={setFisioId}
-            cita={cita} setCita={setCita} primeraVisita={primeraVisita} setPrimeraVisita={setPrimeraVisita}
-            errores={errores}
-          />
-        ) : null}
-
-        {paso === pasoPaciente ? (
+        {paso === 0 ? (
           <>
-            {(!bambu || clinica) ? (
-              <BuscarPaciente
-                clinicaId={bambu ? clinica?.id ?? null : null}
-                existente={existente}
-                bloqueado={!bambu && Boolean(casoId)}
-                elegir={async (p) => {
-                  setExistente(p ? { id: p.id, nombre: p.nombre } : null);
-                  if (!p) {
-                    setPaciente(PACIENTE_VACIO);
-                    setPropietario(PROPIETARIO_VACIO);
-                    return;
-                  }
-                  const ficha = await api.get<DatosPaciente & { propietario: DatosPropietario }>(`/pacientes/${p.id}`);
-                  setPaciente(ficha);
-                  setPropietario(ficha.propietario);
-                }}
-              />
-            ) : null}
+            <BuscarPaciente
+              existente={existente}
+              bloqueado={Boolean(casoId)}
+              elegir={async (p) => {
+                setExistente(p ? { id: p.id, nombre: p.nombre } : null);
+                if (!p) {
+                  setPaciente(PACIENTE_VACIO);
+                  setPropietario(PROPIETARIO_VACIO);
+                  return;
+                }
+                const ficha = await api.get<DatosPaciente & { propietario: DatosPropietario }>(`/pacientes/${p.id}`);
+                setPaciente(ficha);
+                setPropietario(ficha.propietario);
+              }}
+            />
             <h2>{t('caso.paciente')}</h2>
             <CamposPaciente valor={paciente} cambiar={setPaciente} errores={errores} bloqueado={Boolean(existente)} />
             <h2>{t('caso.propietario')}</h2>
@@ -294,16 +247,16 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
           </>
         ) : null}
 
-        {paso === pasoPaciente + 1 ? <CamposDerivacion valor={derivacion} cambiar={setDerivacion} errores={errores} /> : null}
+        {paso === 1 ? <CamposDerivacion valor={derivacion} cambiar={setDerivacion} errores={errores} /> : null}
 
         {ultimo ? (
           <>
             <h2>{t('caso.consentimiento')}</h2>
             {consentimiento ? <p className="texto-consentimiento">{consentimiento.texto}</p> : null}
-            {yaConsentido && !bambu ? <Aviso tipo="info">{t('nova.consentimientoYaDado')}</Aviso> : (
+            {yaConsentido ? <Aviso tipo="info">{t('nova.consentimientoYaDado')}</Aviso> : (
               <label className="casilla">
                 <input type="checkbox" checked={acepta} onChange={(e) => setAcepta(e.target.checked)} />
-                <span>{bambu ? t('nova.consentimientoFisio') : t('nova.consentimientoAcepto')}</span>
+                <span>{t('nova.consentimientoAcepto')}</span>
               </label>
             )}
             {errores.consentimiento ? <p className="error-campo">{errores.consentimiento}</p> : null}
@@ -317,19 +270,19 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
             <ArrowLeft size={18} aria-hidden /> {t('nova.anterior')}
           </button>
         ) : (
-          <Link to={bambu ? '/b/casos' : '/d'} className="boton-texto"><ArrowLeft size={18} aria-hidden /> {t('caso.volver')}</Link>
+          <Link to="/d" className="boton-texto"><ArrowLeft size={18} aria-hidden /> {t('caso.volver')}</Link>
         )}
         {ultimo ? (
-          <button type="button" className="boton" disabled={enviando || (bambu && !clinica)} onClick={() => void terminar()}>
-            <Send size={18} aria-hidden /> {bambu ? t('nova.registrar') : t('nova.enviar')}
+          <button type="button" className="boton" disabled={enviando} onClick={() => void terminar()}>
+            <Send size={18} aria-hidden /> {t('nova.enviar')}
           </button>
         ) : (
-          <button type="button" className="boton" disabled={bambu && paso === 0 && !clinica} onClick={() => void siguiente()}>
+          <button type="button" className="boton" onClick={() => void siguiente()}>
             {t('nova.siguiente')} <ArrowRight size={18} aria-hidden />
           </button>
         )}
       </div>
-      {!bambu && casoId ? (
+      {casoId ? (
         <div className="acciones">
           <button type="button" className="boton-texto" onClick={() => void descartar()}>
             <Trash2 size={16} aria-hidden /> {t('nova.descartar')}
@@ -340,8 +293,7 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
   );
 }
 
-function BuscarPaciente({ clinicaId, existente, bloqueado, elegir }: {
-  clinicaId: number | null;
+function BuscarPaciente({ existente, bloqueado, elegir }: {
   existente: { id: number; nombre: string } | null;
   bloqueado: boolean;
   elegir: (p: PacienteBuscado | null) => Promise<void>;
@@ -355,11 +307,10 @@ function BuscarPaciente({ clinicaId, existente, bloqueado, elegir }: {
     }
     const espera = setTimeout(() => {
       const p = new URLSearchParams({ q: texto.trim() });
-      if (clinicaId) p.set('clinica_id', String(clinicaId));
       api.get<{ pacientes: PacienteBuscado[] }>(`/pacientes?${p.toString()}`).then((r) => setResultados(r.pacientes)).catch(() => {});
     }, 300);
     return () => clearTimeout(espera);
-  }, [texto, clinicaId]);
+  }, [texto]);
 
   if (existente) {
     return (
@@ -392,152 +343,5 @@ function BuscarPaciente({ clinicaId, existente, bloqueado, elegir }: {
         </ul>
       ) : null}
     </div>
-  );
-}
-
-interface ClinicaElegible { id: number; nombre: string; poblacion: string | null; cif: string | null }
-interface Persona { id: number; nombre: string; apellidos: string; activo: boolean; verificado?: boolean; estado?: string; rol?: string }
-
-function PasoClinica(p: {
-  clinica: { id: number; nombre: string } | null;
-  setClinica: (c: { id: number; nombre: string } | null) => void;
-  derivadorId: number | null;
-  setDerivadorId: (id: number | null) => void;
-  derivadorNombre: string;
-  setDerivadorNombre: (n: string) => void;
-  fisioId: number | null;
-  setFisioId: (id: number | null) => void;
-  cita: boolean;
-  setCita: (v: boolean) => void;
-  primeraVisita: string;
-  setPrimeraVisita: (v: string) => void;
-  errores: Errores;
-}) {
-  const [clinicas, setClinicas] = useState<ClinicaElegible[]>([]);
-  const [veterinarios, setVeterinarios] = useState<Persona[]>([]);
-  const [fisios, setFisios] = useState<Persona[]>([]);
-  const [filtro, setFiltro] = useState('');
-  const [nueva, setNueva] = useState<{ nombre: string; poblacion: string; cif: string; telefono: string } | null>(null);
-  const [erroresNueva, setErroresNueva] = useState<Record<string, string>>({});
-  const [aviso, setAviso] = useState('');
-  const [error, setError] = useState('');
-
-  const cargarClinicas = useCallback(async () => {
-    const r = await api.get<{ clinicas: ClinicaElegible[] }>('/clinicas');
-    setClinicas(r.clinicas);
-  }, []);
-  useEffect(() => {
-    cargarClinicas().catch((err) => setError(mensajeDe(err)));
-    api.get<{ usuarios: Persona[] }>('/usuarios?rol=bambu')
-      .then((r) => setFisios(r.usuarios.filter((u) => u.activo && u.estado === 'activo')))
-      .catch(() => {});
-  }, [cargarClinicas]);
-  useEffect(() => {
-    if (!p.clinica) {
-      setVeterinarios([]);
-      return;
-    }
-    api.get<{ usuarios: Persona[] }>(`/clinicas/${p.clinica.id}/usuarios`)
-      .then((r) => setVeterinarios(r.usuarios.filter((u) => u.activo && u.verificado)))
-      .catch(() => setVeterinarios([]));
-  }, [p.clinica]);
-
-  async function crear() {
-    if (!nueva) return;
-    setError('');
-    setErroresNueva({});
-    try {
-      const c = await api.post<{ id: number; nombre: string }>('/clinicas', nueva);
-      await cargarClinicas();
-      p.setClinica(c);
-      setNueva(null);
-      setAviso(t('nova.clinicaCreada'));
-    } catch (err) {
-      if (err instanceof ErrorApi && err.campos) setErroresNueva(err.campos);
-      setError(mensajeDe(err));
-    }
-  }
-
-  const visibles = clinicas.filter((c) => !filtro || `${c.nombre} ${c.poblacion ?? ''} ${c.cif ?? ''}`.toLowerCase().includes(filtro.toLowerCase()));
-  return (
-    <>
-      {aviso ? <Aviso>{aviso}</Aviso> : null}
-      {error ? <Aviso tipo="error">{error}</Aviso> : null}
-      <div className="formulario">
-        {p.clinica ? (
-          <Aviso tipo="info">
-            <strong>{p.clinica.nombre}</strong>{' '}
-            <button type="button" className="boton-texto" onClick={() => p.setClinica(null)}>{t('caso.cancelar')}</button>
-          </Aviso>
-        ) : (
-          <>
-            <label className="campo buscador">
-              <span>{t('nova.clinica')}</span>
-              <Search size={18} aria-hidden />
-              <input type="search" value={filtro} onChange={(e) => setFiltro(e.target.value)} />
-              <small>{t('nova.clinicaAyuda')}</small>
-            </label>
-            {p.errores.clinica_id ? <p className="error-campo">{p.errores.clinica_id}</p> : null}
-            <ul className="lista lista-corta">
-              {visibles.slice(0, 8).map((c) => (
-                <li key={c.id}>
-                  <button type="button" className="fila-enlace" onClick={() => p.setClinica({ id: c.id, nombre: c.nombre })}>
-                    <div className="principal"><strong>{c.nombre}</strong><span>{[c.poblacion, c.cif].filter(Boolean).join(' · ')}</span></div>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {nueva ? (
-              <div className="tarjeta interior">
-                <h2>{t('nova.clinicaNueva')}</h2>
-                <div className="formulario dos">
-                  <Campo etiqueta={t('clinica.nombre')} value={nueva.nombre} onChange={(e) => setNueva({ ...nueva, nombre: e.target.value })} error={erroresNueva.nombre} required />
-                  <Campo etiqueta={t('clinica.poblacion')} value={nueva.poblacion} onChange={(e) => setNueva({ ...nueva, poblacion: e.target.value })} error={erroresNueva.poblacion} required />
-                  <Campo etiqueta={t('alta.cif')} value={nueva.cif} onChange={(e) => setNueva({ ...nueva, cif: e.target.value })} error={erroresNueva.cif} autoCapitalize="characters" required />
-                  <Campo etiqueta={t('clinica.telefono')} type="tel" value={nueva.telefono} onChange={(e) => setNueva({ ...nueva, telefono: e.target.value })} />
-                </div>
-                <div className="acciones">
-                  <button type="button" className="boton" disabled={nueva.nombre.trim().length < 2} onClick={() => void crear()}>{t('comun.guardar')}</button>
-                  <button type="button" className="boton-texto" onClick={() => setNueva(null)}>{t('caso.cancelar')}</button>
-                </div>
-              </div>
-            ) : (
-              <button type="button" className="boton-secundario" onClick={() => { setErroresNueva({}); setNueva({ nombre: filtro, poblacion: '', cif: '', telefono: '' }); }}>
-                <Plus size={18} aria-hidden /> {t('nova.clinicaNueva')}
-              </button>
-            )}
-          </>
-        )}
-
-        {p.clinica ? (
-          <>
-            <CampoSelector
-              etiqueta={t('nova.veterinario')}
-              value={p.derivadorId === null ? '' : String(p.derivadorId)}
-              error={p.errores.derivador_id}
-              onChange={(e) => p.setDerivadorId(e.target.value ? Number(e.target.value) : null)}
-            >
-              <option value="">{t('nova.veterinarioSinCuenta')}</option>
-              {veterinarios.map((v) => <option key={v.id} value={v.id}>{`${v.nombre} ${v.apellidos}`.trim()}</option>)}
-            </CampoSelector>
-            {p.derivadorId === null ? (
-              <Campo etiqueta={t('nova.veterinarioNombre')} value={p.derivadorNombre} onChange={(e) => p.setDerivadorNombre(e.target.value)} />
-            ) : null}
-            <CampoSelector etiqueta={t('nova.fisio')} value={p.fisioId === null ? '' : String(p.fisioId)}
-              onChange={(e) => p.setFisioId(e.target.value ? Number(e.target.value) : null)}>
-              <option value="">{t('nova.sinFisio')}</option>
-              {fisios.map((f) => <option key={f.id} value={f.id}>{`${f.nombre} ${f.apellidos}`.trim()}</option>)}
-            </CampoSelector>
-            <label className="casilla">
-              <input type="checkbox" checked={p.cita} onChange={(e) => p.setCita(e.target.checked)} />
-              <span>{t('nova.yaTieneCita')}</span>
-            </label>
-            {p.cita ? (
-              <Campo etiqueta={t('nova.primeraVisita')} type="date" value={p.primeraVisita} onChange={(e) => p.setPrimeraVisita(e.target.value)} />
-            ) : null}
-          </>
-        ) : null}
-      </div>
-    </>
   );
 }
