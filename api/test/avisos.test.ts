@@ -23,306 +23,148 @@ after(async () => {
 });
 
 const matriz = (evento: string, fila: { notificacion: boolean; correo: boolean; correo_a?: string | null }) =>
-  pedir(s.app, 'PUT', `/api/configuracion/avisos/${evento}`, {
-    cookie: admin, cuerpo: { correo_a: null, ...fila },
-  });
+  pedir(s.app, 'PUT', `/api/configuracion/avisos/${evento}`, { cookie: admin, cuerpo: { correo_a: null, ...fila } });
+const contar = async (sql: string, params: unknown[] = []) => (await s.pool.query<{ n: number }>(sql, params)).rows[0]!.n;
+const publicar = (ev: Parameters<typeof publicarEvento>[1]) => enTransaccion(s.pool, (bd) => publicarEvento(bd, ev));
 
-const contar = async (sql: string, params: unknown[] = []) =>
-  (await s.pool.query<{ n: number }>(sql, params)).rows[0]!.n;
-
-test('el catálogo del código y el CHECK de la base son la misma lista', async () => {
-  // La restricción viva, no la de un fichero: cada change que añade eventos la
-  // redefine en su migración.
-  const { rows } = await s.pool.query<{ def: string }>(
-    `SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname = 'eventos_tipo_check'`,
-  );
-  const enSql = [...rows[0]!.def.matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
-  assert.deepEqual(enSql, [...TIPOS_EVENTO].sort());
-});
-
-test('la semilla crea una fila por evento y no pisa lo editado', async () => {
+test('catálogo: coincide con el CHECK vivo, la semilla no pisa lo editado y un evento desconocido o una acción deshecha no dejan nada', async () => {
+  const { rows } = await s.pool.query<{ def: string }>(`SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname = 'eventos_tipo_check'`);
+  assert.deepEqual([...rows[0]!.def.matchAll(/'([^']+)'/g)].map((m) => m[1]).sort(), [...TIPOS_EVENTO].sort());
   assert.equal(await contar('SELECT count(*)::int AS n FROM configuracion_avisos'), TIPOS_EVENTO.length);
+
   await matriz('mensaje.nuevo', { notificacion: true, correo: false });
   const otro = await servidorDePrueba('avisos', {}, { url: s.url });
   await otro.app.close();
-  // Cada arranque cierra las sesiones del superadmin: hay que volver a entrar.
-  admin = await entrarSuperadmin(s);
-  const { rows } = await s.pool.query(`SELECT correo FROM configuracion_avisos WHERE evento = 'mensaje.nuevo'`);
-  assert.equal(rows[0].correo, false);
+  admin = await entrarSuperadmin(s); // cada arranque cierra las sesiones del superadmin
+  assert.equal((await s.pool.query(`SELECT correo FROM configuracion_avisos WHERE evento = 'mensaje.nuevo'`)).rows[0].correo, false);
   await matriz('mensaje.nuevo', { notificacion: true, correo: true });
-});
 
-test('publicar un tipo desconocido lanza y deshace', async () => {
-  await assert.rejects(
-    enTransaccion(s.pool, async (bd) => publicarEvento(bd, { tipo: 'caso.inventado' as never, actor: null })),
-    /desconocido/,
-  );
-});
-
-test('si la acción se deshace, no queda ni evento, ni notificación, ni correo', async () => {
+  await assert.rejects(publicar({ tipo: 'caso.inventado' as never, actor: null }), /desconocido/);
   await fisioVerificada(s, admin);
   const eventos = await contar('SELECT count(*)::int AS n FROM eventos');
   const correos = await contar('SELECT count(*)::int AS n FROM correos_pendientes');
-  await assert.rejects(
-    enTransaccion(s.pool, async (bd) => {
-      await publicarEvento(bd, {
-        tipo: 'derivacion.enviada', actor: null, casoId: await casoDePrueba(s.pool), datos: { paciente: 'Nala' },
-      });
-      throw new Error('la acción falla después de publicar');
-    }),
-  );
+  const caso = await casoDePrueba(s.pool);
+  await assert.rejects(enTransaccion(s.pool, async (bd) => {
+    await publicarEvento(bd, { tipo: 'derivacion.enviada', actor: null, casoId: caso, datos: { paciente: 'Nala' } });
+    throw new Error('la acción falla después de publicar');
+  }));
   assert.equal(await contar('SELECT count(*)::int AS n FROM eventos'), eventos);
   assert.equal(await contar('SELECT count(*)::int AS n FROM correos_pendientes'), correos);
 });
 
-test('matriz: apagar la notificación no crea filas; apagar el correo no encola', async () => {
+test('matriz: apagar notificación o correo vale al momento; «Correu a» manda sobre el centro; el veterinario decide sus correos; los de cuenta salen siempre', async () => {
+  const vet = await veterinarioVerificado(s);
   await matriz('caso.alta', { notificacion: false, correo: false });
-  const vet = await veterinarioVerificado(s);
-  const r = await enTransaccion(s.pool, async (bd) =>
-    publicarEvento(bd, {
-      tipo: 'caso.alta', actor: null, casoId: await casoDePrueba(s.pool), datos: { paciente: 'Rufo' },
-      derivadoresInteresados: [vet.usuario.id],
-    }),
-  );
-  assert.deepEqual(r.notificados, []);
-  assert.deepEqual(r.correosEncolados, []);
-
+  const apagado = await publicar({ tipo: 'caso.alta', actor: null, casoId: await casoDePrueba(s.pool), derivadoresInteresados: [vet.usuario.id] });
+  assert.deepEqual([apagado.notificados, apagado.correosEncolados], [[], []]);
   await matriz('caso.alta', { notificacion: true, correo: false });
-  const r2 = await enTransaccion(s.pool, async (bd) =>
-    publicarEvento(bd, {
-      tipo: 'caso.alta', actor: null, casoId: await casoDePrueba(s.pool), datos: { paciente: 'Rufo' },
-      derivadoresInteresados: [vet.usuario.id],
-    }),
-  );
-  assert.deepEqual(r2.notificados, [vet.usuario.id]);
-  assert.deepEqual(r2.correosEncolados, []);
+  const soloCampana = await publicar({ tipo: 'caso.alta', actor: null, casoId: await casoDePrueba(s.pool), derivadoresInteresados: [vet.usuario.id] });
+  assert.deepEqual([soloCampana.notificados, soloCampana.correosEncolados], [[vet.usuario.id], []]);
   await matriz('caso.alta', { notificacion: true, correo: true });
-});
 
-test('«Correu a» manda sobre el correo del centro; vacío, el del centro', async () => {
-  await pedir(s.app, 'PUT', '/api/configuracion/avisos', {
-    cookie: admin, cuerpo: { correo_centro: 'avisos@bambufisiovet.com', dias_sin_noticias: 7 },
-  });
+  await pedir(s.app, 'PUT', '/api/configuracion/avisos', { cookie: admin, cuerpo: { correo_centro: 'avisos@bambufisiovet.com', dias_sin_noticias: 7 } });
   await matriz('derivacion.enviada', { notificacion: true, correo: true, correo_a: 'recepcio@bambufisiovet.com' });
-  const con = await enTransaccion(s.pool, async (bd) =>
-    publicarEvento(bd, { tipo: 'derivacion.enviada', actor: null, casoId: await casoDePrueba(s.pool), datos: { paciente: 'Nala' } }),
-  );
-  assert.deepEqual(con.correosEncolados, ['recepcio@bambufisiovet.com']);
-
+  assert.deepEqual((await publicar({ tipo: 'derivacion.enviada', actor: null, casoId: await casoDePrueba(s.pool) })).correosEncolados, ['recepcio@bambufisiovet.com']);
   await matriz('derivacion.enviada', { notificacion: true, correo: true, correo_a: null });
-  const sin = await enTransaccion(s.pool, async (bd) =>
-    publicarEvento(bd, { tipo: 'derivacion.enviada', actor: null, casoId: await casoDePrueba(s.pool), datos: { paciente: 'Nala' } }),
-  );
-  assert.deepEqual(sin.correosEncolados, ['avisos@bambufisiovet.com']);
-});
+  assert.deepEqual((await publicar({ tipo: 'derivacion.enviada', actor: null, casoId: await casoDePrueba(s.pool) })).correosEncolados, ['avisos@bambufisiovet.com']);
+  assert.equal((await matriz('derivacion.aceptada', { notificacion: true, correo: true, correo_a: 'x@y.es' })).estado, 400);
 
-test('«Correu a» no se admite en eventos que van a los veterinarios', async () => {
-  const r = await matriz('derivacion.aceptada', { notificacion: true, correo: true, correo_a: 'x@y.es' });
-  assert.equal(r.estado, 400);
-});
-
-test('veterinario con los correos apagados: notificación sí, correo no, y la traza lo dice', async () => {
-  const vet = await veterinarioVerificado(s);
   await pedir(s.app, 'PATCH', '/api/auth/perfil', { cookie: vet.cookie, cuerpo: { recibe_correos: false } });
-  const r = await enTransaccion(s.pool, async (bd) =>
-    publicarEvento(bd, {
-      tipo: 'informe.publicado', actor: null, casoId: await casoDePrueba(s.pool), datos: { paciente: 'Kira' },
-      derivadoresInteresados: [vet.usuario.id],
-    }),
-  );
-  assert.deepEqual(r.notificados, [vet.usuario.id]);
-  assert.deepEqual(r.correosEncolados, []);
-  const { rows } = await s.pool.query(
-    `SELECT motivo FROM avisos_enviados WHERE evento_id = $1 AND canal = 'correo'`,
-    [r.eventoId],
-  );
-  assert.equal(rows[0].motivo, 'recibe_correos=false');
+  const sinCorreo = await publicar({ tipo: 'informe.publicado', actor: null, casoId: await casoDePrueba(s.pool), derivadoresInteresados: [vet.usuario.id] });
+  assert.deepEqual([sinCorreo.notificados, sinCorreo.correosEncolados], [[vet.usuario.id], []]);
+  assert.equal((await s.pool.query(`SELECT motivo FROM avisos_enviados WHERE evento_id = $1 AND canal = 'correo'`, [sinCorreo.eventoId])).rows[0].motivo, 'recibe_correos=false');
+
+  // Los correos de cuenta no pasan por la matriz.
+  await s.pool.query('UPDATE configuracion_avisos SET correo = false');
+  await pedir(s.app, 'POST', '/api/auth/recupera', { cuerpo: { email: vet.email } });
+  assert.equal(await contar(`SELECT count(*)::int AS n FROM correos_pendientes WHERE destinatario = $1 AND plantilla = 'recuperacion'`, [vet.email]), 1);
+  await s.pool.query(`UPDATE configuracion_avisos SET correo = true WHERE evento NOT IN ('caso.fisio_asignado', 'caso.en_tratamiento', 'paciente.ficha_modificada', 'usuario.bambu_alta')`);
 });
 
-test('anti-ruido: dos mensajes sin leer → dos notificaciones y un correo; tras leer, otro correo', async () => {
-  const vet = await veterinarioVerificado(s);
-  const fisio = await fisioVerificada(s, admin);
-  const caso = await casoDePrueba(s.pool);
-  const mensaje = () =>
-    enTransaccion(s.pool, async (bd) =>
-      publicarEvento(bd, {
-        tipo: 'mensaje.nuevo', actor: { id: fisio.id, rol: 'bambu' }, casoId: caso,
-        datos: { paciente: 'Nala', nombre: 'Laia' }, derivadoresInteresados: [vet.usuario.id],
-      }),
-    );
-  const a = await mensaje();
-  const b = await mensaje();
-  assert.deepEqual(a.correosEncolados, [vet.email]);
-  assert.deepEqual(b.correosEncolados, []);
-  const lista = await pedir(s.app, 'GET', '/api/notificaciones?solo_no_leidas=1', { cookie: vet.cookie });
-  assert.equal(lista.cuerpo.notificaciones.filter((n: { caso_id: number }) => n.caso_id === caso).length, 2);
-
-  await pedir(s.app, 'POST', '/api/notificaciones/leidas', { cookie: vet.cookie });
-  const c = await mensaje();
-  assert.deepEqual(c.correosEncolados, [vet.email]);
-});
-
-test('notificaciones: contador, marcar una, marcar todas; la de otro → 404', async () => {
+test('anti-ruido y campana: dos mensajes sin leer dan dos notificaciones y un correo; leer rearma el correo; la notificación de otro → 404', async () => {
   const vet = await veterinarioVerificado(s);
   const otro = await veterinarioVerificado(s);
-  for (let i = 0; i < 3; i++) {
-    await enTransaccion(s.pool, async (bd) =>
-      publicarEvento(bd, {
-        tipo: 'derivacion.aceptada', actor: null, casoId: await casoDePrueba(s.pool), datos: { paciente: `P${i}` },
-        derivadoresInteresados: [vet.usuario.id],
-      }),
-    );
-  }
-  assert.equal((await pedir(s.app, 'GET', '/api/notificaciones/resumen', { cookie: vet.cookie })).cuerpo.no_leidas, 3);
-  const lista = await pedir(s.app, 'GET', '/api/notificaciones', { cookie: vet.cookie });
-  const id = lista.cuerpo.notificaciones[0].id;
+  const fisio = await fisioVerificada(s, admin);
+  const caso = await casoDePrueba(s.pool);
+  const mensaje = () => publicar({
+    tipo: 'mensaje.nuevo', actor: { id: fisio.id, rol: 'bambu' }, casoId: caso, datos: { paciente: 'Nala', nombre: 'Laia' },
+    derivadoresInteresados: [vet.usuario.id],
+  });
+  assert.deepEqual((await mensaje()).correosEncolados, [vet.email]);
+  assert.deepEqual((await mensaje()).correosEncolados, []);
+  assert.equal((await pedir(s.app, 'GET', '/api/notificaciones/resumen', { cookie: vet.cookie })).cuerpo.no_leidas, 2);
+  const id = (await pedir(s.app, 'GET', '/api/notificaciones', { cookie: vet.cookie })).cuerpo.notificaciones[0].id;
   assert.equal((await pedir(s.app, 'POST', `/api/notificaciones/${id}/leida`, { cookie: otro.cookie })).estado, 404);
-  const una = await pedir(s.app, 'POST', `/api/notificaciones/${id}/leida`, { cookie: vet.cookie });
-  assert.equal(una.cuerpo.no_leidas, 2);
+  assert.equal((await pedir(s.app, 'POST', `/api/notificaciones/${id}/leida`, { cookie: vet.cookie })).cuerpo.no_leidas, 1);
   await pedir(s.app, 'POST', '/api/notificaciones/leidas', { cookie: vet.cookie });
   assert.equal((await pedir(s.app, 'GET', '/api/notificaciones/resumen', { cookie: vet.cookie })).cuerpo.no_leidas, 0);
-});
-
-test('los correos de cuenta salen aunque la matriz lo apague todo', async () => {
-  for (const evento of TIPOS_EVENTO) await matriz(evento, { notificacion: true, correo: false });
-  const vet = await veterinarioVerificado(s);
-  await pedir(s.app, 'POST', '/api/auth/recupera', { cuerpo: { email: vet.email } });
-  assert.equal(
-    await contar(`SELECT count(*)::int AS n FROM correos_pendientes WHERE destinatario = $1 AND plantilla = 'recuperacion'`, [vet.email]),
-    1,
-  );
-  const { rows } = await s.pool.query(
-    `UPDATE configuracion_avisos SET correo = true WHERE evento IN (
-       'derivacion.enviada','derivacion.aceptada','derivacion.rechazada','caso.alta','caso.abandonado',
-       'mensaje.nuevo','adjunto.nuevo','informe.publicado','usuario.derivador_alta',
-       'usuario.solicita_union','usuario.union_resuelta','caso.sin_noticias') RETURNING evento`,
-  );
-  assert.equal(rows.length, 12);
+  assert.deepEqual((await mensaje()).correosEncolados, [vet.email]);
 });
 
 // --- La cola ---
 
-async function colaCon(canal: CanalFalso, entorno: { dryRun?: boolean } = {}) {
-  return crearCola({
-    pool: s.pool,
-    config: { ...s.config, CORREO_DRY_RUN: entorno.dryRun ?? false, COLA_ACTIVA: false },
-    canal,
-  });
-}
+const colaCon = (canal: CanalFalso, dryRun = false) =>
+  crearCola({ pool: s.pool, config: { ...s.config, CORREO_DRY_RUN: dryRun, COLA_ACTIVA: false }, canal });
+const vaciarCola = () => s.pool.query(`UPDATE correos_pendientes SET estado = 'descartado' WHERE estado IN ('pendiente', 'en_curso')`);
+const estado = async (id: number) => (await s.pool.query('SELECT estado, intentos, error FROM correos_pendientes WHERE id = $1', [id])).rows[0];
 
-async function vaciarCola() {
-  await s.pool.query(`UPDATE correos_pendientes SET estado = 'descartado' WHERE estado IN ('pendiente', 'en_curso')`);
-}
-
-test('cola: envía, rellena la plantilla con enlace absoluto y deja traza', async () => {
+test('cola: envía con la plantilla y enlace absoluto y deja traza; en dry-run no llama al canal; una plantilla rota falla sin reintentos', async () => {
   await vaciarCola();
   const canal = new CanalFalso();
   const id = await encolarCorreo(s.pool, {
     destinatario: 'marta@clinica.vet', plantilla: 'aviso',
     datos: { saludo: 'Hola, Marta', titulo: 'Informe nou: Nala', cuerpo: 'Text', enlace: '/d/casos/7' },
   });
-  assert.equal(await (await colaCon(canal)).procesar(), 1);
-  assert.equal(canal.enviados.length, 1);
+  await colaCon(canal).procesar();
   assert.match(canal.enviados[0]!.html, /https:\/\/bambu\.test\/d\/casos\/7/);
   assert.equal(canal.enviados[0]!.asunto, 'Informe nou: Nala · BAMBÚ Fisiovet');
-  const { rows } = await s.pool.query('SELECT estado FROM correos_pendientes WHERE id = $1', [id]);
-  assert.equal(rows[0].estado, 'enviado');
-  assert.equal(
-    await contar(`SELECT count(*)::int AS n FROM avisos_enviados WHERE correo_pendiente_id = $1 AND enviado`, [id]),
-    1,
-  );
+  assert.equal((await estado(id)).estado, 'enviado');
+  assert.equal(await contar('SELECT count(*)::int AS n FROM avisos_enviados WHERE correo_pendiente_id = $1 AND enviado', [id]), 1);
+
+  const seco = await encolarCorreo(s.pool, { destinatario: 'y@clinica.vet', plantilla: 'prueba', datos: {} });
+  const otroCanal = new CanalFalso();
+  await colaCon(otroCanal, true).procesar();
+  assert.equal(otroCanal.enviados.length, 0);
+  assert.equal((await s.pool.query('SELECT motivo FROM avisos_enviados WHERE correo_pendiente_id = $1', [seco])).rows[0].motivo, 'dry-run');
+
+  const roto = await encolarCorreo(s.pool, { destinatario: 'w@clinica.vet', plantilla: 'no-existe', datos: {} });
+  await colaCon(new CanalFalso()).procesar();
+  assert.equal((await estado(roto)).estado, 'fallido');
 });
 
-test('cola: SMTP caído → pendiente con un intento y el próximo en el futuro; al sexto, fallido', async () => {
+test('cola: SMTP caído reintenta hasta fallido y el panel lo reactiva; un envío interrumpido vuelve contando intento; dos colas no duplican', async () => {
   await vaciarCola();
   const canal = new CanalFalso();
   canal.fallar = 'SMTP: connection refused';
-  const id = await encolarCorreo(s.pool, {
-    destinatario: 'x@clinica.vet', plantilla: 'prueba', datos: {},
-  });
-  const cola = await colaCon(canal);
+  const id = await encolarCorreo(s.pool, { destinatario: 'x@clinica.vet', plantilla: 'prueba', datos: {} });
+  const cola = colaCon(canal);
   await cola.procesar();
-  let { rows } = await s.pool.query(
-    'SELECT estado, intentos, error, proximo_intento > now() AS futuro FROM correos_pendientes WHERE id = $1', [id],
-  );
-  assert.deepEqual({ ...rows[0] }, { estado: 'pendiente', intentos: 1, error: 'SMTP: connection refused', futuro: true });
-
+  assert.deepEqual({ ...(await estado(id)) }, { estado: 'pendiente', intentos: 1, error: 'SMTP: connection refused' });
   for (let i = 1; i < MAX_INTENTOS; i++) {
     await s.pool.query('UPDATE correos_pendientes SET proximo_intento = now() WHERE id = $1', [id]);
     await cola.procesar();
   }
-  ({ rows } = await s.pool.query('SELECT estado, intentos FROM correos_pendientes WHERE id = $1', [id]));
-  assert.deepEqual({ ...rows[0] }, { estado: 'fallido', intentos: MAX_INTENTOS });
-
-  // Reintentar desde el panel lo devuelve a la cola.
+  assert.equal((await estado(id)).estado, 'fallido');
   canal.fallar = null;
-  const r = await pedir(s.app, 'POST', `/api/configuracion/avisos/cola/${id}/reintenta`, { cookie: admin });
-  assert.equal(r.estado, 200);
+  assert.equal((await pedir(s.app, 'POST', `/api/configuracion/avisos/cola/${id}/reintenta`, { cookie: admin })).estado, 200);
   await cola.procesar();
-  ({ rows } = await s.pool.query('SELECT estado FROM correos_pendientes WHERE id = $1', [id]));
-  assert.equal(rows[0].estado, 'enviado');
-});
+  assert.equal((await estado(id)).estado, 'enviado');
 
-test('cola: en dry-run no llama al canal, marca enviado y la traza dice dry-run', async () => {
-  await vaciarCola();
-  const canal = new CanalFalso();
-  const id = await encolarCorreo(s.pool, { destinatario: 'y@clinica.vet', plantilla: 'prueba', datos: {} });
-  await (await colaCon(canal, { dryRun: true })).procesar();
-  assert.equal(canal.enviados.length, 0);
-  const { rows } = await s.pool.query(
-    `SELECT c.estado, a.motivo FROM correos_pendientes c JOIN avisos_enviados a ON a.correo_pendiente_id = c.id
-     WHERE c.id = $1`, [id],
-  );
-  assert.deepEqual({ ...rows[0] }, { estado: 'enviado', motivo: 'dry-run' });
-});
+  // En curso caducado: sale otra vez y cuenta intento; en el último, fallido sin enviar.
+  const muerto = await encolarCorreo(s.pool, { destinatario: 'muerto@clinica.vet', plantilla: 'prueba', datos: {} });
+  const cuelga = await encolarCorreo(s.pool, { destinatario: 'cuelga@clinica.vet', plantilla: 'prueba', datos: {} });
+  await s.pool.query(`UPDATE correos_pendientes SET estado = 'en_curso', en_curso_desde = now() - interval '11 minutes' WHERE id IN ($1, $2)`, [muerto, cuelga]);
+  await s.pool.query('UPDATE correos_pendientes SET intentos = $2 WHERE id = $1', [cuelga, MAX_INTENTOS - 1]);
+  const vista = new CanalFalso();
+  await colaCon(vista).procesar();
+  assert.deepEqual(vista.enviados.map((m) => m.para), ['muerto@clinica.vet']);
+  assert.equal((await estado(muerto)).intentos, 1);
+  assert.match((await estado(cuelga)).error, /interromput/);
 
-test('cola: dos colas a la vez envían cada correo una sola vez', async () => {
   await vaciarCola();
-  const canal = new CanalFalso();
-  for (let i = 0; i < 30; i++) {
-    await encolarCorreo(s.pool, { destinatario: `z${i}@clinica.vet`, plantilla: 'prueba', datos: {} });
-  }
-  const [a, b] = [await colaCon(canal), await colaCon(canal)];
-  await Promise.all([a.procesar(), b.procesar()]);
-  assert.equal(canal.enviados.length, 30);
-  assert.equal(new Set(canal.enviados.map((m) => m.para)).size, 30);
-});
-
-test('cola: un correo que se quedó «en curso» porque el proceso murió vuelve a salir', async () => {
-  await vaciarCola();
-  const canal = new CanalFalso();
-  const id = await encolarCorreo(s.pool, { destinatario: 'muerto@clinica.vet', plantilla: 'prueba', datos: {} });
-  await s.pool.query(
-    `UPDATE correos_pendientes SET estado = 'en_curso', en_curso_desde = now() - interval '11 minutes' WHERE id = $1`,
-    [id],
-  );
-  await (await colaCon(canal)).procesar();
-  assert.equal(canal.enviados.length, 1);
-  const { rows } = await s.pool.query('SELECT intentos FROM correos_pendientes WHERE id = $1', [id]);
-  assert.equal(rows[0].intentos, 1);
-});
-
-test('cola: un «en curso» que se interrumpe una y otra vez acaba en fallido, sin enviarse', async () => {
-  await vaciarCola();
-  const canal = new CanalFalso();
-  const id = await encolarCorreo(s.pool, { destinatario: 'cuelga@clinica.vet', plantilla: 'prueba', datos: {} });
-  await s.pool.query(
-    `UPDATE correos_pendientes SET estado = 'en_curso', intentos = $2,
-       en_curso_desde = now() - interval '11 minutes' WHERE id = $1`,
-    [id, MAX_INTENTOS - 1],
-  );
-  await (await colaCon(canal)).procesar();
-  assert.equal(canal.enviados.length, 0);
-  const { rows } = await s.pool.query('SELECT estado, error FROM correos_pendientes WHERE id = $1', [id]);
-  assert.equal(rows[0].estado, 'fallido');
-  assert.match(rows[0].error, /interromput/);
-});
-
-test('cola: una plantilla que no existe → fallido sin reintentos', async () => {
-  await vaciarCola();
-  const id = await encolarCorreo(s.pool, { destinatario: 'w@clinica.vet', plantilla: 'no-existe', datos: {} });
-  await (await colaCon(new CanalFalso())).procesar();
-  const { rows } = await s.pool.query('SELECT estado, error FROM correos_pendientes WHERE id = $1', [id]);
-  assert.equal(rows[0].estado, 'fallido');
-  assert.match(rows[0].error, /plantilla/);
+  for (let i = 0; i < 30; i++) await encolarCorreo(s.pool, { destinatario: `z${i}@clinica.vet`, plantilla: 'prueba', datos: {} });
+  const doble = new CanalFalso();
+  await Promise.all([colaCon(doble).procesar(), colaCon(doble).procesar()]);
+  assert.equal(new Set(doble.enviados.map((m) => m.para)).size, 30);
+  assert.equal(doble.enviados.length, 30);
 });

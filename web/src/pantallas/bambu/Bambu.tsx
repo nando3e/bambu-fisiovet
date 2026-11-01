@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import {
-  AlertTriangle, Bell, Building2, CalendarClock, Check, ChevronDown, ChevronUp, ClipboardList, Inbox, MailWarning,
+  AlertTriangle, Bell, Building2, CalendarClock, Check, ChevronDown, ChevronUp, ClipboardList, FileText, Inbox, MailWarning,
   PhoneCall, Plus, ShieldCheck, Stethoscope, UserCheck, Users, X,
 } from 'lucide-react';
 import { api, mensajeDe, type Notificacion } from '../../api.ts';
@@ -52,6 +52,7 @@ interface Contadores {
   pendientes_cita: number;
   atascados: number;
   en_tratamiento: number;
+  propuestas_pendientes: number;
   dias_pendiente_cita: number;
 }
 
@@ -117,6 +118,12 @@ export function InicioBambu() {
           <span className="icono-cifra"><Stethoscope size={22} aria-hidden /></span>
           <div><strong>{datos.contadores.en_tratamiento}</strong><span>{t('bambu.enTratamiento')}</span></div>
         </Link>
+        {datos.contadores.propuestas_pendientes > 0 ? (
+          <Link to="/b/casos?f=tratamiento" className="cifra">
+            <span className="icono-cifra" style={{ background: 'var(--aviso-fondo)', color: 'var(--aviso-texto)' }}><FileText size={22} aria-hidden /></span>
+            <div><strong>{datos.contadores.propuestas_pendientes}</strong><span>{t('bambu.propuestasPendientes')}</span></div>
+          </Link>
+        ) : null}
       </div>
       <div className="rejilla-tarjetas">
         <Link to="/b/notificacions" className="cifra">

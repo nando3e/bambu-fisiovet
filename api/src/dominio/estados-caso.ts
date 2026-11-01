@@ -33,8 +33,9 @@ export const TRANSICIONES: Record<AccionCaso, Transicion> = {
   // «Ja té cita»: las visitas se llevan en Wakyma y Bambú marca aquí que el
   // caso ya está en marcha.
   iniciar_tratamiento: { desde: ['aceptada'], a: 'en_tratamiento', quien: 'bambu' },
-  // La dispara el informe de alta (change 4).
-  alta_por_informe: { desde: ['en_tratamiento'], a: 'alta', quien: 'sistema' },
+  // La dispara el informe de alta (change 4); también desde «aceptada», por si
+  // nunca se marcó «Ja té cita» (las visitas van en Wakyma).
+  alta_por_informe: { desde: ['aceptada', 'en_tratamiento'], a: 'alta', quien: 'sistema' },
 };
 
 export type Decision =

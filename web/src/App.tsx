@@ -18,6 +18,7 @@ import { ListaCasos } from './pantallas/casos/ListaCasos.tsx';
 import { FichaCaso } from './pantallas/casos/FichaCaso.tsx';
 import { NovaDerivacion } from './pantallas/casos/NovaDerivacion.tsx';
 import { FichaPaciente, ListaPacientes } from './pantallas/casos/Pacientes.tsx';
+import { InformeVista } from './pantallas/casos/Informes.tsx';
 import { Clinicas, InicioBambu } from './pantallas/bambu/Bambu.tsx';
 import { Configuracion } from './pantallas/bambu/configuracion/Configuracion.tsx';
 
@@ -75,6 +76,7 @@ export function App() {
             <Route index element={<ListaCasos zona="/d" />} />
             <Route path="nova" element={<NovaDerivacion modo="derivador" />} />
             <Route path="casos/:id" element={<FichaCaso zona="/d" />} />
+            <Route path="casos/:id/informes/:iid" element={<InformeVista zona="/d" />} />
             <Route path="pacients" element={<ListaPacientes zona="/d" />} />
             <Route path="pacients/:id" element={<FichaPaciente zona="/d" />} />
             <Route path="perfil" element={<Perfil />} />
@@ -87,6 +89,7 @@ export function App() {
             <Route path="casos" element={<ListaCasos zona="/b" />} />
             <Route path="casos/nou" element={<NovaDerivacion modo="bambu" />} />
             <Route path="casos/:id" element={<FichaCaso zona="/b" />} />
+            <Route path="casos/:id/informes/:iid" element={<InformeVista zona="/b" />} />
             <Route path="pacients" element={<ListaPacientes zona="/b" />} />
             <Route path="pacients/:id" element={<FichaPaciente zona="/b" />} />
             <Route path="cliniques" element={<Clinicas />} />

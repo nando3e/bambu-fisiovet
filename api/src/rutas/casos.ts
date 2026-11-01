@@ -569,7 +569,8 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
               count(*) FILTER (WHERE estado = 'enviada')::int AS noves,
               count(*) FILTER (WHERE estado = 'aceptada')::int AS pendientes_cita,
               count(*) FILTER (WHERE estado = 'aceptada' AND resuelto_el < now() - make_interval(days => $1))::int AS atascados,
-              count(*) FILTER (WHERE estado = 'en_tratamiento')::int AS en_tratamiento
+              count(*) FILTER (WHERE estado = 'en_tratamiento')::int AS en_tratamiento,
+              (SELECT count(*) FROM propuestas_informe WHERE estado = 'pendiente')::int AS propuestas_pendientes
        FROM casos WHERE descartado_el IS NULL`,
       [avisos.dias_pendiente_cita],
     );

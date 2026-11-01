@@ -62,6 +62,15 @@ export const ESQUEMAS = {
     texto: z.string().trim().min(20, 'El text és massa curt').max(4000).default(CONSENTIMIENTO_PROVISIONAL),
     version: z.coerce.number().int().min(1).default(1),
   }),
+  // Claves y modelos de IA. Las claves van cifradas con CLAVE_CIFRADO y nunca
+  // salen por la API: las rutas las sustituyen por un booleano.
+  ia: z.object({
+    anthropic_cifrada: z.string().default(''),
+    openai_cifrada: z.string().default(''),
+    modelo_informe: z.string().trim().min(1).max(80).default('claude-sonnet-5-5'),
+    modelo_informe_openai: z.string().trim().min(1).max(80).default('gpt-4.1'),
+    modelo_transcripcion: z.string().trim().min(1).max(80).default('whisper-1'),
+  }),
   correo_servidor: z.object({
     host: z.string().trim().max(200).default(''),
     puerto: z.coerce.number().int().min(1).max(65535).default(587),

@@ -52,6 +52,10 @@ const esquema = z.object({
   NIVEL_LOG: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   // La cola de correos en segundo plano. Los tests la apagan y la llaman a mano.
   COLA_ACTIVA: booleano.default('true'),
+  // Respaldo de las claves de IA: las del panel (solo superadmin, cifradas)
+  // mandan. Sin ninguna, la app funciona igual con los informes a mano.
+  ANTHROPIC_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
 });
 
 export type Config = z.infer<typeof esquema>;

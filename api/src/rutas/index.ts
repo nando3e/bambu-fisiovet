@@ -3,6 +3,7 @@ import limitador from '@fastify/rate-limit';
 import type { Config } from '../config.ts';
 import type { Pool } from '../db/pool.ts';
 import type { Cola } from '../avisos/cola.ts';
+import type { ModelosInyectados } from '../llm/factory.ts';
 import { ErrorHttp } from '../errores.ts';
 
 import { rutasPublicas } from './publico.ts';
@@ -14,11 +15,14 @@ import { rutasNotificaciones } from './notificaciones.ts';
 import { rutasCasos } from './casos.ts';
 import { rutasPacientes } from './pacientes.ts';
 import { rutasHilo } from './hilo.ts';
+import { rutasInformes } from './informes.ts';
 
 export interface Deps {
   pool: Pool;
   config: Config;
   cola: Cola;
+  /** Modelos de IA inyectados (tests); si no, salen de la configuración. */
+  ia: ModelosInyectados;
 }
 
 export async function registrarRutas(app: FastifyInstance, deps: Deps): Promise<void> {
@@ -49,6 +53,7 @@ export async function registrarRutas(app: FastifyInstance, deps: Deps): Promise<
     await rutasCasos(api, deps);
     await rutasPacientes(api, deps);
     await rutasHilo(api, deps);
+    await rutasInformes(api, deps);
   }, { prefix: '/api' });
 }
 

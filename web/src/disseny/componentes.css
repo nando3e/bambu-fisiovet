@@ -1115,3 +1115,130 @@ button.chip {
   align-items: center;
   flex-wrap: wrap;
 }
+
+/* ---------- Informes (change 4) ---------- */
+
+.informes {
+  display: grid;
+  gap: 14px;
+}
+.microfono {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.microfono .barras {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  height: 32px;
+}
+.microfono .barras span {
+  width: 4px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--verde);
+  transform-origin: center;
+  transition: transform 0.08s linear;
+}
+.microfono .reloj {
+  font-variant-numeric: tabular-nums;
+  color: var(--texto-suave);
+}
+.notas-voz {
+  display: grid;
+  gap: 10px;
+}
+.notas-voz h3,
+.informe-secciones h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.nota-voz {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--radio-control);
+  background: var(--superficie-2);
+}
+.campo.sin-etiqueta > span:first-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.dudas {
+  padding: 12px 14px;
+  border-radius: var(--radio-control);
+  background: var(--aviso-fondo);
+  color: var(--aviso-texto);
+  margin-bottom: 14px;
+}
+.dudas strong {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.dudas ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+.informe-secciones {
+  display: grid;
+  gap: 14px;
+  margin: 10px 0 14px;
+}
+.informe-secciones ul {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+.informe-secciones p {
+  margin: 4px 0 0;
+}
+.informe-imprimible {
+  display: grid;
+  gap: 16px;
+  max-width: 820px;
+  padding: 24px;
+  border-radius: var(--radio-medio);
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+}
+.informe-cabecera {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--verde-oscuro);
+}
+.informe-cabecera h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+.informe-cabecera p {
+  margin: 2px 0 0;
+}
+
+@media print {
+  .cabecera,
+  .navegacion,
+  .no-imprimir,
+  .aviso-version,
+  .boton-flotante {
+    display: none !important;
+  }
+  body,
+  .app,
+  .contenido {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .informe-imprimible {
+    border: 0;
+    padding: 0;
+    max-width: none;
+  }
+}

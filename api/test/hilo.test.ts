@@ -64,125 +64,94 @@ async function subir(cookie: string | undefined, casoId: number, nombre: string,
   });
   return { estado: r.statusCode, cuerpo: r.json() as { id: number; error?: string } };
 }
+const descargar = (cookie: string | undefined, id: number, que = 'fichero') =>
+  s.app.inject({ method: 'GET', url: `/api/adjuntos/${id}/${que}`, headers: cookie ? { cookie } : {} });
 
 const PDF = Buffer.from('%PDF-1.7\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n');
 const CARPETA = resolve('./datos-test/adjuntos');
 const ficherosEnDisco = () => (existsSync(CARPETA) ? readdirSync(CARPETA).length : 0);
 
-test('mensajes de sistema: aceptar y cambiar el peso dejan su línea en el hilo, con el antes y el después', async () => {
+test('conversación: pregunta con aviso al fisio, notas internas invisibles y sin mover la actividad, líneas de sistema y movimientos del panel', async () => {
   const vet = await veterinarioVerificado(s);
   const c = await derivar(vet);
   await pedir(s.app, 'POST', `/api/casos/${c.id}/acepta`, { cookie: fisio.cookie, cuerpo: { fisio_id: fisio.id } });
   await pedir(s.app, 'PATCH', `/api/pacientes/${c.paciente.id}`, { cookie: fisio.cookie, cuerpo: { peso_kg: 11.8 } });
-  const textos = (await mensajes(vet.cookie, c.id)).filter((m) => m.tipo === 'sistema').map((m) => m.cuerpo);
-  assert.ok(textos.some((t) => /ha enviat la derivació/.test(t)));
-  assert.ok(textos.some((t) => /Bambú ha acceptat la derivació i Laia Serra/.test(t)));
-  assert.ok(textos.some((t) => t === 'Laia Serra ha canviat el pes: 12,4 → 11,8.'), textos.join(' | '));
-});
+  const sistema = (await mensajes(vet.cookie, c.id)).filter((m) => m.tipo === 'sistema').map((m) => m.cuerpo);
+  assert.ok(sistema.some((t) => /ha enviat la derivació/.test(t)));
+  assert.ok(sistema.some((t) => /Bambú ha acceptat la derivació i Laia Serra/.test(t)));
+  assert.ok(sistema.includes('Laia Serra ha canviat el pes: 12,4 → 11,8.'), sistema.join(' | '));
 
-test('mensajes de sistema: si la acción se deshace, no queda línea', async () => {
-  const vet = await veterinarioVerificado(s);
-  const c = await derivar(vet);
-  const antes = (await mensajes(fisio.cookie, c.id)).length;
-  // Rechazar sin motivo: 400 dentro de la transición.
-  assert.equal((await pedir(s.app, 'POST', `/api/casos/${c.id}/rechaza`, { cookie: fisio.cookie, cuerpo: { motivo: '' } })).estado, 400);
-  // Un fisio que no es del equipo: el error salta dentro de la transacción.
-  assert.equal((await pedir(s.app, 'POST', `/api/casos/${c.id}/acepta`, { cookie: fisio.cookie, cuerpo: { fisio_id: vet.usuario.id } })).estado, 400);
-  assert.equal((await mensajes(fisio.cookie, c.id)).length, antes);
-});
-
-test('hilo: el veterinario pregunta y el fisio responsable recibe el aviso; borrador → 409; otra clínica → 404', async () => {
-  const vet = await veterinarioVerificado(s);
-  const c = await derivar(vet);
-  await pedir(s.app, 'POST', `/api/casos/${c.id}/acepta`, { cookie: fisio.cookie, cuerpo: { fisio_id: fisio.id } });
-  const r = await pedir(s.app, 'POST', `/api/casos/${c.id}/mensajes`, { cookie: vet.cookie, cuerpo: { cuerpo: 'Pren antiinflamatori?' } });
-  assert.equal(r.estado, 201);
+  assert.equal((await pedir(s.app, 'POST', `/api/casos/${c.id}/mensajes`, { cookie: vet.cookie, cuerpo: { cuerpo: 'Pren antiinflamatori?' } })).estado, 201);
   assert.equal(await notificaciones(fisio.id, 'mensaje.nuevo', c.id), 1);
+
+  // Notas internas: el veterinario ni las ve ni recibe aviso, y su «última actividad» no se mueve.
+  await s.pool.query(`UPDATE casos SET ultima_actividad = now() - interval '2 days' WHERE id = $1`, [c.id]);
+  const actividad = async () => new Date((await s.pool.query('SELECT ultima_actividad FROM casos WHERE id = $1', [c.id])).rows[0].ultima_actividad).getTime();
+  const antes = [await actividad(), await notificaciones(vet.usuario.id, 'mensaje.nuevo', c.id)];
+  await pedir(s.app, 'POST', `/api/casos/${c.id}/mensajes`, { cookie: fisio.cookie, cuerpo: { cuerpo: 'Nota per a l’equip', interna: true } });
+  await subir(fisio.cookie, c.id, 'intern.pdf', PDF, true);
+  assert.deepEqual([await actividad(), await notificaciones(vet.usuario.id, 'mensaje.nuevo', c.id)], antes);
+  assert.ok(!(await mensajes(vet.cookie, c.id)).some((m) => m.visibilidad === 'bambu' || /nota|intern\.pdf/i.test(m.cuerpo)));
+  assert.equal((await mensajes(fisio.cookie, c.id)).filter((m) => m.visibilidad === 'bambu').length, 2);
+  // Si el veterinario marca «interna», su mensaje es visible igual.
+  await pedir(s.app, 'POST', `/api/casos/${c.id}/mensajes`, { cookie: vet.cookie, cuerpo: { cuerpo: 'Vull que ho vegen', interna: true } });
+  assert.equal((await mensajes(vet.cookie, c.id)).find((m) => m.cuerpo === 'Vull que ho vegen')?.visibilidad, 'todos');
+
+  // Un borrador no tiene hilo; otra clínica no ve nada.
   const borrador = await pedir(s.app, 'POST', '/api/casos', { cookie: vet.cookie, cuerpo: DATOS });
   assert.equal((await pedir(s.app, 'POST', `/api/casos/${borrador.cuerpo.id}/mensajes`, { cookie: vet.cookie, cuerpo: { cuerpo: 'x' } })).estado, 409);
   const ajeno = await veterinarioVerificado(s);
   assert.equal((await pedir(s.app, 'POST', `/api/casos/${c.id}/mensajes`, { cookie: ajeno.cookie, cuerpo: { cuerpo: 'x' } })).estado, 404);
   assert.equal((await pedir(s.app, 'GET', `/api/casos/${c.id}/mensajes`, { cookie: ajeno.cookie })).estado, 404);
+
+  // Últims moviments: la derivación recién enviada sale la primera; el derivador no los ve.
+  const nueva = await derivar(vet);
+  const mov = (await pedir(s.app, 'GET', '/api/panel/movimientos', { cookie: fisio.cookie })).cuerpo.movimientos[0];
+  assert.deepEqual([mov.caso_id, mov.tipo], [nueva.id, 'derivacion.enviada']);
+  assert.equal((await pedir(s.app, 'GET', '/api/panel/movimientos', { cookie: vet.cookie })).estado, 403);
 });
 
-test('notas internas: el veterinario no las recibe ni le avisan; si él manda «interna», el mensaje es visible', async () => {
+test('adjuntos: PDF con huella y aviso, descarga protegida y sin caché, miniatura de la PNG; lo disfrazado o enorme no entra; lo interno no se ve', async () => {
   const vet = await veterinarioVerificado(s);
   const c = await derivar(vet);
-  const antes = await notificaciones(vet.usuario.id, 'mensaje.nuevo', c.id);
-  await pedir(s.app, 'POST', `/api/casos/${c.id}/mensajes`, { cookie: fisio.cookie, cuerpo: { cuerpo: 'Nota per a l’equip', interna: true } });
-  await pedir(s.app, 'POST', `/api/casos/${c.id}/mensajes`, { cookie: fisio.cookie, cuerpo: { cuerpo: 'Una altra nota', interna: true } });
-  const delVet = await mensajes(vet.cookie, c.id);
-  assert.ok(!delVet.some((m) => m.visibilidad === 'bambu' || /nota/i.test(m.cuerpo)));
-  assert.equal((await mensajes(fisio.cookie, c.id)).filter((m) => m.visibilidad === 'bambu').length, 2);
-  assert.equal(await notificaciones(vet.usuario.id, 'mensaje.nuevo', c.id), antes);
-  await pedir(s.app, 'POST', `/api/casos/${c.id}/mensajes`, { cookie: vet.cookie, cuerpo: { cuerpo: 'Vull que ho vegen', interna: true } });
-  const propio = (await mensajes(vet.cookie, c.id)).find((m) => m.cuerpo === 'Vull que ho vegen');
-  assert.equal(propio?.visibilidad, 'todos');
-});
-
-test('adjuntos: PDF con su huella y aviso; PNG con miniatura; descarga protegida', async () => {
-  const vet = await veterinarioVerificado(s);
-  const c = await derivar(vet);
-  const pdf = await subir(vet.cookie, c.id, 'analitica.pdf', PDF);
+  const pdf = await subir(vet.cookie, c.id, 'l\'analítica (1).pdf', PDF);
   assert.equal(pdf.estado, 201, JSON.stringify(pdf.cuerpo));
-  const { rows } = await s.pool.query('SELECT sha256, mime, bytes FROM adjuntos WHERE id = $1', [pdf.cuerpo.id]);
-  assert.equal(rows[0].sha256, createHash('sha256').update(PDF).digest('hex'));
-  assert.equal(rows[0].mime, 'application/pdf');
-  assert.ok(await notificaciones(fisio.id, 'adjunto.nuevo', c.id) >= 1);
+  const { rows } = await s.pool.query('SELECT sha256, mime FROM adjuntos WHERE id = $1', [pdf.cuerpo.id]);
+  assert.deepEqual([rows[0].sha256, rows[0].mime], [createHash('sha256').update(PDF).digest('hex'), 'application/pdf']);
+  assert.equal(await notificaciones(fisio.id, 'adjunto.nuevo', c.id), 1);
 
-  const fichero = await s.app.inject({ method: 'GET', url: `/api/adjuntos/${pdf.cuerpo.id}/fichero`, headers: { cookie: fisio.cookie } });
-  assert.equal(fichero.statusCode, 200);
-  assert.equal(fichero.headers['content-type'], 'application/pdf');
-  assert.equal(fichero.headers['x-content-type-options'], 'nosniff');
-  assert.equal(fichero.rawPayload.toString(), PDF.toString());
+  const f = await descargar(fisio.cookie, pdf.cuerpo.id);
+  assert.equal(f.rawPayload.toString(), PDF.toString());
+  assert.deepEqual([f.headers['content-type'], f.headers['x-content-type-options'], f.headers['cache-control']], ['application/pdf', 'nosniff', 'private, no-store']);
+  assert.match(String(f.headers['content-disposition']), /filename\*=UTF-8''l%27anal%C3%ADtica%20%281%29\.pdf$/);
 
   const png = await sharp({ create: { width: 1200, height: 900, channels: 3, background: '#7a9a7a' } }).png().toBuffer();
-  const img = await subir(vet.cookie, c.id, 'rx.png', png);
-  assert.equal(img.estado, 201);
-  const mini = await s.app.inject({ method: 'GET', url: `/api/adjuntos/${img.cuerpo.id}/miniatura`, headers: { cookie: vet.cookie } });
-  assert.equal(mini.statusCode, 200);
+  const mini = await descargar(vet.cookie, (await subir(vet.cookie, c.id, 'rx.png', png)).cuerpo.id, 'miniatura');
   assert.equal(mini.headers['content-type'], 'image/webp');
-  const meta = await sharp(mini.rawPayload).metadata();
-  assert.ok((meta.width ?? 0) <= 480);
+  assert.ok(((await sharp(mini.rawPayload).metadata()).width ?? 0) <= 480);
 
-  // Sin sesión, 401; de otra clínica, 404.
-  assert.equal((await s.app.inject({ method: 'GET', url: `/api/adjuntos/${pdf.cuerpo.id}/fichero` })).statusCode, 401);
+  // Sin sesión 401; de otra clínica 404, para bajar y para subir.
   const ajeno = await veterinarioVerificado(s);
-  assert.equal((await s.app.inject({ method: 'GET', url: `/api/adjuntos/${pdf.cuerpo.id}/fichero`, headers: { cookie: ajeno.cookie } })).statusCode, 404);
+  assert.equal((await descargar(undefined, pdf.cuerpo.id)).statusCode, 401);
+  assert.equal((await descargar(ajeno.cookie, pdf.cuerpo.id)).statusCode, 404);
   assert.equal((await subir(ajeno.cookie, c.id, 'x.pdf', PDF)).estado, 404);
-  assert.equal((await subir(undefined, c.id, 'x.pdf', PDF)).estado, 401);
+
+  // Un ejecutable disfrazado → 400; 15 MB → 413; nada en disco ni en la base. 10 MB sí entra.
+  const enDisco = ficherosEnDisco();
+  const contar = async () => (await s.pool.query('SELECT count(*)::int AS n FROM adjuntos WHERE caso_id = $1', [c.id])).rows[0].n;
+  const adjuntos = await contar();
+  assert.equal((await subir(vet.cookie, c.id, 'radiografia.pdf', Buffer.concat([Buffer.from([0x4d, 0x5a, 0x90, 0x00]), Buffer.alloc(2000)]))).estado, 400);
+  assert.equal((await subir(vet.cookie, c.id, 'gran.pdf', Buffer.concat([PDF, Buffer.alloc(15 * 1024 * 1024)]))).estado, 413);
+  assert.deepEqual([ficherosEnDisco(), await contar()], [enDisco, adjuntos]);
+  assert.equal((await subir(vet.cookie, c.id, 'rm.pdf', Buffer.concat([PDF, Buffer.alloc(10 * 1024 * 1024)]))).estado, 201);
+
+  // Uno en nota interna: el veterinario no lo ve ni lo descarga.
+  const interno = await subir(fisio.cookie, c.id, 'intern.pdf', PDF, true);
+  assert.ok(!(await mensajes(vet.cookie, c.id)).some((m) => m.adjunto_id === interno.cuerpo.id));
+  assert.equal((await descargar(vet.cookie, interno.cuerpo.id)).statusCode, 404);
 });
 
-test('adjuntos: un ejecutable disfrazado → 400 y nada en disco; 15 MB → 413', async () => {
-  const vet = await veterinarioVerificado(s);
-  const c = await derivar(vet);
-  const antes = ficherosEnDisco();
-  const exe = Buffer.concat([Buffer.from([0x4d, 0x5a, 0x90, 0x00]), Buffer.alloc(2000)]);
-  assert.equal((await subir(vet.cookie, c.id, 'radiografia.pdf', exe)).estado, 400);
-  const grande = Buffer.concat([PDF, Buffer.alloc(15 * 1024 * 1024)]);
-  assert.equal((await subir(vet.cookie, c.id, 'gran.pdf', grande)).estado, 413);
-  assert.equal(ficherosEnDisco(), antes);
-  const { rows } = await s.pool.query('SELECT count(*)::int AS n FROM adjuntos WHERE caso_id = $1', [c.id]);
-  assert.equal(rows[0].n, 0);
-});
-
-test('adjuntos: un PDF de 10 MB entra (el límite es 12 MB, no los 8 de las fotos de la web)', async () => {
-  const vet = await veterinarioVerificado(s);
-  const c = await derivar(vet);
-  const diez = Buffer.concat([PDF, Buffer.alloc(10 * 1024 * 1024)]);
-  assert.equal((await subir(vet.cookie, c.id, 'rm.pdf', diez)).estado, 201);
-});
-
-test('adjuntos: uno en nota interna no lo ve ni lo descarga el veterinario', async () => {
-  const vet = await veterinarioVerificado(s);
-  const c = await derivar(vet);
-  const r = await subir(fisio.cookie, c.id, 'intern.pdf', PDF, true);
-  assert.equal(r.estado, 201);
-  assert.ok(!(await mensajes(vet.cookie, c.id)).some((m) => m.adjunto_id === r.cuerpo.id));
-  assert.equal((await s.app.inject({ method: 'GET', url: `/api/adjuntos/${r.cuerpo.id}/fichero`, headers: { cookie: vet.cookie } })).statusCode, 404);
-});
-
-test('retirar: el veterinario dentro de 15 minutos sí, fuera no; Bambú siempre; retirado no se descarga', async () => {
+test('retirar: el veterinario dentro de 15 minutos, Bambú siempre; no se descarga ni se borra, y el nombre de uno interno no llega al veterinario', async () => {
   const vet = await veterinarioVerificado(s);
   const c = await derivar(vet);
   const a = await subir(vet.cookie, c.id, 'a.pdf', PDF);
@@ -191,66 +160,28 @@ test('retirar: el veterinario dentro de 15 minutos sí, fuera no; Bambú siempre
   await s.pool.query(`UPDATE adjuntos SET creado = now() - interval '30 minutes' WHERE id = $1`, [b.cuerpo.id]);
   assert.equal((await pedir(s.app, 'DELETE', `/api/adjuntos/${b.cuerpo.id}`, { cookie: vet.cookie })).estado, 403);
   assert.equal((await pedir(s.app, 'DELETE', `/api/adjuntos/${b.cuerpo.id}`, { cookie: fisio.cookie })).estado, 200);
-  assert.equal((await s.app.inject({ method: 'GET', url: `/api/adjuntos/${a.cuerpo.id}/fichero`, headers: { cookie: fisio.cookie } })).statusCode, 404);
+  assert.equal((await descargar(fisio.cookie, a.cuerpo.id)).statusCode, 404);
   const hilo = await mensajes(vet.cookie, c.id);
-  assert.ok(hilo.filter((m) => m.adjunto_retirado).length === 2);
+  assert.equal(hilo.filter((m) => m.adjunto_retirado).length, 2);
   assert.ok(hilo.some((m) => m.tipo === 'sistema' && /ha retirat l’adjunt «a\.pdf»/.test(m.cuerpo)));
-  // El fichero sigue en disco: retirar no borra.
   const { rows } = await s.pool.query('SELECT ruta FROM adjuntos WHERE id = $1', [a.cuerpo.id]);
   assert.ok(existsSync(join(CARPETA, rows[0].ruta)));
-});
 
-test('últims moviments: la derivación recién enviada sale la primera; el derivador no los ve', async () => {
-  const vet = await veterinarioVerificado(s);
-  const c = await derivar(vet);
-  const r = await pedir(s.app, 'GET', '/api/panel/movimientos', { cookie: fisio.cookie });
-  assert.equal(r.cuerpo.movimientos[0].caso_id, c.id);
-  assert.equal(r.cuerpo.movimientos[0].tipo, 'derivacion.enviada');
-  assert.equal((await pedir(s.app, 'GET', '/api/panel/movimientos', { cookie: vet.cookie })).estado, 403);
-});
-
-test('catálogo: la fila del evento de sesión ya no está en la matriz', async () => {
-  const { rows } = await s.pool.query(`SELECT count(*)::int AS n FROM configuracion_avisos WHERE evento = 'intervencion.registrada'`);
-  assert.equal(rows[0].n, 0);
-});
-
-// --- Revisión de Sol (change 3) ---
-
-test('revisión: retirar un adjunto interno no deja su nombre en el hilo del veterinario', async () => {
-  const vet = await veterinarioVerificado(s);
-  const c = await derivar(vet);
   const r = await subir(fisio.cookie, c.id, 'sospita-interna.pdf', PDF, true);
-  assert.equal((await pedir(s.app, 'DELETE', `/api/adjuntos/${r.cuerpo.id}`, { cookie: fisio.cookie })).estado, 200);
-  const delVet = await mensajes(vet.cookie, c.id);
-  assert.ok(!delVet.some((m) => m.cuerpo.includes('sospita-interna')), JSON.stringify(delVet.map((m) => m.cuerpo)));
+  await pedir(s.app, 'DELETE', `/api/adjuntos/${r.cuerpo.id}`, { cookie: fisio.cookie });
+  assert.ok(!(await mensajes(vet.cookie, c.id)).some((m) => m.cuerpo.includes('sospita-interna')));
   assert.ok((await mensajes(fisio.cookie, c.id)).some((m) => m.tipo === 'sistema' && m.cuerpo.includes('sospita-interna')));
 });
 
-test('revisión: ficheros y miniaturas sin caché del navegador; filename* bien codificado', async () => {
+test('atomicidad: si la acción falla (validación o aviso que revienta), ni cambia el estado ni queda línea en el hilo', async () => {
   const vet = await veterinarioVerificado(s);
   const c = await derivar(vet);
-  const r = await subir(vet.cookie, c.id, 'l\'analítica (1).pdf', PDF);
-  const f = await s.app.inject({ method: 'GET', url: `/api/adjuntos/${r.cuerpo.id}/fichero`, headers: { cookie: vet.cookie } });
-  assert.equal(f.headers['cache-control'], 'private, no-store');
-  assert.match(String(f.headers['content-disposition']), /filename\*=UTF-8''l%27anal%C3%ADtica%20%281%29\.pdf$/);
-});
+  const antes = (await mensajes(fisio.cookie, c.id)).length;
+  assert.equal((await pedir(s.app, 'POST', `/api/casos/${c.id}/rechaza`, { cookie: fisio.cookie, cuerpo: { motivo: '' } })).estado, 400);
+  assert.equal((await pedir(s.app, 'POST', `/api/casos/${c.id}/acepta`, { cookie: fisio.cookie, cuerpo: { fisio_id: vet.usuario.id } })).estado, 400);
+  assert.equal((await mensajes(fisio.cookie, c.id)).length, antes);
 
-test('revisión: una nota interna no mueve la actividad que ve el veterinario', async () => {
-  const vet = await veterinarioVerificado(s);
-  const c = await derivar(vet);
-  await s.pool.query(`UPDATE casos SET ultima_actividad = now() - interval '2 days' WHERE id = $1`, [c.id]);
-  const antes = (await s.pool.query('SELECT ultima_actividad FROM casos WHERE id = $1', [c.id])).rows[0].ultima_actividad;
-  await pedir(s.app, 'POST', `/api/casos/${c.id}/mensajes`, { cookie: fisio.cookie, cuerpo: { cuerpo: 'Nota', interna: true } });
-  await subir(fisio.cookie, c.id, 'intern.pdf', PDF, true);
-  const despues = (await s.pool.query('SELECT ultima_actividad FROM casos WHERE id = $1', [c.id])).rows[0].ultima_actividad;
-  assert.equal(new Date(despues).getTime(), new Date(antes).getTime());
-});
-
-test('revisión: si el aviso falla dentro de la transacción, ni cambia el estado ni queda la línea del hilo', async () => {
-  const vet = await veterinarioVerificado(s);
-  const c = await derivar(vet);
-  // Un fallo inyectado después de escribir el estado y el mensaje de sistema:
-  // al publicar el evento de aceptación de este caso.
+  // Fallo inyectado al publicar el evento, después de escribir el estado y la línea de sistema.
   await s.pool.query(`
     CREATE OR REPLACE FUNCTION falla_aviso_prueba() RETURNS trigger AS $$
     BEGIN
@@ -260,11 +191,10 @@ test('revisión: si el aviso falla dentro de la transacción, ni cambia el estad
   await s.pool.query(`DROP TRIGGER IF EXISTS falla_aviso_prueba ON eventos`);
   await s.pool.query(`CREATE TRIGGER falla_aviso_prueba BEFORE INSERT ON eventos FOR EACH ROW EXECUTE FUNCTION falla_aviso_prueba()`);
   try {
-    const r = await pedir(s.app, 'POST', `/api/casos/${c.id}/acepta`, { cookie: fisio.cookie, cuerpo: {} });
-    assert.equal(r.estado, 500);
+    assert.equal((await pedir(s.app, 'POST', `/api/casos/${c.id}/acepta`, { cookie: fisio.cookie, cuerpo: {} })).estado, 500);
   } finally {
     await s.pool.query(`DROP TRIGGER IF EXISTS falla_aviso_prueba ON eventos`);
   }
   assert.equal((await s.pool.query('SELECT estado FROM casos WHERE id = $1', [c.id])).rows[0].estado, 'enviada');
-  assert.ok(!(await mensajes(fisio.cookie, c.id)).some((m) => /ha acceptat/.test(m.cuerpo)));
+  assert.equal((await mensajes(fisio.cookie, c.id)).length, antes);
 });

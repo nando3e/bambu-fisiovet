@@ -1,9 +1,9 @@
 ## ADDED Requirements
 
 ### Requirement: Notas de voz del fisio
-Bambú SHALL poder grabar notas de voz de hasta 10 MB dentro de un caso, ligadas
-o no a una sesión, con un micrófono de mantener pulsado, deslizar para fijar,
-papelera para descartar y barras de volumen. Al soltar, aparece al momento una
+Bambú SHALL poder grabar notas de voz de hasta 10 MB dentro de un caso con un
+micrófono de tocar para empezar y para acabar, papelera para descartar y
+barras de volumen. Al soltar, aparece al momento una
 burbuja «Transcrivint…» que el texto sustituye. Si la pantalla se cierra a
 media grabación, el micrófono se para y lo grabado se descarta. El audio se
 transcribe con Whisper en catalán, usando como vocabulario el nombre del
@@ -25,8 +25,8 @@ puede corregir a mano y nunca la ve un derivador.
 ### Requirement: Borrador de informe con esquema estricto
 Bambú SHALL poder pedir un borrador de informe de valoración, evolución o alta
 a partir de las transcripciones elegidas (por defecto, las posteriores al
-último informe). La aplicación MUST hacer una sola llamada al modelo con una
-herramienta forzada y un esquema estricto (resumen, hallazgos, tratamiento
+último informe). La aplicación MUST hacer una sola llamada al modelo con salida
+estructurada y un esquema estricto (resumen, hallazgos, tratamiento
 realizado, evolución, plan, recomendaciones al veterinario, próxima revisión
 y dudas; en el de alta, además, estado al alta y pautas en casa), validar la
 respuesta y guardarla como propuesta `pendiente` con su ficha legible. El
@@ -44,8 +44,7 @@ falta va a «dudas».
 ### Requirement: Al modelo no viajan datos personales
 El contexto del borrador SHALL contener solo datos del paciente (nombre,
 especie, raza, sexo, edad, peso), del caso (motivo, historia, tratamiento,
-objetivos), de las sesiones del periodo, las transcripciones y el informe
-anterior. Nunca MUST incluir nombre, teléfono o correo del propietario, ni
+objetivos), las transcripciones y el informe anterior. Nunca MUST incluir nombre, teléfono o correo del propietario, ni
 nombre o correo del veterinario. Un test construye el prompt de un caso real
 y falla si aparece cualquiera de esos datos.
 
@@ -72,8 +71,8 @@ crear una nueva pendiente. Nunca se modifica una propuesta en su sitio.
 Confirmar SHALL, en una transacción, pasar la propuesta de `pendiente` a
 `confirmada` solo si seguía pendiente, crear el informe inmutable, añadir el
 mensaje de tipo informe al hilo, dejar `historial` y publicar
-`informe.publicado`. Si es de alta, además pasa el caso a `alta` y publica
-`caso.alta`. Si la propuesta ya no estaba pendiente, MUST responder 409 sin
+`informe.publicado`. Si es de alta, además pasa el caso a `alta` (desde
+`aceptada` o `en_tratamiento`) y publica `caso.alta`. Si la propuesta ya no estaba pendiente, MUST responder 409 sin
 cambiar nada. El modelo no tiene forma de confirmar.
 
 #### Scenario: Doble toque

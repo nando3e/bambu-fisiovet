@@ -2,6 +2,7 @@
 // sistema y adjuntos. Las fotos se reducen en el navegador antes de subirlas y
 // se ven al momento, atenuadas mientras suben.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router';
 import { FileText, Lock, Paperclip, Send, Trash2 } from 'lucide-react';
 import { api, mensajeDe } from '../../api.ts';
 import { haceCuanto, t } from '../../i18n/index.ts';
@@ -24,6 +25,7 @@ interface Mensaje {
   adjunto_miniatura: boolean | null;
   adjunto_retirado: boolean | null;
   adjunto_subido_por: number | null;
+  informe_id: number | null;
 }
 
 interface Subida {
@@ -178,6 +180,11 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
                   ) : null}
                 </div>
               )
+            ) : m.tipo === 'informe' && m.informe_id ? (
+              <Link to={`${bambu ? '/b' : '/d'}/casos/${casoId}/informes/${m.informe_id}`} className="adjunto-enlace">
+                <span className="adjunto-icono"><FileText size={22} aria-hidden /></span>
+                <span><b>{m.cuerpo}</b><small>{t('informes.ver')}</small></span>
+              </Link>
             ) : <p className="cuerpo-mensaje">{m.cuerpo}</p>}
           </li>
         ))}

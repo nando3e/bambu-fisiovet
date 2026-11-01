@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Navigate, NavLink, Route, Routes } from 'react-router';
 import {
-  Archive, Bell, FileText, Globe, Image, Mail, RotateCcw, Send, Server, Upload, Users, UserPlus,
+  Archive, Bell, FileText, Globe, Image, Mail, RotateCcw, Send, Server, Sparkles, Upload, Users, UserPlus,
 } from 'lucide-react';
 import { api, ErrorApi, mensajeDe } from '../../../api.ts';
 import { fecha, t, type ClaveTexto } from '../../../i18n/index.ts';
@@ -20,6 +20,7 @@ export function Configuracion() {
     { a: '/b/configuracio/avisos', texto: t('config.avisos'), icono: Bell },
     { a: '/b/configuracio/textos', texto: t('config.textos'), icono: FileText },
     ...(superadmin ? [{ a: '/b/configuracio/correu', texto: t('config.correo'), icono: Server }] : []),
+    ...(superadmin ? [{ a: '/b/configuracio/ia', texto: t('config.ia'), icono: Sparkles }] : []),
     { a: '/b/configuracio/retencio', texto: t('config.retencion'), icono: Archive },
   ];
   return (
@@ -40,6 +41,7 @@ export function Configuracion() {
         <Route path="avisos" element={<Avisos />} />
         <Route path="textos" element={<TextosLegales />} />
         {superadmin ? <Route path="correu" element={<ServidorCorreo />} /> : null}
+        {superadmin ? <Route path="ia" element={<IntelArtificial />} /> : null}
         <Route path="retencio" element={<Retencion />} />
         <Route path="*" element={<Navigate to="/b/configuracio/equip" replace />} />
       </Routes>
@@ -637,6 +639,75 @@ function ServidorCorreo() {
         </form>
       </section>
     </>
+  );
+}
+
+// ---------- Intel·ligència artificial (superadmin) ----------
+
+interface DatosIa {
+  anthropic_configurada: boolean;
+  openai_configurada: boolean;
+  anthropic_disponible: boolean;
+  openai_disponible: boolean;
+  modelo_informe: string;
+  modelo_informe_openai: string;
+  modelo_transcripcion: string;
+}
+
+function IntelArtificial() {
+  const [d, setD] = useState<DatosIa | null>(null);
+  const [claves, setClaves] = useState({ anthropic: '', openai: '' });
+  const [estado, setEstado] = useState<Estado>({});
+  useEffect(() => {
+    api.get<DatosIa>('/configuracion/ia').then(setD).catch((err) => setEstado(errorEn(err)));
+  }, []);
+  if (!d) return estado.error ? <Aviso tipo="error">{estado.error}</Aviso> : <Cargando />;
+  async function guardar(extra: { quitar_anthropic?: boolean; quitar_openai?: boolean } = {}) {
+    if (!d) return;
+    setEstado({});
+    try {
+      const r = await api.put<DatosIa>('/configuracion/ia', {
+        ...claves, ...extra,
+        modelo_informe: d.modelo_informe, modelo_informe_openai: d.modelo_informe_openai, modelo_transcripcion: d.modelo_transcripcion,
+      });
+      setD(r);
+      setClaves({ anthropic: '', openai: '' });
+      setEstado({ ok: t('comun.guardado') });
+    } catch (err) {
+      setEstado(errorEn(err));
+    }
+  }
+  return (
+    <section className="tarjeta">
+      <p className="ayuda">{t('ia.ayuda')}</p>
+      {estado.ok ? <Aviso>{estado.ok}</Aviso> : null}
+      {estado.error ? <Aviso tipo="error">{estado.error}</Aviso> : null}
+      <form className="formulario dos" onSubmit={(e) => { e.preventDefault(); void guardar(); }}>
+        <Campo etiqueta={t('ia.anthropic')} type="password" autoComplete="off" value={claves.anthropic}
+          onChange={(e) => setClaves({ ...claves, anthropic: e.target.value })}
+          ayuda={d.anthropic_configurada ? t('ia.configurada') : d.anthropic_disponible ? t('ia.entorno') : undefined} />
+        <Campo etiqueta={t('ia.openai')} type="password" autoComplete="off" value={claves.openai}
+          onChange={(e) => setClaves({ ...claves, openai: e.target.value })}
+          ayuda={d.openai_configurada ? t('ia.configurada') : d.openai_disponible ? t('ia.entorno') : undefined} />
+        <Campo etiqueta={t('ia.modeloInforme')} value={d.modelo_informe} onChange={(e) => setD({ ...d, modelo_informe: e.target.value })} />
+        <Campo etiqueta={t('ia.modeloInformeOpenai')} value={d.modelo_informe_openai} onChange={(e) => setD({ ...d, modelo_informe_openai: e.target.value })} />
+        <Campo etiqueta={t('ia.modeloTranscripcion')} value={d.modelo_transcripcion} onChange={(e) => setD({ ...d, modelo_transcripcion: e.target.value })} />
+        <div className="entero acciones">
+          <button type="submit" className="boton">{t('comun.guardar')}</button>
+          {d.anthropic_configurada ? <button type="button" className="boton-texto" onClick={() => void guardar({ quitar_anthropic: true })}>{t('ia.quitar')} (Anthropic)</button> : null}
+          {d.openai_configurada ? <button type="button" className="boton-texto" onClick={() => void guardar({ quitar_openai: true })}>{t('ia.quitar')} (OpenAI)</button> : null}
+          <button type="button" className="boton-secundario" onClick={async () => {
+            setEstado({});
+            try {
+              const r = await api.post<{ ok: boolean; modelo?: string; latencia_ms?: number; error?: string }>('/configuracion/ia/prueba');
+              setEstado(r.ok ? { ok: t('ia.pruebaOk', { modelo: r.modelo ?? '', ms: r.latencia_ms ?? 0 }) } : { error: r.error });
+            } catch (err) {
+              setEstado(errorEn(err));
+            }
+          }}><Sparkles size={16} aria-hidden /> {t('ia.probar')}</button>
+        </div>
+      </form>
+    </section>
   );
 }
 

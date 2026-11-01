@@ -2,7 +2,7 @@
 // del propietario y de la derivación; Bambú tiene además los botones de
 // estado y el historial. Abrirla marca como leídas sus notificaciones.
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import {
   AlertTriangle, ArrowLeft, CalendarCheck, Check, History, Pencil, PhoneCall, UserRoundCog, X,
 } from 'lucide-react';
@@ -13,6 +13,7 @@ import { Aviso, Campo, CampoSelector, CampoTexto, Cargando, TituloPagina } from 
 import { avisarCambioNotificaciones } from '../../componentes/Notificaciones.tsx';
 import { CamposDerivacion, CamposPaciente, CamposPropietario, pacienteParaApi } from './Formularios.tsx';
 import { Hilo } from './Hilo.tsx';
+import { Informes } from './Informes.tsx';
 import { ChipEstado, fechaCorta, nombreEspecie, nombreEstado, type Ficha } from './comun.tsx';
 
 type Errores = Record<string, string>;
@@ -26,7 +27,10 @@ export function FichaCaso({ zona }: { zona: '/d' | '/b' }) {
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState((ubicacion.state as { aviso?: string } | null)?.aviso ?? '');
   const [editando, setEditando] = useState(false);
-  const [pestana, setPestana] = useState<'fil' | 'fitxa' | null>(null);
+  const [url] = useSearchParams();
+  const [pestana, setPestana] = useState<'fil' | 'fitxa' | 'informes' | null>(
+    url.get('p') === 'informes' ? 'informes' : null,
+  );
 
   const cargar = useCallback(async () => {
     const f = await api.get<Ficha>(`/casos/${id}`);
@@ -98,15 +102,16 @@ export function FichaCaso({ zona }: { zona: '/d' | '/b' }) {
       </section>
 
       <div className="pestanas" role="tablist">
-        {(['fil', 'fitxa'] as const).map((p) => (
+        {(['fil', 'fitxa', 'informes'] as const).map((p) => (
           <button key={p} type="button" role="tab" aria-selected={vista === p} className={vista === p ? 'activo' : undefined}
             onClick={() => setPestana(p)}>
-            {p === 'fil' ? t('hilo.titulo') : t('hilo.fitxa')}
+            {p === 'fil' ? t('hilo.titulo') : p === 'fitxa' ? t('hilo.fitxa') : t('informes.titulo')}
           </button>
         ))}
       </div>
 
       {vista === 'fil' ? <Hilo casoId={ficha.id} borrador={ficha.estado === 'borrador'} /> : null}
+      {vista === 'informes' ? <Informes casoId={ficha.id} zona={zona} estado={ficha.estado} /> : null}
 
       {vista !== 'fitxa' ? null : editando ? (
         <Edicion ficha={ficha} alTerminar={(f) => {

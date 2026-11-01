@@ -17,7 +17,7 @@ export const TRANSICIONES: Record<AccionCaso, { desde: readonly EstadoCaso[]; a:
   abandonar: { desde: ['aceptada', 'en_tratamiento'], a: 'abandonada', quien: 'bambu' },
   alta_manual: { desde: ['en_tratamiento'], a: 'alta', quien: 'bambu' },
   iniciar_tratamiento: { desde: ['aceptada'], a: 'en_tratamiento', quien: 'bambu' },
-  alta_por_informe: { desde: ['en_tratamiento'], a: 'alta', quien: 'sistema' },
+  alta_por_informe: { desde: ['aceptada', 'en_tratamiento'], a: 'alta', quien: 'sistema' },
 };
 
 export const EDITABLE_POR_DERIVADOR: readonly EstadoCaso[] = ['borrador', 'enviada'];

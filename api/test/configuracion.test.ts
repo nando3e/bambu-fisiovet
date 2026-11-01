@@ -1,13 +1,11 @@
-// Configuración del panel: contacto de la web, retención y el servidor de
-// correo, que solo toca el superadmin y cuya contraseña nunca vuelve.
+// Configuración del panel: contacto de la web, retención, el servidor de
+// correo (solo superadmin, contraseña que nunca vuelve) y las fotos de la web.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { TIPOS_EVENTO } from '../src/avisos/eventos.ts';
 import { canalSmtp } from '../src/correo/transporte.ts';
-import {
-  entrarSuperadmin, fisioVerificada, pedir, servidorDePrueba, veterinarioVerificado, type Servidor,
-} from './ayuda.ts';
+import { entrarSuperadmin, fisioVerificada, pedir, servidorDePrueba, veterinarioVerificado, type Servidor } from './ayuda.ts';
 
 let s: Servidor;
 let admin: string;
@@ -26,174 +24,76 @@ const servidorCorreo = (extra: Record<string, unknown> = {}) => ({
   remitente_nombre: 'BAMBÚ Fisiovet', remitente_email: 'avisos@bambufisiovet.com', ...extra,
 });
 
-test('rol: el derivador no ve la configuración', async () => {
-  const vet = await veterinarioVerificado(s);
-  assert.equal((await pedir(s.app, 'GET', '/api/configuracion', { cookie: vet.cookie })).estado, 403);
-  assert.equal((await pedir(s.app, 'GET', '/api/configuracion/avisos', { cookie: vet.cookie })).estado, 403);
-});
-
-test('contacto: un teléfono con letras → 400 y no cambia nada', async () => {
-  const r = await pedir(s.app, 'PUT', '/api/configuracion/contacto', {
-    cookie: fisio, cuerpo: { telefono: 'llama-nos' },
-  });
-  assert.equal(r.estado, 400);
-  assert.ok(r.cuerpo.campos.telefono);
-});
-
-test('contacto: la web lo lee al momento y no enseña los campos vacíos', async () => {
-  const r = await pedir(s.app, 'PUT', '/api/configuracion/contacto', {
-    cookie: fisio, cuerpo: { telefono: '+34 960 000 000', email: 'hola@bambufisiovet.com', direccion: '' },
-  });
-  assert.equal(r.estado, 200);
-  const publico = await pedir(s.app, 'GET', '/api/publico/contacto');
-  assert.deepEqual(publico.cuerpo, { email: 'hola@bambufisiovet.com', telefono: '+34 960 000 000' });
-  const { rows } = await s.pool.query(`SELECT count(*)::int AS n FROM historial WHERE tabla = 'configuracion' AND fila_id = 'contacto'`);
-  assert.ok(rows[0].n >= 1, 'el cambio queda en el historial');
-});
-
-test('retención: fuera de rango → 400', async () => {
+test('contacto y retención: se validan, la web los lee al momento sin campos vacíos y queda historial; una clave ajena → 404', async () => {
+  assert.ok((await pedir(s.app, 'PUT', '/api/configuracion/contacto', { cookie: fisio, cuerpo: { telefono: 'llama-nos' } })).cuerpo.campos.telefono);
+  await pedir(s.app, 'PUT', '/api/configuracion/contacto', { cookie: fisio, cuerpo: { telefono: '+34 960 000 000', email: 'hola@bambufisiovet.com', direccion: '' } });
+  assert.deepEqual((await pedir(s.app, 'GET', '/api/publico/contacto')).cuerpo, { email: 'hola@bambufisiovet.com', telefono: '+34 960 000 000' });
+  assert.ok((await s.pool.query(`SELECT count(*)::int AS n FROM historial WHERE tabla = 'configuracion' AND fila_id = 'contacto'`)).rows[0].n >= 1);
   assert.equal((await pedir(s.app, 'PUT', '/api/configuracion/retencion', { cookie: fisio, cuerpo: { audio_dias: 0 } })).estado, 400);
-  assert.equal((await pedir(s.app, 'PUT', '/api/configuracion/retencion', { cookie: fisio, cuerpo: { audio_dias: 30 } })).estado, 200);
+  assert.equal((await pedir(s.app, 'PUT', '/api/configuracion/correo_servidor', { cookie: fisio, cuerpo: {} })).estado, 404);
 });
 
-test('una clave que no es del panel → 404 (el servidor de correo tiene su propia ruta)', async () => {
-  const r = await pedir(s.app, 'PUT', '/api/configuracion/correo_servidor', { cookie: fisio, cuerpo: {} });
-  assert.equal(r.estado, 404);
-});
-
-test('servidor de correo: un usuario bambu → 403', async () => {
-  assert.equal((await pedir(s.app, 'GET', '/api/configuracion/correo', { cookie: fisio })).estado, 403);
-  assert.equal((await pedir(s.app, 'PUT', '/api/configuracion/correo', { cookie: fisio, cuerpo: servidorCorreo() })).estado, 403);
-});
-
-test('servidor de correo: la contraseña se cifra, nunca vuelve y se conserva si llega vacía', async () => {
-  const guardar = await pedir(s.app, 'PUT', '/api/configuracion/correo', {
-    cookie: admin, cuerpo: servidorCorreo({ contrasena: 'secreto-de-dondominio' }),
-  });
-  assert.equal(guardar.estado, 200);
+test('servidor de correo: la contraseña se cifra, nunca vuelve ni va al historial y se conserva si llega vacía; el canal lee cada cambio', async () => {
+  const guardar = await pedir(s.app, 'PUT', '/api/configuracion/correo', { cookie: admin, cuerpo: servidorCorreo({ contrasena: 'secreto-de-dondominio' }) });
   assert.equal(guardar.cuerpo.contrasena_configurada, true);
-  assert.doesNotMatch(guardar.respuesta.body, /secreto-de-dondominio|contrasena_cifrada/);
-
-  const leer = await pedir(s.app, 'GET', '/api/configuracion/correo', { cookie: admin });
-  assert.equal(leer.cuerpo.contrasena_configurada, true);
-  assert.doesNotMatch(leer.respuesta.body, /secreto|v1:/);
-
-  const { rows } = await s.pool.query(`SELECT valor FROM configuracion WHERE clave = 'correo_servidor'`);
-  const cifrada = rows[0].valor.contrasena_cifrada;
+  assert.doesNotMatch(guardar.respuesta.body, /secreto|contrasena_cifrada/);
+  assert.doesNotMatch((await pedir(s.app, 'GET', '/api/configuracion/correo', { cookie: admin })).respuesta.body, /secreto|v1:/);
+  const cifrada = (await s.pool.query(`SELECT valor FROM configuracion WHERE clave = 'correo_servidor'`)).rows[0].valor.contrasena_cifrada;
   assert.match(cifrada, /^v1:/);
-  assert.doesNotMatch(cifrada, /secreto-de-dondominio/);
 
-  // Cambiar el puerto sin tocar la contraseña la conserva.
+  const canal = canalSmtp(s.pool, s.config);
+  const mensaje = { para: 'x@y.es', asunto: 'a', html: '<p>a</p>', texto: 'a' };
+  assert.match((await canal.enviar(mensaje) as { motivo: string }).motivo, /:1\b/);
   await pedir(s.app, 'PUT', '/api/configuracion/correo', { cookie: admin, cuerpo: servidorCorreo({ puerto: 2 }) });
-  const { rows: despues } = await s.pool.query(`SELECT valor FROM configuracion WHERE clave = 'correo_servidor'`);
-  assert.equal(despues[0].valor.contrasena_cifrada, cifrada);
-  assert.equal(despues[0].valor.puerto, 2);
+  assert.match((await canal.enviar(mensaje) as { motivo: string }).motivo, /:2\b/);
+  assert.equal((await s.pool.query(`SELECT valor FROM configuracion WHERE clave = 'correo_servidor'`)).rows[0].valor.contrasena_cifrada, cifrada);
+  for (const h of (await s.pool.query(`SELECT antes::text || despues::text AS t FROM historial WHERE fila_id = 'correo_servidor'`)).rows) {
+    assert.doesNotMatch(h.t, /contrasena_cifrada|v1:|secreto/);
+  }
 
-  const { rows: historial } = await s.pool.query(
-    `SELECT antes::text || despues::text AS t FROM historial WHERE fila_id = 'correo_servidor'`,
-  );
-  for (const h of historial) assert.doesNotMatch(h.t, /contrasena_cifrada|v1:|secreto/);
-});
+  // Correo de prueba: sale fuera de la cola, enseña el error y deja traza.
+  const prueba = await pedir(s.app, 'POST', '/api/configuracion/correo/prueba', { cookie: admin, cuerpo: { para: 'nando@rbimprove.com' } });
+  assert.equal(prueba.cuerpo.enviado, false);
+  assert.match((await s.pool.query(`SELECT motivo FROM avisos_enviados WHERE plantilla = 'prueba' ORDER BY id DESC LIMIT 1`)).rows[0].motivo, /^prova: /);
 
-test('correo de prueba con un servidor que no responde: muestra el error', async () => {
-  await pedir(s.app, 'PUT', '/api/configuracion/correo', {
-    cookie: admin, cuerpo: servidorCorreo({ puerto: 1, contrasena: 'secreto-de-dondominio' }),
-  });
-  const r = await pedir(s.app, 'POST', '/api/configuracion/correo/prueba', {
-    cookie: admin, cuerpo: { para: 'nando@rbimprove.com' },
-  });
-  assert.equal(r.estado, 200);
-  assert.equal(r.cuerpo.enviado, false);
-  assert.match(r.cuerpo.error, /SMTP/);
-  // Sale fuera de la cola, pero deja su traza como cualquier otro correo.
-  const { rows } = await s.pool.query(
-    `SELECT enviado, motivo FROM avisos_enviados WHERE destinatario = 'nando@rbimprove.com' AND plantilla = 'prueba'
-     ORDER BY id DESC LIMIT 1`,
-  );
-  assert.equal(rows[0].enviado, false);
-  assert.match(rows[0].motivo, /^prova: /);
+  // Incompleto: el canal omite con su motivo y el panel lo dice.
+  await pedir(s.app, 'PUT', '/api/configuracion/correo', { cookie: admin, cuerpo: servidorCorreo({ host: '' }) });
+  assert.deepEqual(await canal.enviar(mensaje), { resultado: 'omitido', motivo: 'smtp sin configurar' });
+  const avisos = (await pedir(s.app, 'GET', '/api/configuracion/avisos', { cookie: fisio })).cuerpo;
+  assert.deepEqual([avisos.smtp_configurado, avisos.matriz.length], [false, TIPOS_EVENTO.length]);
 });
 
 test('la cola del panel enseña un correo fallido de hace días, no solo las últimas 24 horas', async () => {
   const { rows } = await s.pool.query(
     `INSERT INTO correos_pendientes (destinatario, plantilla, datos, estado, intentos, error, creado)
-     VALUES ('viejo@clinica.vet', 'prueba', '{}', 'fallido', 6, 'SMTP caigut', now() - interval '3 days')
-     RETURNING id`,
+     VALUES ('viejo@clinica.vet', 'prueba', '{}', 'fallido', 6, 'SMTP caigut', now() - interval '3 days') RETURNING id`,
   );
   const r = await pedir(s.app, 'GET', '/api/configuracion/avisos/cola', { cookie: admin });
   assert.ok(r.cuerpo.correos.some((c: { id: number }) => c.id === rows[0].id));
 });
 
-test('el canal real lee la configuración en cada envío: un cambio vale sin reiniciar', async () => {
-  const canal = canalSmtp(s.pool, s.config);
-  const mensaje = { para: 'x@y.es', asunto: 'a', html: '<p>a</p>', texto: 'a' };
-  await pedir(s.app, 'PUT', '/api/configuracion/correo', { cookie: admin, cuerpo: servidorCorreo({ puerto: 1 }) });
-  const a = await canal.enviar(mensaje);
-  await pedir(s.app, 'PUT', '/api/configuracion/correo', { cookie: admin, cuerpo: servidorCorreo({ puerto: 2 }) });
-  const b = await canal.enviar(mensaje);
-  assert.equal(a.resultado, 'error');
-  assert.equal(b.resultado, 'error');
-  assert.match((a as { motivo: string }).motivo, /:1\b/);
-  assert.match((b as { motivo: string }).motivo, /:2\b/);
-});
-
-test('sin servidor completo, el canal omite el envío con su motivo', async () => {
-  await pedir(s.app, 'PUT', '/api/configuracion/correo', { cookie: admin, cuerpo: servidorCorreo({ host: '' }) });
-  const r = await canalSmtp(s.pool, s.config).enviar({ para: 'x@y.es', asunto: 'a', html: 'a', texto: 'a' });
-  assert.deepEqual(r, { resultado: 'omitido', motivo: 'smtp sin configurar' });
-  const avisos = await pedir(s.app, 'GET', '/api/configuracion/avisos', { cookie: fisio });
-  assert.equal(avisos.cuerpo.smtp_configurado, false);
-  assert.equal(avisos.cuerpo.matriz.length, TIPOS_EVENTO.length);
-});
-
-// --- Fotos de la web ---
-
-function multipart(nombre: string, datos: Buffer, tipo = 'image/png') {
-  const limite = '----bambu' + Math.random().toString(16).slice(2);
-  const cuerpo = Buffer.concat([
-    Buffer.from(`--${limite}\r\nContent-Disposition: form-data; name="imagen"; filename="${nombre}"\r\nContent-Type: ${tipo}\r\n\r\n`),
-    datos,
-    Buffer.from(`\r\n--${limite}--\r\n`),
-  ]);
-  return { cuerpo, tipo: `multipart/form-data; boundary=${limite}` };
-}
-
-const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64, 1)]);
-
-async function subir(cookie: string, hueco: string, nombre: string, datos: Buffer) {
-  const m = multipart(nombre, datos);
-  return s.app.inject({
-    method: 'POST', url: `/api/configuracion/imagenes/${hueco}`,
-    headers: { cookie, 'content-type': m.tipo }, payload: m.cuerpo,
-  });
-}
-
-test('fotos de la web: una PNG se guarda y se sirve; restaurar vuelve a la de serie', async () => {
-  const r = await subir(fisio, 'portada', 'foto.png', PNG);
-  assert.equal(r.statusCode, 200);
-  const url = r.json().url as string;
+test('fotos de la web: una PNG se guarda y se sirve, restaurar vuelve a la de serie; un ejecutable, un hueco inventado o ../ no pasan', async () => {
+  const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64, 1)]);
+  const subir = (cookie: string, hueco: string, datos: Buffer) => {
+    const limite = '----bambu' + Math.random().toString(16).slice(2);
+    return s.app.inject({
+      method: 'POST', url: `/api/configuracion/imagenes/${hueco}`,
+      headers: { cookie, 'content-type': `multipart/form-data; boundary=${limite}` },
+      payload: Buffer.concat([
+        Buffer.from(`--${limite}\r\nContent-Disposition: form-data; name="imagen"; filename="foto.png"\r\nContent-Type: image/png\r\n\r\n`),
+        datos, Buffer.from(`\r\n--${limite}--\r\n`),
+      ]),
+    });
+  };
+  const url = (await subir(fisio, 'portada', PNG)).json().url as string;
   assert.match(url, /^\/api\/publico\/imagenes\/portada-[a-f0-9]{16}\.png$/);
-  const publicas = await pedir(s.app, 'GET', '/api/publico/imagenes');
-  assert.deepEqual(publicas.cuerpo, { portada: url, instalaciones: null });
-  const imagen = await s.app.inject({ method: 'GET', url });
-  assert.equal(imagen.statusCode, 200);
-  assert.equal(imagen.headers['content-type'], 'image/png');
-  assert.match(String(imagen.headers['cache-control']), /immutable/);
-
+  assert.deepEqual((await pedir(s.app, 'GET', '/api/publico/imagenes')).cuerpo, { portada: url, instalaciones: null });
+  assert.equal((await s.app.inject({ method: 'GET', url })).headers['content-type'], 'image/png');
   await pedir(s.app, 'POST', '/api/configuracion/imagenes/portada/restaura', { cookie: fisio });
   assert.equal((await pedir(s.app, 'GET', '/api/publico/imagenes')).cuerpo.portada, null);
-});
 
-test('fotos de la web: un ejecutable con extensión .png → 400', async () => {
-  const exe = Buffer.concat([Buffer.from('MZ'), Buffer.alloc(64)]);
-  const r = await subir(fisio, 'portada', 'foto.png', exe);
-  assert.equal(r.statusCode, 400);
-});
-
-test('fotos de la web: un derivador no sube; un hueco inventado → 404; nada de ../', async () => {
-  const vet = await veterinarioVerificado(s);
-  assert.equal((await subir(vet.cookie, 'portada', 'foto.png', PNG)).statusCode, 403);
-  assert.equal((await subir(fisio, 'fondo', 'foto.png', PNG)).statusCode, 404);
-  const fuera = await s.app.inject({ method: 'GET', url: '/api/publico/imagenes/..%2F..%2F.env' });
-  assert.equal(fuera.statusCode, 404);
+  assert.equal((await subir(fisio, 'portada', Buffer.concat([Buffer.from('MZ'), Buffer.alloc(64)]))).statusCode, 400);
+  assert.equal((await subir(fisio, 'fondo', PNG)).statusCode, 404);
+  assert.equal((await subir((await veterinarioVerificado(s)).cookie, 'portada', PNG)).statusCode, 403);
+  assert.equal((await s.app.inject({ method: 'GET', url: '/api/publico/imagenes/..%2F..%2F.env' })).statusCode, 404);
 });

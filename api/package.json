@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "tsx watch --env-file=.env src/servidor.ts",
     "start": "node --experimental-strip-types src/servidor.ts",
-    "test": "tsx --test --test-concurrency=4 test/*.test.ts",
+    "test": "tsx --test --test-concurrency=12 test/*.test.ts",
     "typecheck": "tsc --noEmit",
     "comprova-produccio": "node --experimental-strip-types comprova-produccio.ts",
     "sembrar-demo": "tsx --env-file=.env seed/demo.ts"

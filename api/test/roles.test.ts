@@ -72,6 +72,23 @@ const RUTAS: [Metodo, string, Quien][] = [
   ['GET', '/api/adjuntos/1/miniatura', 'cualquiera'],
   ['DELETE', '/api/adjuntos/1', 'cualquiera'],
   ['GET', '/api/panel/movimientos', 'bambu'],
+  ['GET', '/api/ia/estado', 'bambu'],
+  ['GET', '/api/casos/1/transcripciones', 'bambu'],
+  ['POST', '/api/casos/1/transcripciones', 'bambu'],
+  ['PATCH', '/api/transcripciones/1', 'bambu'],
+  ['POST', '/api/transcripciones/1/reintenta', 'bambu'],
+  ['POST', '/api/casos/1/propuestas-informe', 'bambu'],
+  ['GET', '/api/casos/1/propuestas-informe', 'bambu'],
+  ['GET', '/api/propuestas-informe/1', 'bambu'],
+  ['POST', '/api/propuestas-informe/1/regenera', 'bambu'],
+  ['POST', '/api/propuestas-informe/1/edita', 'bambu'],
+  ['POST', '/api/propuestas-informe/1/cancela', 'bambu'],
+  ['POST', '/api/propuestas-informe/1/confirma', 'bambu'],
+  ['GET', '/api/casos/1/informes', 'cualquiera'],
+  ['GET', '/api/informes/1', 'cualquiera'],
+  ['GET', '/api/configuracion/ia', 'superadmin'],
+  ['PUT', '/api/configuracion/ia', 'superadmin'],
+  ['POST', '/api/configuracion/ia/prueba', 'superadmin'],
 ];
 
 let s: Servidor;
@@ -89,22 +106,12 @@ after(async () => {
 
 const conCuerpo = (metodo: Metodo) => (metodo === 'GET' || metodo === 'DELETE' ? {} : { cuerpo: {} });
 
-test('sin sesión: todas las rutas privadas → 401', async () => {
-  for (const [metodo, ruta] of RUTAS) {
-    const r = await pedir(s.app, metodo, ruta, conCuerpo(metodo));
-    assert.equal(r.estado, 401, `${metodo} ${ruta}`);
-  }
-});
-
-test('rol equivocado → 403', async () => {
+test('cada ruta privada: sin sesión 401 y con el rol equivocado 403', async () => {
   for (const [metodo, ruta, quien] of RUTAS) {
-    const ajenos = quien === 'bambu' ? [vet]
-      : quien === 'derivador' ? [fisio]
-        : quien === 'superadmin' ? [vet, fisio]
-          : [];
+    assert.equal((await pedir(s.app, metodo, ruta, conCuerpo(metodo))).estado, 401, `${metodo} ${ruta}`);
+    const ajenos = quien === 'bambu' ? [vet] : quien === 'derivador' ? [fisio] : quien === 'superadmin' ? [vet, fisio] : [];
     for (const cookie of ajenos) {
-      const r = await pedir(s.app, metodo, ruta, { cookie, ...conCuerpo(metodo) });
-      assert.equal(r.estado, 403, `${metodo} ${ruta}`);
+      assert.equal((await pedir(s.app, metodo, ruta, { cookie, ...conCuerpo(metodo) })).estado, 403, `${metodo} ${ruta}`);
     }
   }
 });

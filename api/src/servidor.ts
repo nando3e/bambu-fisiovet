@@ -18,7 +18,9 @@ import { sembrarConfiguracion } from './configuracion.ts';
 import { sembrarMatriz } from './avisos/matriz.ts';
 import { crearCola } from './avisos/cola.ts';
 import { iniciarPendientesCita } from './tareas/pendientes-cita.ts';
+import { iniciarRetencionAudios } from './tareas/retencion-audios.ts';
 import { canalSmtp, type CanalCorreo } from './correo/transporte.ts';
+import type { ModelosInyectados } from './llm/factory.ts';
 import { aplicarSuperadmin } from './superadmin.ts';
 import { registrarRutas } from './rutas/index.ts';
 import { ErrorHttp } from './errores.ts';
@@ -30,6 +32,8 @@ export interface Opciones {
   canal?: CanalCorreo;
   /** Carpeta de la web compilada. Por defecto, web/dist del repo. */
   carpetaWeb?: string;
+  /** Modelos de IA de mentira para los tests. */
+  ia?: ModelosInyectados;
 }
 
 export async function construirServidor(entorno: NodeJS.ProcessEnv = process.env, opciones: Opciones = {}) {
@@ -55,7 +59,9 @@ export async function construirServidor(entorno: NodeJS.ProcessEnv = process.env
 
   const cola = crearCola({ pool, config, canal: opciones.canal ?? canalSmtp(pool, config), log: app.log });
   const pendientesCita = iniciarPendientesCita({ pool, config, despertarCola: () => cola.despertar(), log: app.log });
+  const retencion = iniciarRetencionAudios({ pool, config, log: app.log });
   app.addHook('onClose', async () => {
+    retencion.detener();
     pendientesCita.detener();
     cola.detener();
     await pool.end();
@@ -88,7 +94,7 @@ export async function construirServidor(entorno: NodeJS.ProcessEnv = process.env
 
   await app.register(cookie, { secret: config.SECRETO_SESION });
   await app.register(multipart, { limits: { fileSize: 8 * 1024 * 1024, files: 1 } });
-  await registrarRutas(app, { pool, config, cola });
+  await registrarRutas(app, { pool, config, cola, ia: opciones.ia ?? {} });
 
   // La web compilada, si está. En desarrollo la sirve Vite con su proxy.
   const web = opciones.carpetaWeb ?? join(AQUI, '..', '..', 'web', 'dist');

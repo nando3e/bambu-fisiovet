@@ -16,6 +16,7 @@ import {
 import { renderizar } from '../correo/plantilla.ts';
 import { crearTransporte, enviarCon, servidorCompleto } from '../correo/transporte.ts';
 import { enTransaccion } from '../db/pool.ts';
+import { clavesIa, modelosDisponibles } from '../llm/factory.ts';
 import { conflicto, datosIncorrectos, noEncontrado } from '../errores.ts';
 import { idDeRuta, validar, type Deps } from './index.ts';
 
@@ -163,6 +164,72 @@ export async function rutasConfiguracion(app: FastifyInstance, deps: Deps): Prom
       return enviado ? { enviado: true } : { enviado: false, error: resultado.motivo };
     } finally {
       transporte.close();
+    }
+  });
+
+  // --- Inteligencia artificial: solo superadmin ---
+  const iaPublica = async () => {
+    const { ia, anthropic, openai } = await clavesIa(pool, config);
+    return {
+      anthropic_configurada: Boolean(ia.anthropic_cifrada),
+      openai_configurada: Boolean(ia.openai_cifrada),
+      // Hay clave aunque no sea del panel (la del entorno de respaldo).
+      anthropic_disponible: Boolean(anthropic),
+      openai_disponible: Boolean(openai),
+      modelo_informe: ia.modelo_informe,
+      modelo_informe_openai: ia.modelo_informe_openai,
+      modelo_transcripcion: ia.modelo_transcripcion,
+    };
+  };
+
+  app.get('/configuracion/ia', async (peticion, respuesta) => {
+    await exigirSesion(peticion, respuesta, deps, SOLO_SUPERADMIN);
+    return iaPublica();
+  });
+
+  app.put('/configuracion/ia', async (peticion, respuesta) => {
+    const sesion = await exigirSesion(peticion, respuesta, deps, SOLO_SUPERADMIN);
+    const d = validar(z.object({
+      // Vacío = se conserva la guardada; quitar_* la borra.
+      anthropic: z.string().trim().max(500).default(''),
+      openai: z.string().trim().max(500).default(''),
+      quitar_anthropic: z.boolean().default(false),
+      quitar_openai: z.boolean().default(false),
+      modelo_informe: z.string().trim().min(1).max(80),
+      modelo_informe_openai: z.string().trim().min(1).max(80),
+      modelo_transcripcion: z.string().trim().min(1).max(80),
+    }), peticion.body);
+    await enTransaccion(pool, async (bd) => {
+      const actual = await leerConfiguracion(bd, 'ia');
+      const nueva = {
+        anthropic_cifrada: d.quitar_anthropic ? '' : d.anthropic ? cifrar(d.anthropic, config.CLAVE_CIFRADO) : actual.anthropic_cifrada,
+        openai_cifrada: d.quitar_openai ? '' : d.openai ? cifrar(d.openai, config.CLAVE_CIFRADO) : actual.openai_cifrada,
+        modelo_informe: d.modelo_informe,
+        modelo_informe_openai: d.modelo_informe_openai,
+        modelo_transcripcion: d.modelo_transcripcion,
+      };
+      // El historial nunca guarda las claves, ni cifradas.
+      await guardarConfiguracion(bd, 'ia', nueva, sesion.usuarioId, (v) => ({
+        ...v, anthropic_cifrada: v.anthropic_cifrada ? '(configurada)' : '', openai_cifrada: v.openai_cifrada ? '(configurada)' : '',
+      }));
+    });
+    return iaPublica();
+  });
+
+  app.post('/configuracion/ia/prueba', async (peticion, respuesta) => {
+    await exigirSesion(peticion, respuesta, deps, SOLO_SUPERADMIN);
+    const { redactor } = await modelosDisponibles(pool, config, deps.ia);
+    if (!redactor) return { ok: false, error: 'No hi ha cap clau configurada.' };
+    try {
+      const r = await redactor.redactar({
+        sistema: 'Respon en valencià.',
+        texto: 'Escriu «correcte» al camp estat.',
+        esquema: { type: 'object', additionalProperties: false, properties: { estat: { type: 'string' } }, required: ['estat'] },
+        nombreEsquema: 'prova',
+      });
+      return { ok: true, modelo: r.modelo, latencia_ms: r.latenciaMs };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'Error desconegut' };
     }
   });
 
