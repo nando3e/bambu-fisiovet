@@ -65,6 +65,8 @@ async function sembrar() {
   });
   for (const d of [26, 27]) await caso(B, 'enviada', { enviado: `2026-03-${d} 10:00+01` });
   await caso(C, 'abandonada', { registrado: true, enviado: '2026-05-10 10:00+02', resuelto: '2026-05-10 10:00+02', cerrado: '2026-05-20 10:00+02' });
+  // Enviada en 2025 y dada de alta en febrero sin «Ja té cita»: cuenta como alta, no entra en las medianas.
+  await caso(C, 'alta', { registrado: true, enviado: '2025-12-10 10:00+01', resuelto: '2025-12-10 10:00+01', cerrado: '2026-02-15 12:00+01' });
 
   await caso(C, 'aceptada', { enviado: haceDias(10), resuelto: haceDias(9) });
   await caso(C, 'en_tratamiento', { enviado: haceDias(20), resuelto: haceDias(19), enTratamiento: haceDias(15), primeraVisita: fechaHace(14) });
@@ -88,13 +90,33 @@ test('indicadores con números exactos: meses, clínicas, respuesta en horas lab
     enviadas: 6, aceptadas: 4, con_cita: 2, alta: 1, pendientes_cita: 1, rechazadas: 1, abandonadas: 1, sin_respuesta: 1,
   });
   assert.deepEqual(r.activos, { enviada: 7, aceptada: 1, en_tratamiento: 1 });
-  assert.deepEqual(r.duracion, { altas: 3, espera_dias: 3, tratamiento_dias: 61 });
+  assert.deepEqual(r.duracion, { altas: 4, con_visita: 3, espera_dias: 3, tratamiento_dias: 61 });
   assert.deepEqual(r.operativos, { atascados: 1, propuestas_pendientes: 0, dias_pendiente_cita: 3 });
+});
+
+test('propuestas pendientes: el operativo las cuenta y la lista filtra los casos que las tienen, solo para Bambú', async () => {
+  // Dos casos en la clínica del veterinario; uno con una propuesta pendiente.
+  const { rows } = await s.pool.query(
+    `INSERT INTO casos (paciente_id, clinica_id, derivador_id, creado_por, estado, enviado_el, resuelto_el, en_tratamiento_el)
+     SELECT x.paciente_id, $1, $2, x.creado_por, 'en_tratamiento', now(), now(), now()
+     FROM (SELECT paciente_id, creado_por FROM casos LIMIT 1) x CROSS JOIN generate_series(1, 2) RETURNING id, creado_por`,
+    [vet.usuario.clinica.id, vet.usuario.id],
+  );
+  await s.pool.query(
+    `INSERT INTO propuestas_informe (caso_id, autor_id, tipo, origen, datos, ficha) VALUES ($1, $2, 'evolucion', 'manual', '{}', '')`,
+    [rows[0].id, rows[0].creado_por],
+  );
+  assert.equal((await indicadores()).cuerpo.operativos.propuestas_pendientes, 1);
+  const lista = (await pedir(s.app, 'GET', '/api/casos?propuestas_pendientes=1', { cookie: admin })).cuerpo.casos;
+  assert.deepEqual(lista.map((c: { id: number }) => c.id), [rows[0].id]);
+  // El derivador no filtra por algo que no ve: el parámetro no cambia su lista.
+  const suya = async (q: string) => (await pedir(s.app, 'GET', `/api/casos${q}`, { cookie: vet.cookie })).cuerpo.casos.length;
+  assert.deepEqual([await suya('?propuestas_pendientes=1'), await suya('')], [2, 2]);
 });
 
 test('rango: sin altas dice «sin datos» (null, no cero); por defecto 12 meses hasta hoy; al revés o más de 36 meses → 400; el derivador → 403', async () => {
   const vacio = (await indicadores('?desde=2025-01-01&hasta=2025-06-30')).cuerpo;
-  assert.deepEqual(vacio.duracion, { altas: 0, espera_dias: null, tratamiento_dias: null });
+  assert.deepEqual(vacio.duracion, { altas: 0, con_visita: 0, espera_dias: null, tratamiento_dias: null });
   assert.equal(vacio.respuesta.mediana_horas, null);
   assert.ok(vacio.por_mes.every((m: { n: number }) => m.n === 0));
 
@@ -105,5 +127,7 @@ test('rango: sin altas dice «sin datos» (null, no cero); por defecto 12 meses 
   assert.equal((await indicadores('?desde=2026-06-01&hasta=2026-01-01')).estado, 400);
   assert.equal((await indicadores('?desde=2023-01-01&hasta=2026-01-01')).estado, 400);
   assert.equal((await indicadores('?desde=2023-02-01&hasta=2026-01-31')).estado, 200);
+  assert.equal((await indicadores('?desde=2023-01-02&hasta=2026-01-01')).estado, 200);
+  for (const mala of ['2026-02-31', '2026-13-01']) assert.equal((await indicadores(`?desde=${mala}&hasta=2026-12-31`)).estado, 400, mala);
   assert.equal((await indicadores('', vet.cookie)).estado, 403);
 });

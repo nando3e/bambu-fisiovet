@@ -13,6 +13,9 @@ competidor; el aspecto visual sale de ella.
   dictamen de arquitectura, supuestos, diseño funcional (modelo, estados, roles,
   pantallas, avisos, informe por voz, API) y riesgos. Ante cualquier duda de
   negocio, mirar ahí antes de preguntar.
+- **RGPD**: `docs/rgpd.md` (qué datos, quién los ve, qué viaja a la IA,
+  plazos y lo pendiente para el asesor). Toda funcionalidad que toque datos
+  personales lo actualiza.
 - **Referencia visual**: `docs/referencia-demo/` (HTML, CSS, JS y logo de la
   demo del competidor; credencial y tokens retirados). Paleta, tipografía y
   estilo salen de su `assets/css/style.css`. La UX no: la nuestra es ágil,
@@ -73,12 +76,17 @@ competidor; el aspecto visual sale de ella.
 3. **El informe nunca sale sin confirmar.** Proponer/confirmar con lease atómico
    (`UPDATE … WHERE estado='pendiente'`); editar es volver a proponer; el modelo
    no tiene forma de confirmar.
-4. **Al modelo no viaja ningún dato del propietario ni del veterinario.** Hay un
-   test que lo vigila.
+4. **Al modelo no viaja ningún dato del propietario ni del veterinario.** Las
+   columnas no entran en el prompt y `informes/anonimizar.ts` tapa lo que
+   venga copiado en campos libres (nombres, teléfonos, correos). El test pone
+   esos datos en cada campo que sí viaja.
 5. **Sin borrado duro.** Desactivar, cancelar, `eliminado_el`; todo cambio de
    ficha deja `historial`.
 6. **`dominio/` es puro**: sin `pg`, sin HTTP, sin LLM. Se prueba sin red.
 7. **Ficheros clínicos nunca por estáticos**: se sirven por ruta con permisos.
+8. **El portal recibe derivaciones; las visitas van en Wakyma** (sin API). Ni
+   agenda, ni sesiones, ni casos propios de Bambú: los estados acaban en «Ja té
+   cita» → alta, y los indicadores solo miden lo que el portal sabe.
 
 ## Trampas conocidas
 
@@ -91,13 +99,22 @@ competidor; el aspecto visual sale de ella.
   se queda con la primera.
 - **Una variable CSS inexistente no avisa** (degrada en silencio): el script de
   contraste y el barrido de variables corren en la build.
+- **El API local lista los estáticos de `web/dist` al arrancar**: tras un
+  `npm run build` de la web hay que reiniciarlo o servirá el index nuevo con
+  assets que dan 404 (página en blanco). En producción no pasa: la imagen se
+  construye una vez.
+- **pg lee un `timestamp` sin huso con la hora local del proceso** (distinta
+  en local y en el contenedor): las fechas en hora de Madrid se sacan como
+  texto con `to_char` y se leen como UTC (ver `rutas/panel.ts`).
 - **Pipes que enmascaran códigos de salida** en scripts de verificación
   (`cmd | tail` devuelve el exit de tail).
 
 ## Hábito de trabajo
 
-- Cada task con su test; **cada arreglo se verifica quitándolo y viendo el test
-  en rojo**. Probar las costuras (¿llega de verdad a la BD, a la cola, al
+- **Un test por caso de uso**, que recorre el camino entero con sus bordes; no
+  tests casi iguales que repiten preparación (la batería tiene que correr en
+  segundos). Cada task con su test; **cada arreglo se verifica quitándolo y
+  viendo el test en rojo**. Probar las costuras (¿llega de verdad a la BD, a la cola, al
   correo?), no solo las piezas.
 - **Al cerrar cada change de openspec, lanzar el agente `revisor` sobre el
   diff**, con un modelo distinto al que escribió el código. Corregir lo que
@@ -112,7 +129,7 @@ docker compose -f docker-compose.local.yml up -d
 
 # API (api/): copia .env.example a api/.env y pon los valores de desarrollo
 cd api
-npm test                 # node:test contra Postgres real; cada fichero crea su base *_test
+npm test                 # node:test contra Postgres real; cada fichero crea su base *_test (~10 s, un test por caso de uso)
 npm run typecheck
 npm run comprova-produccio   # todos los módulos cargan con --experimental-strip-types
 npm run dev              # tsx watch en http://localhost:8105 (sirve web/dist si existe)

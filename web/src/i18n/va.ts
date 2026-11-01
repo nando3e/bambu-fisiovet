@@ -56,7 +56,7 @@ export const va = {
   'panel.embudo.perdidas': 'Rebutjades: {r} · Abandonades: {a} · Sense resposta: {s}',
   'panel.embudo.pendientes': '{n} acceptades encara sense cita',
   'panel.duracion': 'Durada',
-  'panel.duracion.ayuda': 'Medianes dels casos donats d’alta en el període ({n}).',
+  'panel.duracion.ayuda': 'Medianes de les {n} altes del període amb data de primera visita (de {total} altes).',
   'panel.espera': 'Espera fins a la primera visita',
   'panel.tratamiento': 'De la primera visita a l’alta',
   'panel.dias': '{n} dies',

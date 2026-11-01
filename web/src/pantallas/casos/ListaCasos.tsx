@@ -54,6 +54,8 @@ export function ListaCasos({ zona }: { zona: '/d' | '/b' }) {
     // Desde el panel: las derivaciones de una clínica.
     const clinica = url.get('clinica');
     if (clinica) p.set('clinica_id', clinica);
+    // Desde el inicio o el panel: los casos con una propuesta de informe por confirmar.
+    if (url.get('propuestas') === '1') p.set('propuestas_pendientes', '1');
     if (antes) p.set('antes_de', antes);
     return `/casos?${p.toString()}`;
   };
@@ -101,7 +103,7 @@ export function ListaCasos({ zona }: { zona: '/d' | '/b' }) {
     }
   }
 
-  const sinNada = casos?.length === 0 && filtro.clave === 'todas' && !novedades && !url.get('q') && !url.get('clinica');
+  const sinNada = casos?.length === 0 && filtro.clave === 'todas' && !novedades && !url.get('q') && !url.get('clinica') && !url.get('propuestas');
 
   return (
     <>

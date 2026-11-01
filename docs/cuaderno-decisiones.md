@@ -403,7 +403,11 @@ reabre. Nada se aplaza sin apuntarlo aquí.
 | Casos propios de Bambú (animales que llegan sin veterinario) y recaídas que abre Bambú | El portal es para recibir derivaciones (Nando, 31/10); se gestionan en Wakyma. Sustituye a la decisión de §7.1 de `casos.origen` derivacion/propio | Si Bambú quiere informes por voz o seguimiento del portal para sus propios pacientes |
 | Agenda y registro detallado de visitas | Se hacen en Wakyma, que no tiene API (Nando, 31/10). El portal no debe obligar a apuntar nada dos veces | Puentes posibles: enlace iCal de la agenda, exportación CSV, ficha para pegar en Wakyma; o una API de Wakyma |
 | Retirar del disco las fotos de la web sustituidas (y las huérfanas de una subida fallida) | Ocupan poco y no se ven | Con la purga física de adjuntos |
-| **Decisión de Nando:** que en una clínica sin validar por Bambú las uniones las apruebe solo Bambú | Hoy cualquier miembro verificado aprueba; quien registre el nombre de una clínica ajena con un correo verificado podría aceptar a quien pida unirse y ver sus casos (revisión del change 1) | Antes de abrir el portal a veterinarios reales |
+| Pruebas de componentes de la web (micrófono que libera la pista, freno de doble toque) | La revisión del change 4 los arregló sin test automático: la web no tiene banco de componentes | Al montar Vitest + Testing Library, o si vuelve a fallar |
+| Festivos en las horas laborables del panel | v1 cuenta de lunes a viernes (supuesto de la propuesta) | Si Bambú publica la promesa «menys de 24 h laborables» |
+| Filtro por fechas en la lista de casos (para que los enlaces del embudo y del top de clínicas reproduzcan la cifra exacta) | Hoy abren la lista sin restringir por fechas (revisión del change 5) | Si Bambú usa esos enlaces para auditar |
+| Indicadores para el propio veterinario y exportar a xlsx | Fuera del alcance del change 5 | v2 |
+| Datos personales dichos en voz alta en los dictados | El audio va a Whisper tal cual; el texto que va al redactor sí se anonimiza. Pauta: no dictar nombres ni teléfonos (`docs/rgpd.md`) | Si se pasa a un proveedor de voz de la UE o en local |
 
 ## 12. Hallazgos y lecciones
 
@@ -490,6 +494,27 @@ Del change `casos-y-derivaciones` (2026-11-01):
   test que comparaba el catálogo de eventos con el CHECK leía el fichero de la
   004; con la 005 redefiniendo el CHECK habría mentido. Ahora compara con la
   restricción de la base.
+
+Del change `informes-por-voz` y `panel-e-indicadores` (2026-11-01):
+
+- **Un test de privacidad tiene que poner el dato prohibido donde sí viaja.**
+  El primero lo ponía en las notas del veterinario, que ya no entraban en el
+  prompt, y pasaba aunque la historia clínica llevara el teléfono del
+  propietario (lo cazó Sol). Ahora una capa de anonimización tapa nombres,
+  teléfonos y correos en cualquier campo, y el test los pone en todos.
+- **Un lease por fila no impide dos filas.** Confirmar con `UPDATE … WHERE
+  estado='pendiente'` era atómico, pero dos toques creaban dos propuestas
+  pendientes y se publicaban las dos. El invariante va a la base: un índice
+  único parcial.
+- **Un test de concurrencia por HTTP puede pasar sin cruzarse.** Las dos
+  peticiones a la vez no llegaron a solaparse y la mutación del índice salió
+  en verde; hizo falta una prueba directa contra la base.
+- **pg y los `timestamp` sin huso**: los lee con la hora local del proceso,
+  que en local es Madrid y en el contenedor UTC. Las horas laborables se
+  calculan con texto leído como UTC; el test lo verifica con una derivación
+  del lunes a las 00:30 (domingo en UTC).
+- **Tests: menos y mejores.** De 173 a 47 por caso de uso y los ficheros a la
+  vez: de unos 18 s a unos 10 s, sin perder escenarios (lo confirmó Sol).
 
 ## 13. Estado del despliegue
 

@@ -500,6 +500,7 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
       novedades: z.enum(['1', 'true']).optional(),
       sin_abrir: z.enum(['1', 'true']).optional(),
       atascados: z.enum(['1', 'true']).optional(),
+      propuestas_pendientes: z.enum(['1', 'true']).optional(),
       antes_de: z.string().regex(/^\d+(\.\d+)?_\d+$/).optional(),
     }), peticion.query);
     const avisos = await leerConfiguracion(pool, 'avisos');
@@ -522,6 +523,10 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
     }
     if (q.novedades) filtros.push('no_leidas.n > 0');
     if (q.sin_abrir) filtros.push(`c.estado = 'enviada' AND c.vista_el IS NULL`);
+    // Las propuestas de informe son de Bambú: el derivador no puede filtrar por ellas.
+    if (q.propuestas_pendientes && esBambu(sesion)) {
+      filtros.push(`EXISTS (SELECT 1 FROM propuestas_informe pi WHERE pi.caso_id = c.id AND pi.estado = 'pendiente')`);
+    }
     if (q.atascados) filtros.push(`c.estado = 'aceptada' AND c.resuelto_el < now() - make_interval(days => $2)`);
     if (q.antes_de) {
       const [epoca, id] = q.antes_de.split('_');

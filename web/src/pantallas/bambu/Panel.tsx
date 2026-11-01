@@ -19,24 +19,23 @@ interface Indicadores {
     rechazadas: number; abandonadas: number; sin_respuesta: number;
   };
   activos: { enviada: number; aceptada: number; en_tratamiento: number };
-  duracion: { altas: number; espera_dias: number | null; tratamiento_dias: number | null };
+  duracion: { altas: number; con_visita: number; espera_dias: number | null; tratamiento_dias: number | null };
   operativos: { atascados: number; propuestas_pendientes: number; dias_pendiente_cita: number };
 }
 
 const RANGOS = ['m3', 'm6', 'm12', 'm24', 'anyPassat'] as const;
 type Rango = (typeof RANGOS)[number];
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+/** Hoy en el calendario de Bambú (Madrid), como el servidor, sea cual sea el huso del navegador. */
+const hoyEnMadrid = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid' }).format(new Date());
 
 /** Fechas del rango elegido: meses enteros hasta hoy, o el año pasado entero. */
 function fechasDe(rango: Rango): { desde: string; hasta: string } {
-  const hoy = new Date();
-  if (rango === 'anyPassat') {
-    const a = hoy.getFullYear() - 1;
-    return { desde: `${a}-01-01`, hasta: `${a}-12-31` };
-  }
+  const hoy = hoyEnMadrid();
+  const [a, m] = hoy.split('-').map(Number) as [number, number];
+  if (rango === 'anyPassat') return { desde: `${a - 1}-01-01`, hasta: `${a - 1}-12-31` };
   const meses = Number(rango.slice(1));
-  return { desde: iso(new Date(Date.UTC(hoy.getFullYear(), hoy.getMonth() - meses + 1, 1))), hasta: iso(hoy) };
+  return { desde: new Date(Date.UTC(a, m - meses, 1)).toISOString().slice(0, 10), hasta: hoy };
 }
 
 const NUMERO = new Intl.NumberFormat('ca-ES', { maximumFractionDigits: 1 });
@@ -107,7 +106,7 @@ function Bloques({ d }: { d: Indicadores }) {
           enlace="/b/casos?f=atascados" icono={<AlertTriangle size={22} aria-hidden />} n={d.operativos.atascados}
           texto={t('bambu.atascados', { n: d.operativos.dias_pendiente_cita })} alerta={d.operativos.atascados > 0}
         />
-        <Cifra enlace="/b/casos?f=tratamiento" icono={<FileText size={22} aria-hidden />} n={d.operativos.propuestas_pendientes} texto={t('bambu.propuestasPendientes')} />
+        <Cifra enlace="/b/casos?propuestas=1" icono={<FileText size={22} aria-hidden />} n={d.operativos.propuestas_pendientes} texto={t('bambu.propuestasPendientes')} />
       </div>
 
       <div className="rejilla-panel">
@@ -167,7 +166,7 @@ function Bloques({ d }: { d: Indicadores }) {
 
         <section className="tarjeta">
           <h2>{t('panel.duracion')}</h2>
-          <p className="ayuda">{t('panel.duracion.ayuda', { n: d.duracion.altas })}</p>
+          <p className="ayuda">{t('panel.duracion.ayuda', { n: d.duracion.con_visita, total: d.duracion.altas })}</p>
           <dl className="datos">
             <div><dt>{t('panel.espera')}</dt><dd>{dias(d.duracion.espera_dias)}</dd></div>
             <div><dt>{t('panel.tratamiento')}</dt><dd>{dias(d.duracion.tratamiento_dias)}</dd></div>

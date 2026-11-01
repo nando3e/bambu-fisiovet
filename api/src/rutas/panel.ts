@@ -17,7 +17,19 @@ const LOCAL = "'YYYY-MM-DD\"T\"HH24:MI:SS'";
 const DIAS_SIN_DERIVAR = 60;
 
 const hoyEnMadrid = () => new Intl.DateTimeFormat('en-CA', { timeZone: ZONA }).format(new Date());
-const fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+/** Una fecha civil que existe (el 31 de febrero no pasa a la base). */
+const fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((s) => {
+    const d = new Date(`${s}T00:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().startsWith(s);
+  }, 'Data no vàlida');
+
+/** La misma fecha n meses después (el 31 de un mes corto cae en el último día). */
+function sumarMeses(s: string, n: number) {
+  const [a, m, d] = s.split('-').map(Number) as [number, number, number];
+  const ultimo = new Date(Date.UTC(a, m - 1 + n + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(a, m - 1 + n, Math.min(d, ultimo))).toISOString().slice(0, 10);
+}
 
 /** Por defecto, los 12 últimos meses enteros contando el actual. */
 function rangoPorDefecto(hasta: string) {
@@ -34,9 +46,8 @@ export async function rutasPanel(app: FastifyInstance, deps: Deps): Promise<void
     const q = validar(z.object({ desde: fecha.optional(), hasta: fecha.optional() }), peticion.query);
     const hasta = q.hasta ?? hoyEnMadrid();
     const desde = q.desde ?? rangoPorDefecto(hasta);
-    const [ad, md] = desde.split('-').map(Number) as [number, number];
-    const [ah, mh] = hasta.split('-').map(Number) as [number, number];
-    if (desde > hasta || (ah - ad) * 12 + (mh - md) >= MESES_MAXIMOS) {
+    // Como mucho 36 meses: hasta tiene que quedar antes de desde + 36 meses.
+    if (desde > hasta || hasta >= sumarMeses(desde, MESES_MAXIMOS)) {
       throw datosIncorrectos(`El rang ha d'anar de més antic a més recent i no passar de ${MESES_MAXIMOS} mesos`);
     }
     const avisos = await leerConfiguracion(pool, 'avisos');
@@ -100,9 +111,13 @@ export async function rutasPanel(app: FastifyInstance, deps: Deps): Promise<void
          FROM casos WHERE descartado_el IS NULL`,
       ),
       pool.query(
+        // Las medianas, solo sobre las altas con fecha de primera visita (un alta
+        // desde «acceptada» no la tiene), y con cuántas son: así no parece que
+        // una sola represente a todas. Ojo: greatest(0, NULL) es 0, de ahí el FILTER.
         `SELECT count(*)::int AS altas,
-                percentile_cont(0.5) WITHIN GROUP (ORDER BY primera_visita - (resuelto_el AT TIME ZONE '${ZONA}')::date) AS espera_dias,
-                percentile_cont(0.5) WITHIN GROUP (ORDER BY (cerrado_el AT TIME ZONE '${ZONA}')::date - primera_visita) AS tratamiento_dias
+                count(*) FILTER (WHERE primera_visita IS NOT NULL)::int AS con_visita,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY greatest(0, primera_visita - (resuelto_el AT TIME ZONE '${ZONA}')::date)) FILTER (WHERE primera_visita IS NOT NULL) AS espera_dias,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY greatest(0, (cerrado_el AT TIME ZONE '${ZONA}')::date - primera_visita)) FILTER (WHERE primera_visita IS NOT NULL) AS tratamiento_dias
          FROM casos
          WHERE estado = 'alta' AND descartado_el IS NULL
            AND (cerrado_el AT TIME ZONE '${ZONA}')::date BETWEEN $1::date AND $2::date`,
@@ -132,6 +147,7 @@ export async function rutasPanel(app: FastifyInstance, deps: Deps): Promise<void
       activos: activos.rows[0],
       duracion: {
         altas: d.altas,
+        con_visita: d.con_visita,
         espera_dias: d.espera_dias === null ? null : Number(d.espera_dias),
         tratamiento_dias: d.tratamiento_dias === null ? null : Number(d.tratamiento_dias),
       },

@@ -119,7 +119,7 @@ export function InicioBambu() {
           <div><strong>{datos.contadores.en_tratamiento}</strong><span>{t('bambu.enTratamiento')}</span></div>
         </Link>
         {datos.contadores.propuestas_pendientes > 0 ? (
-          <Link to="/b/casos?f=tratamiento" className="cifra">
+          <Link to="/b/casos?propuestas=1" className="cifra">
             <span className="icono-cifra" style={{ background: 'var(--aviso-fondo)', color: 'var(--aviso-texto)' }}><FileText size={22} aria-hidden /></span>
             <div><strong>{datos.contadores.propuestas_pendientes}</strong><span>{t('bambu.propuestasPendientes')}</span></div>
           </Link>
