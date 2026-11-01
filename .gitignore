@@ -25,3 +25,6 @@ Thumbs.db
 
 # claude local
 .claude/settings.local.json
+
+# La guía en Word lleva contraseñas de las cuentas de prueba: nunca al repositorio.
+docs/*.docx

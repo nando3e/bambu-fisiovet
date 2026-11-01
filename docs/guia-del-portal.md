@@ -9,13 +9,60 @@ pestañas tal como salen en pantalla, en valenciano.
 
 ---
 
+## Cómo probar
+
+El portal está en **bambufisiovet.com**. Los casos, clínicas y pacientes que
+veis son de prueba: se pueden tocar sin miedo.
+
+### Accesos
+
+Todas las cuentas entran por **https://bambufisiovet.com** → «Accedir», con el
+correo (o el usuario) y la contraseña.
+
+| Para qué | Usuario | Contraseña |
+|---|---|---|
+| **Veterinaria de prueba**: Marta Puig, Clínica Veterinària Sant Roc. Ve lo que ve una clínica | nando3e@gmail.com | En la versión Word |
+| **Fisio de Bambú de prueba**: Laia Serra. Es la cuenta para probar el día a día de Bambú | nando3e+laia@gmail.com | En la versión Word |
+| **Superadmin** (llave maestra de Bambú): además configura el correo y la IA | En la versión Word | En la versión Word |
+
+- Las contraseñas no se guardan en este repositorio: están en la versión Word
+  de la guía, que reparte Nando.
+- Para probar como Bambú, mejor la cuenta de Laia. El superadmin es la llave
+  maestra: solo para configurar, y no se comparte fuera del equipo.
+- Los avisos de las cuentas de prueba llegan al Gmail de Nando.
+- Cuando acaben las pruebas, se cambian estas contraseñas y se desactivan las
+  cuentas de prueba.
+
+**Qué recorrer**
+
+1. **Como veterinario**: entrar, hacer una derivación nueva (los tres pasos),
+   dejar otra a medias en «Esborranys», escribir en el hilo de un caso y
+   adjuntar una foto o un PDF.
+2. **Como Bambú**: abrir la derivación nueva, aceptarla eligiendo fisio,
+   marcar «Ja té cita», colgar un informe en el hilo con «Adjunta un fitxer»,
+   escribir una nota interna y dar el alta. Probar también «Rebutja» y
+   «Tanca» en otros casos.
+3. **Los avisos**: comprobar que cada paso le llega al otro lado (la campana y
+   el correo) y que el punto rojo se apaga al abrir el caso.
+4. **En el móvil**: lo mismo desde el teléfono.
+5. **Las ayudas**: el círculo con la «i» de cada pantalla. ¿Se entiende?
+
+**Si algo falla o no se entiende**, avisad a Nando con:
+
+- qué estabais haciendo y con qué cuenta (veterinario o Bambú);
+- el caso (el nombre del paciente);
+- qué esperabais y qué ha pasado;
+- una captura de pantalla, si se puede.
+
+---
+
 ## Antes de empezar: quién es quién
 
 | Quién | Qué hace en el portal |
 |---|---|
 | **Veterinario** | Trabaja en una clínica, deriva casos a Bambú y los sigue. Solo ve los casos de su clínica. |
-| **Equipo de Bambú** (fisios) | Recibe las derivaciones, las acepta o no, da la cita en Wakyma, hace los informes y habla con el veterinario por el hilo del caso. Ve todos los casos. |
-| **Superadmin** | Una cuenta de Bambú con llave maestra: configura el servidor de correo y las claves de IA. |
+| **Equipo de Bambú** (fisios) | Recibe las derivaciones, las acepta o no, da la cita en Wakyma, cuelga los informes (hechos en Wakyma) y habla con el veterinario por el hilo del caso. Ve todos los casos. |
+| **Superadmin** | Una cuenta de Bambú con llave maestra: configura el servidor de correo (y las claves de IA, para cuando se activen los informes del portal). |
 | **Propietario del animal** | No entra al portal. Bambú le llama por teléfono para darle cita. |
 | **Wakyma** | El programa de agenda de Bambú. Las visitas se apuntan allí, no en el portal. |
 
@@ -45,8 +92,7 @@ quién lo hace. El diagrama 2, al final, lo dibuja.
 | | | Pulsar «Rebutja» y escribir el motivo | «Rebutjada» | Bambú |
 | **«Pendent de cita»** | Aceptada. Falta llamar al propietario y darle cita en Wakyma | Dar la cita en Wakyma y pulsar «Ja té cita» (la fecha es opcional) | «En tractament» | Bambú |
 | | | Pulsar «Tanca» con el motivo (no contesta, no viene, lo descarta) | «Tancada» | Bambú |
-| | | Confirmar un informe de alta | «Alta» | Bambú |
-| **«En tractament»** | Ya tiene cita: el animal viene a Bambú. Se habla por el hilo y se hacen informes | Pulsar «Alta», o confirmar un informe de alta | «Alta» | Bambú |
+| **«En tractament»** | Ya tiene cita: el animal viene a Bambú. Se habla por el hilo y se cuelgan los informes | Pulsar «Alta» | «Alta» | Bambú |
 | | | Pulsar «Tanca» con el motivo | «Tancada» | Bambú |
 | **«Alta»** | Tratamiento acabado | — | Es final: no cambia | — |
 | **«Rebutjada»** | Bambú no la ha aceptado; el motivo queda escrito | — | Es final: no cambia | — |
@@ -207,7 +253,6 @@ lista ya filtrada:
 - **«Pendents de cita»**: aceptadas, falta dar cita.
 - **«Encallades»**: pendientes de cita desde hace más de 3 días.
 - **«En tractament»**.
-- **Propuestas de informe por confirmar**, si las hay.
 - Debajo, los últimos movimientos y los avisos.
 
 En «Casos», las pestañas son las mismas. El círculo con la «i» explica qué hay
@@ -278,15 +323,16 @@ El círculo con la «i» de la lista lo recuerda, con las marcas dibujadas.
 
 ### Terminar
 
-- **«Alta»** (con confirmación), o **confirmar un informe de alta**, que
-  también da el alta. El veterinario recibe el aviso.
+- **«Alta»** (pide confirmación). El veterinario recibe el aviso. Si hay
+  informe de alta, se cuelga antes en el hilo.
 - **«Tanca»** con el motivo, si se deja sin terminar.
 - No hay reapertura: si el animal vuelve, el veterinario hace una derivación
   nueva.
 
 ### Avisos: si pasa esto, ¿a quién le llega?
 
-Valores de serie; se cambian en «Configuració» → «Avisos».
+Valores de serie; se cambian en «Configuració» → «Avisos». Si un aviso no
+llega, mirad primero ahí que esté encendido (por ejemplo, «Missatge nou»).
 
 | Si pasa… | Le llega a… | Campana | Correo |
 |---|---|---|---|
@@ -299,8 +345,8 @@ Valores de serie; se cambian en «Configuració» → «Avisos».
 | Una derivación se encalla (3 días sin cita) | Todo el equipo de Bambú, una vez | sí | sí |
 | Bambú acepta, rechaza, da el alta o cierra | El veterinario que derivó y los compañeros que escribieron en el hilo | sí | sí |
 | Bambú marca «Ja té cita» | El veterinario | sí | no |
-| Bambú escribe o adjunta en el hilo | El veterinario | sí | sí |
-| Bambú adjunta un documento o informe | El veterinario | sí | sí |
+| Bambú escribe en el hilo | El veterinario | sí | sí |
+| Bambú adjunta un documento o un informe | El veterinario | sí | sí |
 
 - Nadie recibe aviso de lo que hace él mismo.
 - **Sin correos repetidos**: en mensajes, documentos y cambios de ficha, si

@@ -53,7 +53,7 @@
   <text x="214" y="118" fill="#344b3b">Veterinario: «Envia la derivació»</text>
   <text x="214" y="248" fill="#344b3b">Bambú: «Accepta» (y elige fisio, si quiere)</text>
   <text x="214" y="378" fill="#344b3b">Bambú: «Ja té cita» (dada en Wakyma)</text>
-  <text x="214" y="508" fill="#344b3b">Bambú: «Alta» o informe de alta</text>
+  <text x="214" y="508" fill="#344b3b">Bambú: «Alta»</text>
   <text x="435" y="170" text-anchor="middle" fill="#a3261c">Bambú: «Rebutja»</text>
   <text x="405" y="292" text-anchor="middle" fill="#a3261c">Bambú: «Tanca»</text>
   <text x="405" y="438" text-anchor="middle" fill="#a3261c">Bambú: «Tanca»</text>
@@ -61,5 +61,5 @@
   <!-- Notas -->
   <line x1="40" y1="622" x2="780" y2="622" stroke="#dfe3d8" stroke-width="1"/>
   <text x="40" y="645" fill="#5b665c">Si pasan 3 días en «Pendent de cita», sale en «Encallades» y el equipo recibe un aviso (una vez).</text>
-  <text x="40" y="665" fill="#5b665c">Un informe de alta confirmado también da el alta, aunque esté en «Pendent de cita». No hay reapertura.</text>
+  <text x="40" y="665" fill="#5b665c">Los informes se hacen en Wakyma y se cuelgan en el hilo. No hay reapertura: si vuelve, derivación nueva.</text>
 </svg>

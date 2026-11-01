@@ -36,11 +36,11 @@
   <text x="210" y="704" text-anchor="middle" fill="#27372d">→ «En tractament», aviso al veterinario</text>
 
   <rect x="50" y="760" width="320" height="60" rx="10" fill="#ffffff" stroke="#344b3b" stroke-width="1.5"/>
-  <text x="210" y="786" text-anchor="middle" fill="#27372d">Tratamiento: hilo, documentos e</text>
-  <text x="210" y="804" text-anchor="middle" fill="#27372d">informes (propuesta → «Confirma»)</text>
+  <text x="210" y="786" text-anchor="middle" fill="#27372d">Tratamiento: hilo y documentos;</text>
+  <text x="210" y="804" text-anchor="middle" fill="#27372d">el informe de Wakyma, adjunto</text>
 
   <rect x="50" y="860" width="320" height="60" rx="10" fill="#e7f0e3" stroke="#2f5f35" stroke-width="1.5"/>
-  <text x="210" y="886" text-anchor="middle" fill="#27372d" font-weight="bold">«Alta» o informe de alta</text>
+  <text x="210" y="886" text-anchor="middle" fill="#27372d" font-weight="bold">«Alta»</text>
   <text x="210" y="904" text-anchor="middle" fill="#27372d" font-weight="bold">→ el veterinario recibe el aviso</text>
 
   <!-- Columna derecha -->
