@@ -512,6 +512,30 @@
 .ayuda-filtros dd {
   margin: 4px 0 0;
 }
+.marcas-ayuda {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.marcas-ayuda li {
+  display: grid;
+  grid-template-columns: minmax(150px, max-content) 1fr;
+  gap: 4px 14px;
+  align-items: center;
+  font-size: 0.9rem;
+}
+.marcas-ayuda .muestra {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+@media (max-width: 599px) {
+  .marcas-ayuda li {
+    grid-template-columns: 1fr;
+  }
+}
 .ayuda-filtros dd p {
   margin: 0 0 4px;
   font-size: 0.9rem;

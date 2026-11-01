@@ -110,7 +110,7 @@ quién lo hace. El diagrama 2, al final, lo dibuja.
   enlace por correo (vale 1 hora).
 - En la lista tiene cuatro pestañas: «Totes», «En curs», «Esborranys» y
   «Tancades». Con la casilla «Amb novetats» ve solo los casos con avisos que
-  no ha leído (llevan un punto verde). El círculo con la «i» lo explica.
+  no ha leído (llevan un punto rojo). El círculo con la «i» lo explica.
 
 ### Paso 3. Derivar un caso
 
@@ -204,6 +204,22 @@ lista ya filtrada:
 
 En «Casos», las pestañas son las mismas. El círculo con la «i» explica qué hay
 en cada una, qué hay que hacer y qué enciende «Amb novetats».
+
+### Qué significa cada marca en la lista de casos
+
+Cada fila de «Casos» es una derivación. De izquierda a derecha:
+
+| Lo que se ve | Qué significa |
+|---|---|
+| **Nombre del paciente · especie** (en negrita) | El animal |
+| La línea de debajo | La clínica (en la lista del veterinario, quién lo derivó), el propietario y hace cuánto fue el último movimiento («fa 2 h») |
+| **Punto rojo** y la fila con fondo gris | Tienes avisos sin leer de ese caso (un mensaje, un documento, un cambio…). Se apaga al abrirlo. Es lo que filtra «Amb novetats» |
+| Chip amarillo **«Sense obrir»** | Derivación nueva que nadie de Bambú ha abierto todavía (solo lo ve Bambú) |
+| Chip rojo con triángulo **«Sense cita»** | Encallada: lleva más de 3 días en «Pendent de cita» (solo lo ve Bambú) |
+| Chip gris con un **teléfono** | Derivación que Bambú registró por teléfono, de antes de que el portal solo recibiera derivaciones. Solo sale en casos antiguos |
+| El último chip, de color | El estado: **gris** «Esborrany» o «Tancada»; **amarillo** «Nova» o «Pendent de cita»; **verde** «En tractament» o «Alta»; **rojo** «Rebutjada» |
+
+El círculo con la «i» de la lista lo recuerda, con las marcas dibujadas.
 
 ### Llega una derivación nueva: paso a paso
 

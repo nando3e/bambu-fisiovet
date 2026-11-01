@@ -183,7 +183,7 @@ export function ListaCasos({ zona }: { zona: '/d' | '/b' }) {
                   {c.no_leidas > 0 ? <span className="punto" aria-label={t('casos.filtro.novedades')} /> : null}
                   {!deriva && c.estado === 'enviada' && !c.vista ? <span className="chip atencion">{t('casos.sinAbrir')}</span> : null}
                   {c.atascado ? <span className="chip error"><AlertTriangle size={13} aria-hidden /> {t('casos.atascado')}</span> : null}
-                  {c.registrada ? <span className="chip gris"><PhoneCall size={13} aria-hidden /></span> : null}
+                  {c.registrada ? <span className="chip gris" title={t('casos.registrada')} aria-label={t('casos.registrada')}><PhoneCall size={13} aria-hidden /></span> : null}
                   <ChipEstado estado={c.estado} paraDerivador={deriva} />
                 </span>
               </Link>
@@ -245,6 +245,25 @@ function AyudaFiltros({ deriva }: { deriva: boolean }) {
           </div>
         ))}
       </dl>
+      <h2 style={{ marginTop: 20 }}>{t('casos.marcas.titulo')}</h2>
+      <ul className="marcas-ayuda">
+        <li><span className="muestra texto-suave">Toby · Gos</span><span>{t('casos.marcas.linea')}</span></li>
+        <li><span className="muestra"><span className="punto" aria-hidden /></span><span>{t('casos.marcas.punto')}</span></li>
+        {deriva ? null : (
+          <>
+            <li><span className="muestra"><span className="chip atencion">{t('casos.sinAbrir')}</span></span><span>{t('casos.marcas.sinAbrir')}</span></li>
+            <li>
+              <span className="muestra"><span className="chip error"><AlertTriangle size={13} aria-hidden /> {t('casos.atascado')}</span></span>
+              <span>{t('casos.marcas.encallada', { n: dias ?? '…' })}</span>
+            </li>
+            <li><span className="muestra"><span className="chip gris"><PhoneCall size={13} aria-hidden /></span></span><span>{t('casos.marcas.telefono')}</span></li>
+          </>
+        )}
+        <li>
+          <span className="muestra"><ChipEstado estado="enviada" paraDerivador={deriva} /> <ChipEstado estado="en_tratamiento" paraDerivador={deriva} /></span>
+          <span>{t('casos.marcas.estado')}</span>
+        </li>
+      </ul>
     </section>
   );
 }
