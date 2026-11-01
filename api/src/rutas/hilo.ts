@@ -18,6 +18,10 @@ import { avisarCaso, casoVisible, nombrePersona, tocarActividad } from '../servi
 import { mensajeSistema } from '../servicios/hilo.ts';
 import { idDeRuta, validar, type Deps } from './index.ts';
 
+/** encodeURIComponent deja sin codificar ' ( ) * , que no valen en filename*. */
+const rfc5987 = (texto: string) =>
+  encodeURIComponent(texto).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+
 /** Minutos en los que el veterinario puede retirar su propio adjunto. */
 const MINUTOS_RETIRAR = 15;
 
@@ -79,9 +83,12 @@ export async function rutasHilo(app: FastifyInstance, deps: Deps): Promise<void>
         `INSERT INTO mensajes (caso_id, autor_id, tipo, visibilidad, cuerpo) VALUES ($1, $2, 'texto', $3, $4) RETURNING id`,
         [caso.id, sesion.usuarioId, interna ? 'bambu' : 'todos', d.cuerpo],
       );
-      await tocarActividad(bd, caso.id);
-      // Una nota interna no avisa a nadie: no debe llegar nunca al veterinario.
-      if (!interna) await avisarCaso(bd, sesion, caso, 'mensaje.nuevo', { nombre: nombrePersona(sesion) });
+      // Una nota interna no avisa a nadie ni mueve la actividad del caso: el
+      // veterinario no debe notar ni que existe.
+      if (!interna) {
+        await tocarActividad(bd, caso.id);
+        await avisarCaso(bd, sesion, caso, 'mensaje.nuevo', { nombre: nombrePersona(sesion) });
+      }
       return rows[0]!;
     });
     cola.despertar();
@@ -108,11 +115,10 @@ export async function rutasHilo(app: FastifyInstance, deps: Deps): Promise<void>
     await mkdir(carpeta, { recursive: true });
     const base = randomBytes(16).toString('hex');
     const ruta = `${base}.${tipo}`;
-    await writeFile(join(carpeta, ruta), datos);
-    let miniatura: string | null = null;
-    if (esImagen(tipo)) miniatura = await crearMiniatura(datos, base, tipo, peticion.log);
-
+    let guardado = false;
     try {
+      await writeFile(join(carpeta, ruta), datos);
+      const miniatura = esImagen(tipo) ? await crearMiniatura(datos, base, tipo, peticion.log) : null;
       const resultado = await enTransaccion(pool, async (bd) => {
         const caso = await casoVisible(bd, sesion, id, true);
         if (caso.estado === 'borrador') throw conflicto('Envia la derivació abans d’adjuntar fitxers');
@@ -127,17 +133,22 @@ export async function rutasHilo(app: FastifyInstance, deps: Deps): Promise<void>
            VALUES ($1, $2, 'adjunto', $3, $4, $5) RETURNING id`,
           [caso.id, sesion.usuarioId, interna ? 'bambu' : 'todos', nombre, adj[0]!.id],
         );
-        await tocarActividad(bd, caso.id);
-        if (!interna) await avisarCaso(bd, sesion, caso, 'adjunto.nuevo', { nombre: nombrePersona(sesion) });
+        if (!interna) {
+          await tocarActividad(bd, caso.id);
+          await avisarCaso(bd, sesion, caso, 'adjunto.nuevo', { nombre: nombrePersona(sesion) });
+        }
         return { id: adj[0]!.id, mensaje_id: men[0]!.id };
       });
+      guardado = true;
       cola.despertar();
       return respuesta.code(201).send(resultado);
-    } catch (error) {
-      // Si la transacción no llega a guardar nada, el fichero escrito sobra.
-      await rm(join(carpeta, ruta), { force: true });
-      if (miniatura) await rm(join(carpeta, miniatura), { force: true });
-      throw error;
+    } finally {
+      // Si no se llega a guardar el registro, nada de lo escrito se queda en
+      // disco (tampoco una miniatura a medias).
+      if (!guardado) {
+        await rm(join(carpeta, ruta), { force: true });
+        await rm(join(carpeta, `${base}-min.webp`), { force: true });
+      }
     }
   });
 
@@ -161,10 +172,10 @@ export async function rutasHilo(app: FastifyInstance, deps: Deps): Promise<void>
     const ambito = ambitoCaso(sesion, 'c', 3);
     const { rows } = await pool.query<{
       id: number; ruta: string; miniatura_ruta: string | null; mime: string; nombre_original: string;
-      subido_por: number; creado: Date; caso_id: number; eliminado: boolean;
+      subido_por: number; creado: Date; caso_id: number; eliminado: boolean; visibilidad: 'todos' | 'bambu';
     }>(
       `SELECT a.id, a.ruta, a.miniatura_ruta, a.mime, a.nombre_original, a.subido_por, a.creado, a.caso_id,
-              a.eliminado_el IS NOT NULL AS eliminado
+              a.eliminado_el IS NOT NULL AS eliminado, m.visibilidad
        FROM adjuntos a
        JOIN mensajes m ON m.adjunto_id = a.id
        JOIN casos c ON c.id = a.caso_id
@@ -187,9 +198,10 @@ export async function rutasHilo(app: FastifyInstance, deps: Deps): Promise<void>
       return respuesta
         .header('Content-Type', cual === 'miniatura' ? 'image/webp' : a.mime)
         .header('X-Content-Type-Options', 'nosniff')
-        .header('Cache-Control', 'private, max-age=3600')
-        .header('Content-Disposition',
-          `${enLinea ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(a.nombre_original)}`)
+        // Datos clínicos: nada de caché del navegador, que serviría el fichero
+        // a otra sesión del mismo ordenador sin pasar por los permisos.
+        .header('Cache-Control', 'private, no-store')
+        .header('Content-Disposition', `${enLinea ? 'inline' : 'attachment'}; filename*=UTF-8''${rfc5987(a.nombre_original)}`)
         .send(createReadStream(join(carpeta, ruta)));
     });
   }
@@ -211,8 +223,10 @@ export async function rutasHilo(app: FastifyInstance, deps: Deps): Promise<void>
         [id, sesion.usuarioId],
       );
       if (!rowCount) throw noEncontrado('Aquest fitxer ja s’ha retirat');
-      await mensajeSistema(bd, a.caso_id, `${nombrePersona(sesion)} ha retirat l’adjunt «${a.nombre_original}».`);
-      await tocarActividad(bd, a.caso_id);
+      // La línea del hilo tiene la misma visibilidad que el adjunto: retirar uno
+      // interno no puede enseñarle al veterinario ni su nombre.
+      await mensajeSistema(bd, a.caso_id, `${nombrePersona(sesion)} ha retirat l’adjunt «${a.nombre_original}».`, a.visibilidad);
+      if (a.visibilidad === 'todos') await tocarActividad(bd, a.caso_id);
     });
     return { ok: true };
   });

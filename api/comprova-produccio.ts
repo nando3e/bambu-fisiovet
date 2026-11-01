@@ -24,3 +24,10 @@ for (const modulo of modulos) await import(pathToFileURL(modulo).href);
 await import(pathToFileURL(join(import.meta.dirname, 'src', 'servidor.ts')).href);
 
 console.log(`${modulos.length + 1} módulos se cargan con --experimental-strip-types.`);
+
+// sharp trae un binario nativo (musl en la imagen Alpine) y se importa solo al
+// crear la primera miniatura: aquí se carga de verdad, para que un binario roto
+// pare la build en vez de dejar todas las fotos sin miniatura en silencio.
+const sharp = (await import('sharp')).default;
+await sharp({ create: { width: 2, height: 2, channels: 3, background: '#000000' } }).webp().toBuffer();
+console.log('sharp carga y convierte imágenes.');

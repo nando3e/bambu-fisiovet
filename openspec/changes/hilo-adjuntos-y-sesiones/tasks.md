@@ -46,5 +46,5 @@ y viendo el test en rojo. Toda ruta nueva con su test de rol y de ámbito.
 ## 4. Cierre
 
 - [x] 4.1 `npm test`, typecheck y `comprova-produccio` en verde.
-- [ ] 4.2 Revisor con un modelo distinto; corregir y justificar.
+- [x] 4.2 Revisor con un modelo distinto; corregir y justificar.
 - [ ] 4.3 Redesplegar, comprobar `sharp` y una subida en producción; archivar.

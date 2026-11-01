@@ -213,3 +213,58 @@ test('catálogo: la fila del evento de sesión ya no está en la matriz', async 
   const { rows } = await s.pool.query(`SELECT count(*)::int AS n FROM configuracion_avisos WHERE evento = 'intervencion.registrada'`);
   assert.equal(rows[0].n, 0);
 });
+
+// --- Revisión de Sol (change 3) ---
+
+test('revisión: retirar un adjunto interno no deja su nombre en el hilo del veterinario', async () => {
+  const vet = await veterinarioVerificado(s);
+  const c = await derivar(vet);
+  const r = await subir(fisio.cookie, c.id, 'sospita-interna.pdf', PDF, true);
+  assert.equal((await pedir(s.app, 'DELETE', `/api/adjuntos/${r.cuerpo.id}`, { cookie: fisio.cookie })).estado, 200);
+  const delVet = await mensajes(vet.cookie, c.id);
+  assert.ok(!delVet.some((m) => m.cuerpo.includes('sospita-interna')), JSON.stringify(delVet.map((m) => m.cuerpo)));
+  assert.ok((await mensajes(fisio.cookie, c.id)).some((m) => m.tipo === 'sistema' && m.cuerpo.includes('sospita-interna')));
+});
+
+test('revisión: ficheros y miniaturas sin caché del navegador; filename* bien codificado', async () => {
+  const vet = await veterinarioVerificado(s);
+  const c = await derivar(vet);
+  const r = await subir(vet.cookie, c.id, 'l\'analítica (1).pdf', PDF);
+  const f = await s.app.inject({ method: 'GET', url: `/api/adjuntos/${r.cuerpo.id}/fichero`, headers: { cookie: vet.cookie } });
+  assert.equal(f.headers['cache-control'], 'private, no-store');
+  assert.match(String(f.headers['content-disposition']), /filename\*=UTF-8''l%27anal%C3%ADtica%20%281%29\.pdf$/);
+});
+
+test('revisión: una nota interna no mueve la actividad que ve el veterinario', async () => {
+  const vet = await veterinarioVerificado(s);
+  const c = await derivar(vet);
+  await s.pool.query(`UPDATE casos SET ultima_actividad = now() - interval '2 days' WHERE id = $1`, [c.id]);
+  const antes = (await s.pool.query('SELECT ultima_actividad FROM casos WHERE id = $1', [c.id])).rows[0].ultima_actividad;
+  await pedir(s.app, 'POST', `/api/casos/${c.id}/mensajes`, { cookie: fisio.cookie, cuerpo: { cuerpo: 'Nota', interna: true } });
+  await subir(fisio.cookie, c.id, 'intern.pdf', PDF, true);
+  const despues = (await s.pool.query('SELECT ultima_actividad FROM casos WHERE id = $1', [c.id])).rows[0].ultima_actividad;
+  assert.equal(new Date(despues).getTime(), new Date(antes).getTime());
+});
+
+test('revisión: si el aviso falla dentro de la transacción, ni cambia el estado ni queda la línea del hilo', async () => {
+  const vet = await veterinarioVerificado(s);
+  const c = await derivar(vet);
+  // Un fallo inyectado después de escribir el estado y el mensaje de sistema:
+  // al publicar el evento de aceptación de este caso.
+  await s.pool.query(`
+    CREATE OR REPLACE FUNCTION falla_aviso_prueba() RETURNS trigger AS $$
+    BEGIN
+      IF NEW.caso_id = ${c.id} AND NEW.tipo = 'derivacion.aceptada' THEN RAISE EXCEPTION 'fallo inyectado'; END IF;
+      RETURN NEW;
+    END $$ LANGUAGE plpgsql`);
+  await s.pool.query(`DROP TRIGGER IF EXISTS falla_aviso_prueba ON eventos`);
+  await s.pool.query(`CREATE TRIGGER falla_aviso_prueba BEFORE INSERT ON eventos FOR EACH ROW EXECUTE FUNCTION falla_aviso_prueba()`);
+  try {
+    const r = await pedir(s.app, 'POST', `/api/casos/${c.id}/acepta`, { cookie: fisio.cookie, cuerpo: {} });
+    assert.equal(r.estado, 500);
+  } finally {
+    await s.pool.query(`DROP TRIGGER IF EXISTS falla_aviso_prueba ON eventos`);
+  }
+  assert.equal((await s.pool.query('SELECT estado FROM casos WHERE id = $1', [c.id])).rows[0].estado, 'enviada');
+  assert.ok(!(await mensajes(fisio.cookie, c.id)).some((m) => /ha acceptat/.test(m.cuerpo)));
+});

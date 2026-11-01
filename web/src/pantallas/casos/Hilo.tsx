@@ -106,13 +106,16 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
   async function adjuntar(ficheros: FileList | null) {
     if (!ficheros) return;
     setError('');
+    // Se decide una vez para todo el lote: desmarcar la casilla a mitad no puede
+    // hacer públicos los ficheros que quedan.
+    const loteInterno = bambu && interna;
     for (const fichero of Array.from(ficheros)) {
       const clave = `${Date.now()}-${fichero.name}`;
       const vista = fichero.type.startsWith('image/') ? URL.createObjectURL(fichero) : null;
       setSubidas((s) => [...s, { clave, nombre: fichero.name, vista }]);
       try {
         const { datos, nombre } = await reducir(fichero);
-        await api.subir(`/casos/${casoId}/adjuntos`, datos, 'fichero', { interna: String(bambu && interna) }, nombre);
+        await api.subir(`/casos/${casoId}/adjuntos`, datos, 'fichero', { interna: String(loteInterno) }, nombre);
         await cargar();
       } catch (err) {
         setError(t('hilo.errorSubida', { nombre: fichero.name, error: mensajeDe(err) }));
@@ -213,7 +216,7 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
           <input ref={selector} type="file" multiple accept={ACEPTADOS} hidden onChange={(e) => void adjuntar(e.target.files)} />
           {bambu ? (
             <label className="casilla">
-              <input type="checkbox" checked={interna} onChange={(e) => setInterna(e.target.checked)} />
+              <input type="checkbox" checked={interna} disabled={subidas.length > 0} onChange={(e) => setInterna(e.target.checked)} />
               <span><Lock size={14} aria-hidden /> {t('hilo.notaInterna')}</span>
             </label>
           ) : null}
