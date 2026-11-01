@@ -1,9 +1,11 @@
-// El hilo del caso: mensajes, notas internas (solo Bambú), mensajes del
-// sistema y adjuntos. Las fotos se reducen en el navegador antes de subirlas y
-// se ven al momento, atenuadas mientras suben.
+// El hilo del caso, como una conversación: el veterinario a la izquierda,
+// Bambú a la derecha (las notas internas, solo Bambú, en otro color) y los
+// mensajes del sistema en el centro. Los ficheros se preparan junto al texto y
+// salen con «Envia», pegados al mensaje; las fotos se reducen en el navegador
+// antes de subirlas y se ven al momento, atenuadas mientras suben.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { FileText, Lock, Paperclip, Send, Trash2 } from 'lucide-react';
+import { FileText, Lock, Paperclip, Send, Trash2, X } from 'lucide-react';
 import { api, mensajeDe } from '../../api.ts';
 import { haceCuanto, t } from '../../i18n/index.ts';
 import { useSesion } from '../../sesion.tsx';
@@ -28,6 +30,13 @@ interface Mensaje {
   informe_id: number | null;
 }
 
+/** Un fichero elegido que todavía no ha salido (se ve en el compositor). */
+interface Preparado {
+  clave: string;
+  fichero: File;
+  vista: string | null;
+}
+
 interface Subida {
   clave: string;
   nombre: string;
@@ -37,6 +46,8 @@ interface Subida {
 const ACEPTADOS = '.pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xlsx,.zip,image/*,application/pdf';
 const REDUCIR_DESDE = 1.5 * 1024 * 1024;
 const MINUTOS_RETIRAR = 15;
+/** Mensajes seguidos de la misma persona en este margen se pintan juntos. */
+const JUNTOS_MS = 5 * 60_000;
 
 /** Una foto grande se reduce a 1600 px en JPEG; si algo falla, va el original. */
 async function reducir(fichero: File): Promise<{ datos: Blob; nombre: string }> {
@@ -59,12 +70,16 @@ async function reducir(fichero: File): Promise<{ datos: Blob; nombre: string }> 
 const tamano = (bytes: number | null) =>
   bytes === null ? '' : bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB` : `${Math.ceil(bytes / 1024)} KB`;
 
+/** De qué lado va: Bambú (y sus notas internas) a la derecha, el veterinario a la izquierda. */
+const deBambu = (m: Mensaje) => m.autor_bambu === true || m.visibilidad === 'bambu';
+
 export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }) {
   const { usuario } = useSesion();
   const bambu = usuario?.rol === 'bambu' || usuario?.rol === 'superadmin';
   const [mensajes, setMensajes] = useState<Mensaje[] | null>(null);
   const [texto, setTexto] = useState('');
   const [interna, setInterna] = useState(false);
+  const [preparados, setPreparados] = useState<Preparado[]>([]);
   const [subidas, setSubidas] = useState<Subida[]>([]);
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -90,43 +105,57 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
     final.current?.scrollIntoView({ block: 'nearest' });
   }, [mensajes?.length, subidas.length]);
 
+  function preparar(ficheros: FileList | null) {
+    if (!ficheros) return;
+    const nuevos = Array.from(ficheros).map((fichero) => ({
+      clave: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${fichero.name}`,
+      fichero,
+      vista: fichero.type.startsWith('image/') ? URL.createObjectURL(fichero) : null,
+    }));
+    setPreparados((p) => [...p, ...nuevos]);
+    if (selector.current) selector.current.value = '';
+  }
+
+  function quitar(clave: string) {
+    setPreparados((p) => {
+      const fuera = p.find((x) => x.clave === clave);
+      if (fuera?.vista) URL.revokeObjectURL(fuera.vista);
+      return p.filter((x) => x.clave !== clave);
+    });
+  }
+
+  // El texto (si lo hay) y después cada fichero preparado, en ese orden, como
+  // nota interna o no según la casilla en el momento de enviar.
   async function enviar() {
-    if (!texto.trim()) return;
+    if (!texto.trim() && preparados.length === 0) return;
     setEnviando(true);
     setError('');
+    const loteInterno = bambu && interna;
+    const lote = preparados;
     try {
-      await api.post(`/casos/${casoId}/mensajes`, { cuerpo: texto, interna: bambu && interna });
-      setTexto('');
+      if (texto.trim()) {
+        await api.post(`/casos/${casoId}/mensajes`, { cuerpo: texto, interna: loteInterno });
+        setTexto('');
+      }
+      setPreparados([]);
+      for (const p of lote) {
+        setSubidas((s) => [...s, { clave: p.clave, nombre: p.fichero.name, vista: p.vista }]);
+        try {
+          const { datos, nombre } = await reducir(p.fichero);
+          await api.subir(`/casos/${casoId}/adjuntos`, datos, 'fichero', { interna: String(loteInterno) }, nombre);
+        } catch (err) {
+          setError(t('hilo.errorSubida', { nombre: p.fichero.name, error: mensajeDe(err) }));
+        } finally {
+          setSubidas((s) => s.filter((x) => x.clave !== p.clave));
+          if (p.vista) URL.revokeObjectURL(p.vista);
+        }
+      }
       await cargar();
     } catch (err) {
       setError(mensajeDe(err));
     } finally {
       setEnviando(false);
     }
-  }
-
-  async function adjuntar(ficheros: FileList | null) {
-    if (!ficheros) return;
-    setError('');
-    // Se decide una vez para todo el lote: desmarcar la casilla a mitad no puede
-    // hacer públicos los ficheros que quedan.
-    const loteInterno = bambu && interna;
-    for (const fichero of Array.from(ficheros)) {
-      const clave = `${Date.now()}-${fichero.name}`;
-      const vista = fichero.type.startsWith('image/') ? URL.createObjectURL(fichero) : null;
-      setSubidas((s) => [...s, { clave, nombre: fichero.name, vista }]);
-      try {
-        const { datos, nombre } = await reducir(fichero);
-        await api.subir(`/casos/${casoId}/adjuntos`, datos, 'fichero', { interna: String(loteInterno) }, nombre);
-        await cargar();
-      } catch (err) {
-        setError(t('hilo.errorSubida', { nombre: fichero.name, error: mensajeDe(err) }));
-      } finally {
-        setSubidas((s) => s.filter((x) => x.clave !== clave));
-        if (vista) URL.revokeObjectURL(vista);
-      }
-    }
-    if (selector.current) selector.current.value = '';
   }
 
   async function retirar(m: Mensaje) {
@@ -142,27 +171,39 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
   const puedeRetirar = (m: Mensaje) => !m.adjunto_retirado && (bambu
     || (m.adjunto_subido_por === usuario?.id && Date.now() - new Date(m.creado).getTime() < MINUTOS_RETIRAR * 60_000));
 
+  /** Si sigue al anterior de la misma persona (sin cabecera, más pegado). */
+  const seguido = (m: Mensaje, i: number) => {
+    const antes = mensajes?.[i - 1];
+    return Boolean(antes && antes.tipo !== 'sistema' && m.tipo !== 'sistema' && antes.autor_id === m.autor_id
+      && antes.visibilidad === m.visibilidad && new Date(m.creado).getTime() - new Date(antes.creado).getTime() < JUNTOS_MS);
+  };
+
   if (borrador) return <Aviso tipo="info">{t('hilo.borrador')}</Aviso>;
   if (!mensajes) return error ? <Aviso tipo="error">{error}</Aviso> : <Cargando />;
   return (
     <section className="hilo">
       {mensajes.length === 0 && subidas.length === 0 ? <p className="texto-suave">{t('hilo.vacio')}</p> : null}
       <ol className="mensajes">
-        {mensajes.map((m) => m.tipo === 'sistema' ? (
+        {mensajes.map((m, i) => m.tipo === 'sistema' ? (
           <li key={m.id} className={`mensaje sistema${m.visibilidad === 'bambu' ? ' interna' : ''}`}>
             <span>{m.cuerpo}</span> <time>{haceCuanto(m.creado)}</time>
           </li>
         ) : (
-          <li key={m.id} className={`mensaje${m.visibilidad === 'bambu' ? ' interna' : ''}${m.autor_id === usuario?.id ? ' propio' : ''}`}>
-            <div className="cabecera-mensaje">
-              <strong>{m.autor ?? t('hilo.sistema')}</strong>
-              {m.visibilidad === 'bambu' ? <span className="chip atencion"><Lock size={12} aria-hidden /> {t('hilo.esNotaInterna')}</span> : null}
-              <time>{haceCuanto(m.creado)}</time>
-            </div>
+          <li
+            key={m.id}
+            className={`mensaje ${deBambu(m) ? 'de-bambu' : 'de-veterinario'}${m.visibilidad === 'bambu' ? ' interna' : ''}${seguido(m, i) ? ' seguido' : ''}`}
+          >
+            {seguido(m, i) ? null : (
+              <div className="cabecera-mensaje">
+                <strong>{m.autor ?? t('hilo.sistema')}</strong>
+                {m.visibilidad === 'bambu' ? <span className="chip atencion"><Lock size={12} aria-hidden /> {t('hilo.esNotaInterna')}</span> : null}
+                <time>{haceCuanto(m.creado)}</time>
+              </div>
+            )}
             {m.tipo === 'adjunto' ? (
               m.adjunto_retirado ? <p className="texto-tenue">{t('hilo.retirado')}: {m.adjunto_nombre}</p> : (
                 <div className="adjunto">
-                  <a href={`/api/adjuntos/${m.adjunto_id}/fichero`} target="_blank" rel="noopener" className="adjunto-enlace">
+                  <a href={`/api/adjuntos/${m.adjunto_id}/fichero`} target="_blank" rel="noopener" className="adjunto-enlace" title={t('hilo.abrirAdjunto')}>
                     {m.adjunto_miniatura ? (
                       <img src={`/api/adjuntos/${m.adjunto_id}/miniatura`} alt={m.adjunto_nombre ?? ''} loading="lazy" />
                     ) : (
@@ -181,7 +222,7 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
                 </div>
               )
             ) : m.tipo === 'informe' && m.informe_id ? (
-              <Link to={`${bambu ? '/b' : '/d'}/casos/${casoId}/informes/${m.informe_id}`} className="adjunto-enlace">
+              <Link to={`${bambu ? '/b' : '/d'}/casos/${casoId}/informes/${m.informe_id}`} className="adjunto-enlace tarjeta-informe">
                 <span className="adjunto-icono"><FileText size={22} aria-hidden /></span>
                 <span><b>{m.cuerpo}</b><small>{t('informes.ver')}</small></span>
               </Link>
@@ -189,7 +230,7 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
           </li>
         ))}
         {subidas.map((s) => (
-          <li key={s.clave} className="mensaje propio subiendo" aria-busy="true">
+          <li key={s.clave} className={`mensaje ${bambu ? 'de-bambu' : 'de-veterinario'} subiendo`} aria-busy="true">
             <div className="cabecera-mensaje"><strong>{t('hilo.subiendo')}</strong></div>
             <div className="adjunto">
               <span className="adjunto-enlace">
@@ -216,18 +257,31 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
             }}
           />
         </label>
+        {preparados.length > 0 ? (
+          <ul className="preparados" aria-label={t('hilo.preparados')}>
+            {preparados.map((p) => (
+              <li key={p.clave}>
+                {p.vista ? <img src={p.vista} alt="" /> : <FileText size={18} aria-hidden />}
+                <span>{p.fichero.name}</span>
+                <button type="button" className="boton-icono" aria-label={t('hilo.quitarAdjunto', { nombre: p.fichero.name })} onClick={() => quitar(p.clave)}>
+                  <X size={16} aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         <div className="acciones">
           <button type="button" className="boton-secundario" onClick={() => selector.current?.click()} title={t('hilo.adjuntarAyuda')}>
             <Paperclip size={18} aria-hidden /> {t('hilo.adjuntar')}
           </button>
-          <input ref={selector} type="file" multiple accept={ACEPTADOS} hidden onChange={(e) => void adjuntar(e.target.files)} />
+          <input ref={selector} type="file" multiple accept={ACEPTADOS} hidden onChange={(e) => preparar(e.target.files)} />
           {bambu ? (
             <label className="casilla">
-              <input type="checkbox" checked={interna} disabled={subidas.length > 0} onChange={(e) => setInterna(e.target.checked)} />
+              <input type="checkbox" checked={interna} disabled={enviando} onChange={(e) => setInterna(e.target.checked)} />
               <span><Lock size={14} aria-hidden /> {t('hilo.notaInterna')}</span>
             </label>
           ) : null}
-          <button type="button" className="boton" disabled={enviando || !texto.trim()} onClick={() => void enviar()}>
+          <button type="button" className="boton" disabled={enviando || (!texto.trim() && preparados.length === 0)} onClick={() => void enviar()}>
             <Send size={18} aria-hidden /> {t('hilo.enviar')}
           </button>
         </div>

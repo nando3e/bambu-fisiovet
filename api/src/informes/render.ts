@@ -14,6 +14,8 @@ const lista = (titulo: string, elementos: string[]) =>
 const parrafo = (titulo: string, texto: string | null) => (texto && texto.trim() ? [titulo, texto.trim(), ''] : []);
 
 export function renderInforme(tipo: TipoInforme, d: DatosInforme): string {
+  // Si el fisio lo ha escrito todo junto, ese texto es el informe.
+  if (d.texto_libre && d.texto_libre.trim()) return [TITULO_INFORME[tipo], '', d.texto_libre.trim()].join('\n');
   return [
     TITULO_INFORME[tipo],
     '',

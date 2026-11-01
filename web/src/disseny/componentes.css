@@ -1092,21 +1092,39 @@ button.chip {
   display: grid;
   gap: 10px;
 }
+/* Conversación: el veterinario a la izquierda (blanco), Bambú a la derecha
+   (verde) y sus notas internas a la derecha (amarillo). */
 .mensaje {
-  max-width: min(640px, 92%);
-  padding: 12px 14px;
+  max-width: min(560px, 85%);
+  padding: 10px 14px;
   border-radius: var(--radio-medio);
   background: var(--superficie);
   border: 1px solid var(--linea);
 }
-.mensaje.propio {
+.mensaje.de-veterinario {
+  justify-self: start;
+  border-bottom-left-radius: 6px;
+}
+.mensaje.de-bambu {
   justify-self: end;
   background: var(--hoja);
   border-color: transparent;
+  border-bottom-right-radius: 6px;
 }
-.mensaje.interna {
+.mensaje.de-bambu.interna {
   background: var(--aviso-fondo);
   border: 1px dashed var(--linea-fuerte);
+}
+.mensaje.seguido {
+  margin-top: -6px;
+}
+.mensaje.de-bambu .cabecera-mensaje {
+  justify-content: flex-end;
+}
+.tarjeta-informe {
+  padding: 8px;
+  border-radius: var(--radio-control);
+  background: var(--superficie);
 }
 .mensaje.sistema {
   justify-self: center;
@@ -1193,6 +1211,147 @@ button.chip {
 .compositor .acciones {
   align-items: center;
   flex-wrap: wrap;
+}
+.preparados {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.preparados li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 4px 4px 4px 8px;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-control);
+  background: var(--superficie-2);
+  font-size: 0.85rem;
+}
+.preparados img {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.preparados span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
+/* ---------- Línea temporal del caso ---------- */
+.linea-temporal {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: flex;
+}
+.linea-temporal li {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  font-size: 0.85rem;
+}
+/* La raya hacia el paso siguiente: verde si ese paso ya está hecho. */
+.linea-temporal li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 11px;
+  left: calc(50% + 14px);
+  width: calc(100% - 28px);
+  height: 2px;
+  background: var(--linea-fuerte);
+}
+.linea-temporal li:has(+ li.hecho)::after,
+.linea-temporal li:has(+ li.rechazada)::after,
+.linea-temporal li:has(+ li.cerrada)::after {
+  background: var(--verde-oscuro);
+}
+.linea-temporal .circulo {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--linea-fuerte);
+  background: var(--superficie);
+  display: grid;
+  place-items: center;
+  color: var(--sobre-verde);
+}
+.linea-temporal .hecho .circulo {
+  background: var(--verde-oscuro);
+  border-color: var(--verde-oscuro);
+}
+.linea-temporal .siguiente .circulo {
+  border: 3px solid var(--verde-oscuro);
+}
+.linea-temporal .siguiente.atencion .circulo {
+  border-color: var(--alerta);
+}
+.linea-temporal .rechazada .circulo {
+  background: var(--alerta);
+  border-color: var(--alerta);
+}
+.linea-temporal .cerrada .circulo {
+  background: var(--texto-suave);
+  border-color: var(--texto-suave);
+}
+.linea-temporal .texto-paso {
+  display: grid;
+  gap: 2px;
+}
+.linea-temporal strong {
+  font-weight: 600;
+}
+.linea-temporal .pendiente strong {
+  color: var(--texto-suave);
+  font-weight: 500;
+}
+.linea-temporal small {
+  color: var(--texto-suave);
+}
+.linea-temporal .siguiente-paso {
+  color: var(--verde-oscuro);
+  font-weight: 600;
+}
+.linea-temporal .encallada {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  color: var(--alerta);
+  font-weight: 600;
+}
+@media (max-width: 599px) {
+  .linea-temporal {
+    flex-direction: column;
+  }
+  .linea-temporal li {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 12px;
+    padding-bottom: 14px;
+    text-align: left;
+  }
+  .linea-temporal li:not(:last-child)::after {
+    top: 26px;
+    left: 11px;
+    width: 2px;
+    height: calc(100% - 28px);
+  }
+  .linea-temporal .encallada {
+    justify-content: flex-start;
+  }
 }
 
 /* ---------- Informes (change 4) ---------- */

@@ -22,6 +22,7 @@ const VALIDO: DatosInforme = {
   recomendaciones_veterinario: ['Control radiogràfic en un mes'],
   proxima_revision: null,
   dudas: ['Quantes sessions setmanals se li fan?'],
+  texto_libre: null,
   estado_al_alta: null,
   pautas_domicilio: null,
 };
@@ -117,6 +118,8 @@ test('contrato con el modelo: esquema estricto igual al zod, render determinista
   assert.ok(a.startsWith('Informe d’evolució') && !a.includes('Quantes sessions'));
   assert.match(renderInforme('alta', { ...VALIDO, estado_al_alta: 'Camina sense coixesa' }), /Estat a l’alta\nCamina sense coixesa/);
   assert.ok(!renderInforme('evolucion', { ...VALIDO, estado_al_alta: 'x' }).includes('Estat a l’alta'));
+  // Escrito todo junto por el fisio: ese texto es el informe, sin secciones ni dudas.
+  assert.equal(renderInforme('evolucion', { ...VALIDO, texto_libre: '  Resum lliure.\n\nPla: dues sessions.  ' }), 'Informe d’evolució\n\nResum lliure.\n\nPla: dues sessions.');
 
   const vet = await veterinarioVerificado(s, { nombre: 'Ramon', clinica: 'Clínica Secreta Montgó' });
   const c = await casoAceptado(vet);
@@ -205,6 +208,8 @@ test('proponer: pendiente con sus dudas; lo inválido o rechazado no guarda; edi
   // Editar: la original queda corregida y nace otra pendiente.
   const editada = (await pedir(s.app, 'POST', `/api/propuestas-informe/${p.id}/edita`, { cookie: fisio.cookie, cuerpo: { datos: { ...VALIDO, plan: 'Tres sessions setmanals' } } })).cuerpo;
   assert.deepEqual([editada.estado, editada.origen, editada.datos.plan, (await propuesta(p.id)).estado], ['pendiente', 'edicion', 'Tres sessions setmanals', 'corregida']);
+  // Una propuesta sin texto libre (de antes, o del modelo) lo recibe en null.
+  assert.equal(editada.datos.texto_libre, null);
   assert.equal((await pedir(s.app, 'POST', `/api/propuestas-informe/${p.id}/edita`, { cookie: fisio.cookie, cuerpo: { datos: VALIDO } })).estado, 409);
   // Regenerar: si el modelo falla, sigue pendiente; si va, queda cancelada y enlazada, con las instrucciones al modelo.
   respuestaRedactor = async () => { throw new ErrorModelo('servicio', 'caigut'); };

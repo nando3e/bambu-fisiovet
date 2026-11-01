@@ -7,14 +7,15 @@ import {
   AlertTriangle, ArrowLeft, CalendarCheck, Check, History, Pencil, PhoneCall, UserRoundCog, X,
 } from 'lucide-react';
 import { api, ErrorApi, mensajeDe } from '../../api.ts';
-import { fecha, haceCuanto, t, type ClaveTexto } from '../../i18n/index.ts';
+import { fecha, t, type ClaveTexto } from '../../i18n/index.ts';
 import { accionesBambu, CERRADOS, EDITABLE_POR_DERIVADOR, type AccionCaso } from '../../estados.ts';
 import { Aviso, Campo, CampoSelector, CampoTexto, Cargando, TituloPagina } from '../../componentes/comunes.tsx';
 import { avisarCambioNotificaciones } from '../../componentes/Notificaciones.tsx';
 import { CamposDerivacion, CamposPaciente, CamposPropietario, pacienteParaApi } from './Formularios.tsx';
 import { Hilo } from './Hilo.tsx';
+import { LineaTemporal } from './LineaTemporal.tsx';
 import { Informes } from './Informes.tsx';
-import { ChipEstado, fechaCorta, nombreEspecie, nombreEstado, type Ficha } from './comun.tsx';
+import { ChipEstado, fechaCorta, nombreEspecie, type Ficha } from './comun.tsx';
 
 type Errores = Record<string, string>;
 interface Fisio { id: number; nombre: string; apellidos: string; activo: boolean; estado: string }
@@ -77,6 +78,7 @@ export function FichaCaso({ zona }: { zona: '/d' | '/b' }) {
       ) : null}
 
       <section className="tarjeta">
+        <LineaTemporal ficha={ficha} deriva={deriva} />
         <dl className="datos">
           <Dato etiqueta={t('caso.clinica')} valor={ficha.clinica.nombre} />
           {veterinario ? <Dato etiqueta={t('caso.veterinario')} valor={veterinario} /> : null}
@@ -84,16 +86,6 @@ export function FichaCaso({ zona }: { zona: '/d' | '/b' }) {
             <Dato etiqueta={<PhoneCall size={14} aria-hidden />} valor={t('caso.registradaPor', { nombre: ficha.registrado_por.nombre })} />
           ) : null}
           <Dato etiqueta={t('caso.fisio')} valor={ficha.fisio?.nombre ?? t('caso.sinFisio')} />
-          {ficha.enviado_el ? <Dato etiqueta={t('caso.enviada')} valor={fecha(ficha.enviado_el)} /> : null}
-          {ficha.vista_el ? (
-            <Dato
-              etiqueta={deriva ? t('caso.vista') : t('caso.vistaPor', { nombre: ficha.vista_por ?? '' })}
-              valor={haceCuanto(ficha.vista_el)}
-            />
-          ) : null}
-          {ficha.resuelto_el && ficha.estado !== 'rechazada' ? <Dato etiqueta={t('caso.aceptada')} valor={fecha(ficha.resuelto_el)} /> : null}
-          {ficha.primera_visita ? <Dato etiqueta={t('caso.primeraVisita')} valor={fechaCorta(ficha.primera_visita)} /> : null}
-          {ficha.cerrado_el ? <Dato etiqueta={nombreEstado(ficha.estado, deriva)} valor={fecha(ficha.cerrado_el)} /> : null}
           {ficha.motivo_cierre ? <Dato etiqueta={t('caso.motivoCierre')} valor={ficha.motivo_cierre} /> : null}
           <Dato
             etiqueta={t('caso.consentimiento')}

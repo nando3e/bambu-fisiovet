@@ -69,6 +69,10 @@ quién lo hace. El diagrama 2, al final, lo dibuja.
   derivación. Después, lo que quiera añadir lo escribe en el hilo.
 - **Cada cambio de estado avisa al veterinario** y queda apuntado en el hilo
   del caso y en su historial.
+- **En la ficha del caso, arriba, se ve como una línea temporal**: círculo
+  lleno en los pasos hechos (con su fecha), círculo vacío y marcado en el
+  siguiente paso, y gris lo que falta. Si acaba rechazada o cerrada, el último
+  círculo sale en rojo o en gris.
 
 ---
 
@@ -148,8 +152,11 @@ aviso:
 
 ### Paso 5. Durante el tratamiento
 
-- **El hilo del caso** es para hablar con Bambú. Puede escribir y adjuntar
-  documentos (analíticas, radiografías).
+- **El hilo del caso** es para hablar con Bambú, como un chat: sus mensajes a
+  la izquierda (en blanco) y los de Bambú a la derecha (en verde). Para
+  adjuntar documentos (analíticas, radiografías), «Adjunta un fitxer»: quedan
+  preparados junto al texto y salen con «Envia», pegados al mensaje. Las
+  fotos se ven en el hilo; cualquier adjunto se abre al pulsarlo.
 - **Los informes** que publica Bambú le llegan al hilo y a la campana, y los
   puede imprimir.
 - Los avisos le llegan a la campana y, si no lo ha apagado, también por
@@ -250,15 +257,22 @@ El círculo con la «i» de la lista lo recuerda, con las marcas dibujadas.
 
 ### Durante el tratamiento
 
-- **El hilo**: lo que se escribe lo ve el veterinario. Las **notas
-  internas** solo las ve Bambú.
-- **Documentos**: se adjuntan al hilo. Los de una nota interna, solo para
-  Bambú.
-- **Informes** (valoración, evolución, alta):
-  1. «Nou informe»: se dicta con el micrófono (si hay claves de IA) o se
-     escribe a mano.
-  2. Sale una **propuesta**: se revisa y se corrige.
-  3. **«Confirma»**: se publica en el hilo y le llega al veterinario.
+- **El hilo**, como un chat: el veterinario a la izquierda (blanco), Bambú a
+  la derecha (verde). Lo que se escribe lo ve el veterinario. Las **notas
+  internas** (casilla «Nota interna») van a la derecha en amarillo y solo las
+  ve Bambú.
+- **Documentos**: «Adjunta un fitxer», se preparan junto al texto y salen con
+  «Envia». Los de una nota interna, solo para Bambú. Las fotos se ven en el
+  hilo y cualquier adjunto se abre al pulsarlo.
+- **Informes** (valoración, evolución, alta), en la pestaña «Informes»:
+  1. **«Genera un informe»**: se elige el tipo y se dicta con el micrófono (si
+     hay claves de IA) o se escribe a mano.
+  2. Sale una **propuesta**. Con «Edita» se escribe **todo junto en un solo
+     texto**, a criterio del fisio; las dudas de la IA se ven encima como
+     recordatorio pero no entran en el informe.
+  3. **«Confirma»**: se publica y **se añade solo al hilo** como un mensaje de
+     Bambú con la tarjeta del informe (para abrirlo e imprimirlo). Al
+     veterinario le llega el aviso. También queda en la pestaña «Informes».
   - **Un informe nunca sale sin confirmar.** Corregir uno ya publicado es
     publicar otro que lo sustituye.
 - **Fisio responsable**: es quien lleva el caso, pero los avisos (mensajes,

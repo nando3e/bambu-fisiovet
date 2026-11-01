@@ -25,10 +25,9 @@ interface DatosInforme {
   dudas: string[];
   estado_al_alta: string | null;
   pautas_domicilio: string | null;
+  /** Lo que escribe el fisio al editar, todo junto: si está, es el informe. */
+  texto_libre?: string | null;
 }
-const LISTAS = ['hallazgos', 'tratamiento_realizado', 'recomendaciones_veterinario', 'dudas'] as const;
-const TEXTOS = ['resumen', 'evolucion', 'plan'] as const;
-const OPCIONALES = ['proxima_revision', 'estado_al_alta', 'pautas_domicilio'] as const;
 const ORDEN: (keyof DatosInforme)[] = [
   'resumen', 'hallazgos', 'tratamiento_realizado', 'evolucion', 'plan', 'recomendaciones_veterinario',
   'proxima_revision', 'estado_al_alta', 'pautas_domicilio',
@@ -63,11 +62,26 @@ const seccion = (k: keyof DatosInforme) => t(`informes.seccion.${k}` as ClaveTex
 const mensajeError = (err: unknown) =>
   err instanceof ErrorApi && err.campos ? Object.values(err.campos).join(' ') : mensajeDe(err);
 
-/** Las secciones de un informe, sin las dudas (son para el fisio). */
+const seccionesDe = (tipo: TipoInforme) =>
+  ORDEN.filter((k) => tipo === 'alta' || (k !== 'estado_al_alta' && k !== 'pautas_domicilio'));
+
+/** El informe por secciones pasado a un solo texto, para editarlo todo junto. Sin las dudas. */
+function textoDeSecciones(tipo: TipoInforme, datos: DatosInforme): string {
+  return seccionesDe(tipo).flatMap((k) => {
+    const v = datos[k];
+    if (v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0)) return [];
+    return [seccion(k), ...(Array.isArray(v) ? v.map((x) => `- ${x}`) : [String(v)]), ''];
+  }).join('\n').trim();
+}
+
+/** El informe: el texto del fisio si lo escribió todo junto; si no, sus secciones. Sin las dudas. */
 function Secciones({ tipo, datos }: { tipo: TipoInforme; datos: DatosInforme }) {
+  if (datos.texto_libre && datos.texto_libre.trim()) {
+    return <div className="informe-secciones"><p className="texto-largo">{datos.texto_libre}</p></div>;
+  }
   return (
     <div className="informe-secciones">
-      {ORDEN.filter((k) => tipo === 'alta' || (k !== 'estado_al_alta' && k !== 'pautas_domicilio')).map((k) => {
+      {seccionesDe(tipo).map((k) => {
         const v = datos[k];
         if (v === null || v === '' || (Array.isArray(v) && v.length === 0)) return null;
         return (
@@ -375,6 +389,9 @@ function PropuestaVista({ propuesta, puedeRegenerar, alSustituir, alCerrar }: {
   );
 }
 
+// Editar es escribir el informe entero en un solo texto, a criterio del fisio:
+// lo que guarde es lo que se publica. Las dudas de la IA se ven encima como
+// recordatorio, pero no entran en el informe.
 function EditorInforme({ tipo, datos, alGuardar, alCancelar, error }: {
   tipo: TipoInforme;
   datos: DatosInforme;
@@ -382,28 +399,21 @@ function EditorInforme({ tipo, datos, alGuardar, alCancelar, error }: {
   alCancelar: () => void;
   error: string;
 }) {
-  const [d, setD] = useState(datos);
-  const [listas, setListas] = useState(() => Object.fromEntries(LISTAS.map((k) => [k, datos[k].join('\n')])) as Record<(typeof LISTAS)[number], string>);
-  const guardar = () => alGuardar({
-    ...d,
-    ...Object.fromEntries(LISTAS.map((k) => [k, listas[k].split('\n').map((x) => x.trim()).filter(Boolean)])),
-  } as DatosInforme);
+  const [texto, setTexto] = useState(() => datos.texto_libre?.trim() || textoDeSecciones(tipo, datos));
+  const guardar = () => alGuardar({ ...datos, texto_libre: texto.trim() || null });
   return (
     <section className="tarjeta">
       <h2>{t('informes.editar')} · {titulo(tipo)}</h2>
       {error ? <Aviso tipo="error">{error}</Aviso> : null}
+      {datos.dudas.length ? (
+        <div className="dudas">
+          <strong><AlertTriangle size={16} aria-hidden /> {t('informes.dudas')}</strong>
+          <ul>{datos.dudas.map((x, i) => <li key={i}>{x}</li>)}</ul>
+        </div>
+      ) : null}
       <div className="formulario">
-        {TEXTOS.map((k) => (
-          <CampoTexto key={k} etiqueta={seccion(k)} rows={k === 'resumen' ? 3 : 4} value={d[k]} onChange={(e) => setD({ ...d, [k]: e.target.value })} />
-        ))}
-        {LISTAS.map((k) => (
-          <CampoTexto key={k} etiqueta={seccion(k)} ayuda={t('informes.unoPorLinea')} rows={4} value={listas[k]}
-            onChange={(e) => setListas({ ...listas, [k]: e.target.value })} />
-        ))}
-        {OPCIONALES.filter((k) => tipo === 'alta' || k === 'proxima_revision').map((k) => (
-          <CampoTexto key={k} etiqueta={seccion(k)} rows={2} value={d[k] ?? ''}
-            onChange={(e) => setD({ ...d, [k]: e.target.value.trim() ? e.target.value : null })} />
-        ))}
+        <CampoTexto etiqueta={t('informes.textoInforme')} ayuda={t('informes.textoInformeAyuda')} rows={18} value={texto}
+          onChange={(e) => setTexto(e.target.value)} />
       </div>
       <div className="acciones">
         <button type="button" className="boton" onClick={guardar}><Check size={18} aria-hidden /> {t('caso.guardar')}</button>

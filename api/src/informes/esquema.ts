@@ -22,6 +22,12 @@ export const esquemaInforme = z.object({
   dudas: lista,
   estado_al_alta: opcional,
   pautas_domicilio: opcional,
+  /**
+   * Lo que escribe el fisio al editar, todo junto y a su criterio. Si está, ese
+   * texto es el informe y las secciones quedan solo de referencia. El modelo
+   * siempre lo deja en null.
+   */
+  texto_libre: z.string().trim().max(20000).nullable().default(null),
 });
 export type DatosInforme = z.infer<typeof esquemaInforme>;
 
@@ -44,6 +50,7 @@ export const ESQUEMA_JSON: Record<string, unknown> = {
     dudas: { ...listaJson, description: 'El que les notes no deixen clar i caldria confirmar. Mai no s’inventa.' },
     estado_al_alta: { ...nulable, description: 'Només en l’informe d’alta: estat del pacient. Si no, null.' },
     pautas_domicilio: { ...nulable, description: 'Només en l’informe d’alta: pautes per a casa. Si no, null.' },
+    texto_libre: { ...nulable, description: 'Sempre null: és el text que escriu el fisio quan edita.' },
   },
   required: Object.keys(esquemaInforme.shape),
 };
@@ -53,5 +60,6 @@ export function informeVacio(): DatosInforme {
   return {
     resumen: '', hallazgos: [], tratamiento_realizado: [], evolucion: '', plan: '',
     recomendaciones_veterinario: [], proxima_revision: null, dudas: [], estado_al_alta: null, pautas_domicilio: null,
+    texto_libre: null,
   };
 }
