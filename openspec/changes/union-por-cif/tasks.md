@@ -38,4 +38,4 @@ y viendo el test en rojo. Toda ruta nueva con su test de ámbito y de rol.
 - [x] 3.2 Revisor (Sol) sobre el diff; lo descartado, justificado en
       `revision.md`. De la revisión salen D8 (Bambú no registra derivaciones)
       y D9 (freno por destinatario).
-- [ ] 3.3 Desplegar y archivar.
+- [x] 3.3 Desplegar y archivar.

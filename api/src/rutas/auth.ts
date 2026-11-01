@@ -60,6 +60,9 @@ const ENLACE_INVALIDO = "Aquest enllaç ja s'ha fet servir o ha caducat";
  */
 const PLANTILLAS_DE_CUENTA = ['verificacion', 'recuperacion', 'alta-existente', 'clinica-existente'];
 async function frenoPorDestinatario(bd: Consultable, email: string): Promise<boolean> {
+  // Un candado por dirección hasta el final de la transacción: dos peticiones
+  // a la vez para el mismo correo no pueden contar las dos «menos de tres».
+  await bd.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['correo-cuenta:' + email]);
   const { rows } = await bd.query<{ n: number }>(
     `SELECT count(*)::int AS n FROM correos_pendientes
      WHERE lower(destinatario) = $1 AND plantilla = ANY($2) AND creado > now() - interval '1 hour'`,

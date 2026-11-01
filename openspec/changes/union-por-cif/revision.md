@@ -45,3 +45,15 @@ reabre si aparecen invitaciones en masa en la traza.
 Tokens antiguos con `union_clinica_id` ignorados; solicitudes pendientes
 rechazadas por la migración; cálculo de CIF, DNI y NIE correcto; respuesta
 del alta idéntica en código y cuerpo.
+
+## Segunda pasada (Sol, sobre c6196ca)
+
+Sin hallazgos graves: la apropiación del CIF y el acceso posterior quedan
+cerrados (el `FOR UPDATE` evita la carrera con la confirmación; los usuarios
+retirados se quedan en una clínica inactiva y vacía; no queda ninguna ruta ni
+pantalla del registro telefónico).
+
+**MEDIO — el freno por destinatario admitía peticiones simultáneas.**
+Arreglado con un candado de transacción por dirección
+(`pg_advisory_xact_lock`). El test lanza cinco altas a la vez y espera tres
+correos: con el candado pasa siempre, sin él falla.

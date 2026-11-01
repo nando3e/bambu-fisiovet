@@ -98,9 +98,9 @@ test('alta con CIF: todo obligatorio y con su control; con el CIF de una clínic
   assert.deepEqual([await usuarios(tercero), await correos(tercero, 'clinica-existente')], [0, 1]);
   assert.equal((await s.pool.query('SELECT activa FROM clinicas WHERE id = $1', [clinicaConCaso])).rows[0].activa, true);
 
-  // Freno por destinatario: como mucho tres correos de cuenta por hora a una dirección.
+  // Freno por destinatario: como mucho tres correos de cuenta por hora a una dirección, también a la vez.
   const acosada = correoUnico();
-  for (let i = 0; i < 5; i++) await alta(datosAlta(acosada, { cif }));
+  await Promise.all(Array.from({ length: 5 }, () => alta(datosAlta(acosada, { cif }))));
   await pedir(s.app, 'POST', '/api/auth/recupera', { cuerpo: { email: acosada } });
   assert.equal(await correos(acosada), 3);
 

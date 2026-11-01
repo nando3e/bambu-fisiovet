@@ -249,10 +249,11 @@
 /* Cómo funciona */
 .web-pasos-cta {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
-  gap: 12px 20px;
-  margin-top: 28px;
+  gap: 12px;
+  margin-top: 32px;
+  text-align: center;
 }
 .web-pasos-cta p {
   margin: 0;
