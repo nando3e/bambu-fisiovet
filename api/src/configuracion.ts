@@ -45,6 +45,8 @@ export const ESQUEMAS = {
   avisos: z.object({
     correo_centro: correoOpcional,
     dias_sin_noticias: z.coerce.number().int().min(1).max(60).default(7),
+    // Días que una derivación puede estar aceptada sin cita antes de avisar.
+    dias_pendiente_cita: z.coerce.number().int().min(1).max(60).default(3),
   }),
   retencion: z.object({
     audio_dias: z.coerce.number().int().min(1).max(365).default(30),

@@ -1,14 +1,14 @@
-// Configuració: Equip, Contacte web, Avisos, Servidor de correu (solo
-// superadmin) y Retenció. Cada pestaña es una ruta: los avisos enlazan aquí.
+// Configuració: Equip, Contacte web, Avisos, Textos legals, Servidor de correu
+// (solo superadmin) y Retenció. Cada pestaña es una ruta: los avisos enlazan aquí.
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Navigate, NavLink, Route, Routes } from 'react-router';
 import {
-  Archive, Bell, Globe, Image, Mail, RotateCcw, Send, Server, Upload, Users, UserPlus,
+  Archive, Bell, FileText, Globe, Image, Mail, RotateCcw, Send, Server, Upload, Users, UserPlus,
 } from 'lucide-react';
 import { api, ErrorApi, mensajeDe } from '../../../api.ts';
 import { fecha, t, type ClaveTexto } from '../../../i18n/index.ts';
 import { useSesion } from '../../../sesion.tsx';
-import { Aviso, Campo, CampoSelector, Cargando, Interruptor, TituloPagina } from '../../../componentes/comunes.tsx';
+import { Aviso, Campo, CampoSelector, CampoTexto, Cargando, Interruptor, TituloPagina } from '../../../componentes/comunes.tsx';
 
 export function Configuracion() {
   const { usuario } = useSesion();
@@ -18,6 +18,7 @@ export function Configuracion() {
     { a: '/b/configuracio/contacte', texto: t('config.contacto'), icono: Globe },
     { a: '/b/configuracio/imatges', texto: t('config.imagenes'), icono: Image },
     { a: '/b/configuracio/avisos', texto: t('config.avisos'), icono: Bell },
+    { a: '/b/configuracio/textos', texto: t('config.textos'), icono: FileText },
     ...(superadmin ? [{ a: '/b/configuracio/correu', texto: t('config.correo'), icono: Server }] : []),
     { a: '/b/configuracio/retencio', texto: t('config.retencion'), icono: Archive },
   ];
@@ -37,6 +38,7 @@ export function Configuracion() {
         <Route path="contacte" element={<ContactoWeb />} />
         <Route path="imatges" element={<ImagenesWeb />} />
         <Route path="avisos" element={<Avisos />} />
+        <Route path="textos" element={<TextosLegales />} />
         {superadmin ? <Route path="correu" element={<ServidorCorreo />} /> : null}
         <Route path="retencio" element={<Retencion />} />
         <Route path="*" element={<Navigate to="/b/configuracio/equip" replace />} />
@@ -314,6 +316,7 @@ interface FilaMatriz {
 interface DatosAvisos {
   correo_centro: string;
   dias_sin_noticias: number;
+  dias_pendiente_cita: number;
   dry_run: boolean;
   smtp_configurado: boolean;
   matriz: FilaMatriz[];
@@ -334,7 +337,7 @@ function Avisos() {
   const [d, setD] = useState<DatosAvisos | null>(null);
   const [cola, setCola] = useState<CorreoCola[]>([]);
   const [estado, setEstado] = useState<Estado>({});
-  const [centro, setCentro] = useState({ correo_centro: '', dias_sin_noticias: 7 });
+  const [centro, setCentro] = useState({ correo_centro: '', dias_sin_noticias: 7, dias_pendiente_cita: 3 });
 
   const cargar = useCallback(async () => {
     const [a, c] = await Promise.all([
@@ -342,7 +345,9 @@ function Avisos() {
       api.get<{ correos: CorreoCola[] }>('/configuracion/avisos/cola'),
     ]);
     setD(a);
-    setCentro({ correo_centro: a.correo_centro, dias_sin_noticias: a.dias_sin_noticias });
+    setCentro({
+      correo_centro: a.correo_centro, dias_sin_noticias: a.dias_sin_noticias, dias_pendiente_cita: a.dias_pendiente_cita,
+    });
     setCola(c.correos);
   }, []);
   useEffect(() => {
@@ -401,13 +406,14 @@ function Avisos() {
             error={estado.campos?.correo_centro}
           />
           <Campo
-            etiqueta={t('avisos.diasSinNoticias')}
+            etiqueta={t('avisos.diasPendienteCita')}
             type="number"
             min={1}
             max={60}
-            value={centro.dias_sin_noticias}
-            onChange={(e) => setCentro({ ...centro, dias_sin_noticias: Number(e.target.value) })}
-            ayuda={t('avisos.diasSinNoticiasAyuda')}
+            value={centro.dias_pendiente_cita}
+            onChange={(e) => setCentro({ ...centro, dias_pendiente_cita: Number(e.target.value) })}
+            error={estado.campos?.dias_pendiente_cita}
+            ayuda={t('avisos.diasPendienteCitaAyuda')}
           />
           <div className="entero acciones">
             <button type="submit" className="boton">{t('comun.guardar')}</button>
@@ -631,6 +637,54 @@ function ServidorCorreo() {
         </form>
       </section>
     </>
+  );
+}
+
+// ---------- Textos legals ----------
+
+function TextosLegales() {
+  const [consentimiento, setConsentimiento] = useState<{ texto: string; version: number } | null>(null);
+  const [estado, setEstado] = useState<Estado>({});
+  const cargar = useCallback(async () => {
+    const r = await api.get<{ consentimiento: { texto: string; version: number } }>('/configuracion');
+    setConsentimiento(r.consentimiento);
+  }, []);
+  useEffect(() => {
+    cargar().catch((err) => setEstado(errorEn(err)));
+  }, [cargar]);
+  if (!consentimiento) return estado.error ? <Aviso tipo="error">{estado.error}</Aviso> : <Cargando />;
+  return (
+    <section className="tarjeta">
+      <h2>{t('textos.consentimiento')}</h2>
+      <p className="ayuda">{t('textos.consentimientoAyuda')}</p>
+      <form
+        className="formulario"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setEstado({});
+          try {
+            await api.put('/configuracion/consentimiento', { texto: consentimiento.texto });
+            await cargar();
+            setEstado({ ok: t('textos.guardado') });
+          } catch (err) {
+            setEstado(errorEn(err));
+          }
+        }}
+      >
+        {estado.ok ? <Aviso>{estado.ok}</Aviso> : null}
+        {estado.error ? <Aviso tipo="error">{estado.error}</Aviso> : null}
+        <CampoTexto
+          etiqueta={t('textos.version', { n: consentimiento.version })}
+          rows={8}
+          value={consentimiento.texto}
+          error={estado.campos?.texto}
+          onChange={(e) => setConsentimiento({ ...consentimiento, texto: e.target.value })}
+        />
+        <div className="acciones">
+          <button type="submit" className="boton">{t('comun.guardar')}</button>
+        </div>
+      </form>
+    </section>
   );
 }
 

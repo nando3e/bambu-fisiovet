@@ -19,7 +19,7 @@ test('transiciones: la tabla entera, cada combinación con su resultado', () => 
     ['aceptada', 'abandonar', 'bambu', 'abandonada'],
     ['en_tratamiento', 'abandonar', 'bambu', 'abandonada'],
     ['en_tratamiento', 'alta_manual', 'bambu', 'alta'],
-    ['aceptada', 'iniciar_tratamiento', 'sistema', 'en_tratamiento'],
+    ['aceptada', 'iniciar_tratamiento', 'bambu', 'en_tratamiento'],
     ['en_tratamiento', 'alta_por_informe', 'sistema', 'alta'],
   ];
   let combinaciones = 0;
@@ -105,4 +105,11 @@ test('validación: «otro» sin texto falla; consentimiento de una versión anti
   const viejo = { ...completa, propietario: { ...completa.propietario, consentimiento_version: 1 } };
   assert.ok(!validarDerivacion(viejo, 2, false).ok);
   assert.ok(validarDerivacion(viejo, 1, false).ok);
+});
+
+test('la tabla de transiciones de la web es la misma que la del dominio', async () => {
+  const web = await import('../../web/src/estados.ts');
+  assert.deepEqual(web.TRANSICIONES, TRANSICIONES);
+  const { EDITABLE_POR_DERIVADOR } = await import('../src/dominio/estados-caso.ts');
+  assert.deepEqual(web.EDITABLE_POR_DERIVADOR, EDITABLE_POR_DERIVADOR);
 });

@@ -48,6 +48,7 @@ export async function rutasConfiguracion(app: FastifyInstance, deps: Deps): Prom
     return {
       correo_centro: avisos.correo_centro,
       dias_sin_noticias: avisos.dias_sin_noticias,
+      dias_pendiente_cita: avisos.dias_pendiente_cita,
       dry_run: config.CORREO_DRY_RUN,
       smtp_configurado: servidorCompleto(servidor),
       matriz: await leerMatriz(pool),

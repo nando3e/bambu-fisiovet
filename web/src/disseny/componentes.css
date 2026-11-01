@@ -793,3 +793,209 @@
     padding: 38px;
   }
 }
+
+/* ---------- Casos (change 2) ---------- */
+
+.oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.barra-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.campo.buscador {
+  position: relative;
+  flex: 1 1 260px;
+}
+.campo.buscador > svg {
+  position: absolute;
+  left: 14px;
+  bottom: 15px;
+  color: var(--texto-tenue);
+  pointer-events: none;
+}
+.campo.buscador input {
+  padding-left: 42px;
+}
+.campo.buscador:has(> small) > svg {
+  bottom: 38px;
+}
+
+.lista > li:has(> .fila-enlace) {
+  padding: 0;
+}
+.fila-enlace {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 14px 16px;
+  color: inherit;
+  text-decoration: none;
+  background: none;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.fila-enlace:hover {
+  background: var(--superficie-2);
+}
+.chips-fila {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  align-items: center;
+  flex: none;
+  max-width: 50%;
+}
+.lista-corta {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.boton-flotante {
+  position: fixed;
+  right: 18px;
+  bottom: calc(var(--alto-barra) + 18px);
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--verde-oscuro);
+  color: var(--sobre-oscuro);
+  box-shadow: var(--sombra);
+  z-index: 20;
+}
+@media (min-width: 900px) {
+  .boton-flotante {
+    display: none;
+  }
+}
+
+.pasos {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-bottom: 14px;
+}
+.pasos > span {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 6px;
+  border-radius: 999px;
+  background: var(--superficie-2);
+  color: var(--texto-suave);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.pasos > span b {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--superficie);
+  font-size: 0.8rem;
+}
+.pasos > span.activo {
+  background: var(--verde-oscuro);
+  color: var(--sobre-oscuro);
+}
+.pasos > span.activo b {
+  background: var(--sobre-oscuro);
+  color: var(--verde-oscuro);
+}
+.pasos > span.hecho b {
+  background: var(--hoja);
+  color: var(--verde-oscuro);
+}
+.estado-guardado {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 1.4em;
+  margin: 0 0 10px;
+  color: var(--texto-suave);
+  font-size: 0.85rem;
+}
+.texto-consentimiento {
+  white-space: pre-line;
+  padding: 14px 16px;
+  border-radius: var(--radio-control);
+  background: var(--superficie-2);
+  color: var(--tinta);
+}
+.tarjeta.interior {
+  margin-top: 12px;
+  background: var(--superficie-2);
+  box-shadow: none;
+}
+.buscar-paciente {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.cabecera-seccion {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.datos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px 20px;
+  margin: 0 0 8px;
+}
+.datos.apilados {
+  grid-template-columns: 1fr;
+}
+.datos dt {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--texto-suave);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.datos dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+.texto-largo {
+  white-space: pre-line;
+}
+.texto-tenue {
+  color: var(--texto-tenue);
+}
+.acciones-caso {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--linea);
+}
+.lista.historial .principal span {
+  display: block;
+}
+button.chip {
+  border: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}

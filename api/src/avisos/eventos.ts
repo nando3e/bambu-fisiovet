@@ -66,7 +66,7 @@ export const CATALOGO = {
   'caso.en_tratamiento': {
     audiencia: 'derivador', notificacion: true, correo: false, plantilla: 'aviso',
     titulo: (d) => `${paciente(d)} ha començat el tractament`,
-    cuerpo: () => 'Bambú ha registrat la primera sessió.',
+    cuerpo: (d) => (d.primeraVisita ? `Primera visita: ${d.primeraVisita}.` : 'Ja té cita a Bambú.'),
     enlace: enlaceCaso,
   },
   'caso.alta': {
@@ -142,8 +142,8 @@ export const CATALOGO = {
   },
   'caso.sin_noticias': {
     audiencia: 'bambu', notificacion: true, correo: true, plantilla: 'aviso', todoElEquipo: true,
-    titulo: (d) => `Cas sense notícies: ${paciente(d)}`,
-    cuerpo: (d) => `Fa ${String(d.dias ?? 'uns')} dies sense sessions ni missatges.`,
+    titulo: (d) => `Pendent de cita: ${paciente(d)}`,
+    cuerpo: (d) => `Fa més de ${String(d.dias ?? 'uns')} dies que està acceptada i encara no té cita.`,
     enlace: enlaceCaso,
   },
 } as const satisfies Record<string, DefEvento>;

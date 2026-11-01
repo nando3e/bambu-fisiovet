@@ -17,6 +17,7 @@ import { aplicarMigraciones } from './db/migraciones.ts';
 import { sembrarConfiguracion } from './configuracion.ts';
 import { sembrarMatriz } from './avisos/matriz.ts';
 import { crearCola } from './avisos/cola.ts';
+import { iniciarPendientesCita } from './tareas/pendientes-cita.ts';
 import { canalSmtp, type CanalCorreo } from './correo/transporte.ts';
 import { aplicarSuperadmin } from './superadmin.ts';
 import { registrarRutas } from './rutas/index.ts';
@@ -53,7 +54,9 @@ export async function construirServidor(entorno: NodeJS.ProcessEnv = process.env
   app.log.info(avisoSuperadmin);
 
   const cola = crearCola({ pool, config, canal: opciones.canal ?? canalSmtp(pool, config), log: app.log });
+  const pendientesCita = iniciarPendientesCita({ pool, config, despertarCola: () => cola.despertar(), log: app.log });
   app.addHook('onClose', async () => {
+    pendientesCita.detener();
     cola.detener();
     await pool.end();
   });

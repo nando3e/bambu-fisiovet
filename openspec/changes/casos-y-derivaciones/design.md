@@ -30,10 +30,10 @@ Piezas que se reutilizan tal cual: `enTransaccion`, `registrarCambio`,
 
 **Non-Goals:**
 
-- Hilo, adjuntos, sesiones y la transición automática a `en_tratamiento`
-  (change 3). Los mensajes de sistema de las transiciones se pintarán en el
-  change 3 a partir de `eventos` e `historial`; aquí no se crea `mensajes`.
-- Informes y alta por informe (change 4). La tarea `sin-noticias` (change 3).
+- Hilo y adjuntos (change 3). Los mensajes de sistema de las transiciones se
+  pintarán en el change 3 a partir de `eventos` e `historial`; aquí no se crea
+  `mensajes`. Agenda y sesiones: en Wakyma, no en el portal.
+- Informes y alta por informe (change 4).
 - Caso privado dentro de la clínica, fusión de clínicas duplicadas
   (aplazados).
 
@@ -56,7 +56,8 @@ casos         id, paciente_id, clinica_id NOT NULL, derivador_id NULL,
               motivo, historia_clinica, tratamiento_actual, objetivos, notas_derivador,
               fisio_responsable_id NULL, motivo_cierre (rechazo o abandono),
               descartado_el,
-              enviado_el, resuelto_el (aceptada o rechazada), primera_sesion_el, cerrado_el,
+              enviado_el, resuelto_el (aceptada o rechazada), vista_el, vista_por,
+              en_tratamiento_el, primera_visita (date), atasco_avisado_el, cerrado_el,
               ultima_actividad DEFAULT now(), creado, actualizado
 ```
 
@@ -111,8 +112,24 @@ decidirTransicion(estado, accion, actor: 'derivador' | 'bambu' | 'sistema')
 ```
 
 La tabla es la de la spec; `descartar` deja el estado en `borrador` y marca
-`descartado_el`. `iniciar_tratamiento` y `alta_por_informe` son solo de
-`sistema`: se definen y prueban aquí, y los usan los changes 3 y 4.
+`descartado_el`. `iniciar_tratamiento` es el botón «Ja té cita» de Bambú
+(`POST /casos/:id/cita`, `{ primera_visita? }`); `alta_por_informe` es de
+`sistema` y la usa el change 4.
+
+### D3b. Vista y pendientes de cita (acordado con Nando el 31/10)
+
+- `GET /casos/:id` hecho por Bambú sobre una derivación `enviada` sin
+  `vista_el`: `UPDATE … SET vista_el = now(), vista_por = $u WHERE id = $1 AND
+  vista_el IS NULL` (un efecto pequeño e idempotente en un GET, a propósito:
+  la marca no debe pedir ningún clic).
+- `GET /panel/contadores` (B): noves sense obrir, pendents de cita, en
+  tractament y atascadas.
+- `avisos.dias_pendiente_cita` (3 por defecto) en la configuración.
+- `tareas/pendientes-cita.ts`: al arrancar y cada hora,
+  `UPDATE casos SET atasco_avisado_el = now() WHERE estado = 'aceptada' AND
+  resuelto_el < now() - N días AND atasco_avisado_el IS NULL RETURNING …` y
+  `caso.sin_noticias` por cada fila, en la misma transacción: la marca hace
+  que salga una sola vez.
 
 En la ruta, dentro de `enTransaccion`: `SELECT … FOR UPDATE` con el ámbito →
 404 si no hay fila → `decidirTransicion` → 409/403 sin tocar nada →
@@ -323,3 +340,20 @@ uso; antes de abrir a veterinarios no hay datos reales que perder.
 - Los supuestos de la propuesta (especies, obligatorios, texto del
   consentimiento) siguen pendientes de Bambú; quedan aislados en
   `validacion-derivacion.ts`, el CHECK de especie y la clave `consentimiento`.
+
+## Diferencias con lo construido
+
+- Web: no hay `Hoja.tsx`, `SelectorFisio.tsx` ni `ChipEstado.tsx` sueltos. El
+  chip y los tipos viven en `pantallas/casos/comun.tsx`; las acciones de Bambú
+  abren un panel dentro de la ficha (menos piezas y sin capa modal); el
+  registro de Bambú es `NovaDerivacion` con `modo="bambu"` (un paso más para
+  la clínica) en vez de un `RegistraDerivacio.tsx` aparte.
+- D11: la regla de clínica validada vive en `servicios/clinicas.ts`
+  (`solicitarUnion` y `resolverSolicitud`) y en la consulta de
+  `GET /solicitudes-union`, no en `decidirUnion`: depende de un dato de la base
+  que se lee en la misma transacción.
+- La tarea de pendientes de cita usa la bandera `COLA_ACTIVA`: en los tests no
+  corre sola y se prueba llamando a `comprobarPendientesCita`.
+- El esquema de la ficha admite `null` en los campos de texto opcionales: la
+  web reenvía la ficha tal como la recibe al autoguardar (lo cazó el
+  recorrido en Chrome; test «autoguardado…»).

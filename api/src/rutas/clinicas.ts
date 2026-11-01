@@ -36,13 +36,14 @@ export async function rutasClinicas(app: FastifyInstance, deps: Deps): Promise<v
     const dominio = q.email ? dominioDe(q.email) : null;
     if (q.nombre.length < 3 && !dominio) return { clinicas: [] };
     const { rows } = await pool.query(
-      // Solo clínicas con alguien verificado y activo: la clínica que acaba de
-      // teclear un desconocido sin confirmar su correo no se ofrece a nadie.
+      // Clínicas validadas por Bambú (aunque no tengan usuarios: las que dio de
+      // alta al registrar derivaciones por teléfono) o con alguien verificado.
+      // La que acaba de teclear un desconocido sin confirmar su correo, no.
       `SELECT id, nombre, poblacion, coalesce(dominio_correo = $2, false) AS mismo_dominio
        FROM clinicas
        WHERE activa
-         AND EXISTS (SELECT 1 FROM usuarios u
-                     WHERE u.clinica_id = clinicas.id AND u.activo AND u.verificado_el IS NOT NULL)
+         AND (validada OR EXISTS (SELECT 1 FROM usuarios u
+                     WHERE u.clinica_id = clinicas.id AND u.activo AND u.verificado_el IS NOT NULL))
          AND (
          ($1 <> '' AND similarity(unaccent(lower(nombre)), unaccent(lower($1))) > 0.3)
          OR ($2::text IS NOT NULL AND dominio_correo = $2)
@@ -96,11 +97,14 @@ export async function rutasClinicas(app: FastifyInstance, deps: Deps): Promise<v
   app.get('/clinicas', async (peticion, respuesta) => {
     await exigirSesion(peticion, respuesta, deps, ROLES_BAMBU);
     const { rows } = await pool.query(
-      `SELECT c.id, c.nombre, c.poblacion, c.telefono, c.email, c.activa, c.creado,
-              count(u.id) FILTER (WHERE u.activo) AS veterinarios
-       FROM clinicas c LEFT JOIN usuarios u ON u.clinica_id = c.id AND u.rol = 'derivador'
+      `SELECT c.id, c.nombre, c.poblacion, c.direccion, c.codigo_postal, c.telefono, c.email,
+              c.activa, c.validada, c.creado,
+              (SELECT count(*) FROM usuarios u
+               WHERE u.clinica_id = c.id AND u.rol = 'derivador' AND u.activo) AS veterinarios,
+              (SELECT count(*) FROM casos k WHERE k.clinica_id = c.id AND k.estado <> 'borrador') AS derivaciones
+       FROM clinicas c
        WHERE c.activa
-       GROUP BY c.id ORDER BY c.nombre`,
+       ORDER BY c.nombre`,
     );
     const { rows: solicitudes } = await pool.query(
       `SELECT s.id, s.creado, u.nombre, u.apellidos, u.email,
@@ -129,20 +133,45 @@ export async function rutasClinicas(app: FastifyInstance, deps: Deps): Promise<v
   app.patch('/clinicas/:id', async (peticion, respuesta) => {
     const sesion = await exigirSesion(peticion, respuesta, deps, ROLES_BAMBU);
     const id = idDeRuta(peticion.params);
-    const d = validar(datosClinica, peticion.body);
+    const d = validar(datosClinica.extend({ validada: z.boolean().optional() }), peticion.body);
     await guardarClinica(id, d, sesion.usuarioId);
     return { ok: true };
   });
 
-  async function guardarClinica(id: number, d: z.infer<typeof datosClinica>, usuarioId: number) {
+  // Bambú da de alta una clínica que llama por teléfono y no está en el
+  // portal. Nace validada: la conoce Bambú.
+  app.post('/clinicas', async (peticion, respuesta) => {
+    const sesion = await exigirSesion(peticion, respuesta, deps, ROLES_BAMBU);
+    const d = validar(datosClinica, peticion.body);
+    const clinica = await enTransaccion(pool, async (bd) => {
+      const { rows } = await bd.query<{ id: number; nombre: string }>(
+        `INSERT INTO clinicas (nombre, poblacion, direccion, codigo_postal, telefono, email, validada)
+         VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING id, nombre`,
+        [d.nombre, d.poblacion || null, d.direccion || null, d.codigo_postal || null,
+          d.telefono || null, d.email || null],
+      );
+      await registrarCambio(bd, {
+        tabla: 'clinicas', filaId: rows[0]!.id, antes: null, despues: { ...d, validada: true },
+        usuarioId: sesion.usuarioId,
+      });
+      return rows[0]!;
+    });
+    return respuesta.code(201).send(clinica);
+  });
+
+  async function guardarClinica(
+    id: number,
+    d: z.infer<typeof datosClinica> & { validada?: boolean },
+    usuarioId: number,
+  ) {
     await enTransaccion(pool, async (bd) => {
       const { rows } = await bd.query('SELECT * FROM clinicas WHERE id = $1 FOR UPDATE', [id]);
       if (!rows[0]) throw noEncontrado();
       await bd.query(
         `UPDATE clinicas SET nombre = $2, poblacion = $3, direccion = $4, codigo_postal = $5,
-                telefono = $6, email = $7 WHERE id = $1`,
+                telefono = $6, email = $7, validada = coalesce($8, validada) WHERE id = $1`,
         [id, d.nombre, d.poblacion || null, d.direccion || null, d.codigo_postal || null,
-          d.telefono || null, d.email || null],
+          d.telefono || null, d.email || null, d.validada ?? null],
       );
       await registrarCambio(bd, { tabla: 'clinicas', filaId: id, antes: rows[0], despues: d, usuarioId });
     });
@@ -170,7 +199,7 @@ export async function rutasClinicas(app: FastifyInstance, deps: Deps): Promise<v
        JOIN usuarios u ON u.id = s.usuario_id
        JOIN clinicas o ON o.id = s.clinica_origen_id
        JOIN clinicas d ON d.id = s.clinica_destino_id
-       WHERE s.estado = 'pendiente' AND ($1::int IS NULL OR s.clinica_destino_id = $1)
+       WHERE s.estado = 'pendiente' AND ($1::int IS NULL OR (s.clinica_destino_id = $1 AND d.validada))
        ORDER BY s.creado`,
       [sesion.rol === 'derivador' ? sesion.clinicaId : null],
     );

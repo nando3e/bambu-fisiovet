@@ -30,9 +30,10 @@ export const TRANSICIONES: Record<AccionCaso, Transicion> = {
   rechazar: { desde: ['enviada'], a: 'rechazada', quien: 'bambu' },
   abandonar: { desde: ['aceptada', 'en_tratamiento'], a: 'abandonada', quien: 'bambu' },
   alta_manual: { desde: ['en_tratamiento'], a: 'alta', quien: 'bambu' },
-  // Las dos del sistema las disparan la primera sesión (change 3) y el
-  // informe de alta (change 4).
-  iniciar_tratamiento: { desde: ['aceptada'], a: 'en_tratamiento', quien: 'sistema' },
+  // «Ja té cita»: las visitas se llevan en Wakyma y Bambú marca aquí que el
+  // caso ya está en marcha.
+  iniciar_tratamiento: { desde: ['aceptada'], a: 'en_tratamiento', quien: 'bambu' },
+  // La dispara el informe de alta (change 4).
   alta_por_informe: { desde: ['en_tratamiento'], a: 'alta', quien: 'sistema' },
 };
 

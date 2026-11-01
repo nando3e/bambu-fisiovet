@@ -25,11 +25,12 @@ valores por defecto son:
 | `usuario.bambu_alta` | bambu | sí | no |
 | `usuario.solicita_union` | ambas | sí | sí |
 | `usuario.union_resuelta` | derivador | sí | sí |
-| `caso.sin_noticias` | bambu | sí | sí, un resumen diario al correo del centro |
+| `caso.sin_noticias` | bambu | sí | sí, al correo del centro, una vez por derivación atascada |
 
 `derivacion.registrada` avisa al veterinario de que Bambú ha registrado en el
 portal la derivación que hizo por teléfono o por correo, para que pueda
-seguirla.
+seguirla. `caso.sin_noticias` avisa de una derivación que lleva más de N días
+aceptada sin cita.
 
 Publicar un tipo que no está en la lista MUST fallar en el servidor.
 

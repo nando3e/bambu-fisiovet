@@ -52,22 +52,33 @@ descartarse; no se borra, queda inactivo.
 ### Requirement: Máquina de estados del caso
 Los estados SHALL ser `borrador`, `enviada`, `aceptada`, `en_tratamiento`,
 `alta`, `rechazada` y `abandonada`, y las transiciones permitidas por rol se
-deciden en `dominio/estados-caso.ts`, sin BD:
+deciden en `dominio/estados-caso.ts`, sin BD. En pantalla se llaman Esborrany,
+Nova (Enviada para el veterinario), Acceptada · pendent de cita, En tractament,
+Alta, Rebutjada y Tancada (`abandonada`, con motivo). Las visitas se gestionan
+en Wakyma: «Ja té cita» es lo único que el portal necesita saber de ellas.
 
 | Desde | A | Quién |
 |---|---|---|
 | borrador | enviada | derivador |
 | enviada | aceptada | bambu |
 | enviada | rechazada (con motivo) | bambu |
-| aceptada | en_tratamiento | sistema (primera sesión) |
+| aceptada | en_tratamiento | bambu («Ja té cita»: la visita ya está dada en Wakyma) |
 | aceptada, en_tratamiento | abandonada (con motivo) | bambu |
-| en_tratamiento | alta | sistema (informe de alta) o bambu (alta manual) |
+| en_tratamiento | alta | bambu (alta manual) o sistema (informe de alta, change 4) |
 
 Las derivaciones que registra Bambú en nombre de una clínica nacen en
 `aceptada`. No hay reapertura: si el animal vuelve a necesitar fisioterapia,
 es una derivación nueva del mismo paciente. Una transición no permitida MUST
 responder 409 sin cambiar nada. Toda transición deja `historial` y publica su
 evento.
+
+#### Scenario: Ja té cita
+- **WHEN** Bambú marca «Ja té cita» en una derivación aceptada, con la fecha de la primera visita
+- **THEN** pasa a `en_tratamiento`, guarda la fecha y el veterinario recibe la notificación
+
+#### Scenario: Registrada por teléfono con cita
+- **WHEN** Bambú registra una derivación por teléfono marcando que ya tiene cita
+- **THEN** nace directamente en `en_tratamiento`
 
 #### Scenario: Aceptar dos veces
 - **WHEN** Bambú acepta un caso que ya está aceptado
@@ -149,6 +160,31 @@ en su programa de gestión (Wakyma).
 #### Scenario: Caso sin clínica
 - **WHEN** Bambú intenta registrar un caso sin clínica que lo derive
 - **THEN** 400 y no se crea nada
+
+### Requirement: Marca de vista
+La aplicación SHALL guardar quién y cuándo, la primera vez que un usuario
+de Bambú abre una derivación `enviada`, (`vista_el`, `vista_por`) sin que nadie
+pulse nada. El veterinario ve «Rebuda per Bambú» en su ficha y Bambú distingue
+las nuevas sin abrir. Abrirla otra vez no cambia la marca.
+
+#### Scenario: Primera apertura
+- **WHEN** una fisio abre por primera vez una derivación nueva
+- **THEN** queda marcada como vista por ella y deja de contar en «Noves sense obrir»
+
+#### Scenario: El veterinario abre la suya
+- **WHEN** el veterinario abre su propia derivación
+- **THEN** no se marca como vista
+
+### Requirement: Control de lo pendiente de cita
+El inicio de Bambú SHALL mostrar tres contadores que llevan a la lista
+filtrada: Noves sense obrir, Pendents de cita y En tractament. Una derivación
+que lleva más de N días aceptada sin cita (N en Configuració → Avisos, 3 por
+defecto) sale marcada en las listas y publica una sola vez
+`caso.sin_noticias`. Lo comprueba una tarea que corre al arrancar y cada hora.
+
+#### Scenario: Atasco
+- **WHEN** una derivación lleva cuatro días aceptada sin cita y N es 3
+- **THEN** sale marcada, el equipo recibe la notificación y el correo del centro un aviso, una sola vez aunque la tarea vuelva a pasar
 
 ### Requirement: Listas y fichas
 La lista de casos SHALL ordenarse por actividad más reciente y filtrar por

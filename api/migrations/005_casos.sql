@@ -77,7 +77,14 @@ CREATE TABLE IF NOT EXISTS casos (
   descartado_el         timestamptz,
   enviado_el            timestamptz,
   resuelto_el           timestamptz,
-  primera_sesion_el     timestamptz,
+  -- Primera vez que alguien de Bambú la abre (sin pulsar nada).
+  vista_el              timestamptz,
+  vista_por             int REFERENCES usuarios (id),
+  -- «Ja té cita»: la visita ya está dada en Wakyma y el caso, en marcha.
+  en_tratamiento_el     timestamptz,
+  primera_visita        date,
+  -- Marca del aviso de «aceptada sin cita»: sale una sola vez.
+  atasco_avisado_el     timestamptz,
   cerrado_el            timestamptz,
   ultima_actividad      timestamptz NOT NULL DEFAULT now(),
   creado                timestamptz NOT NULL DEFAULT now(),
@@ -91,6 +98,8 @@ CREATE TABLE IF NOT EXISTS casos (
 CREATE INDEX IF NOT EXISTS casos_clinica ON casos (clinica_id, ultima_actividad DESC);
 CREATE INDEX IF NOT EXISTS casos_estado ON casos (estado, ultima_actividad DESC);
 CREATE INDEX IF NOT EXISTS casos_paciente ON casos (paciente_id);
+CREATE INDEX IF NOT EXISTS casos_pendientes_cita ON casos (resuelto_el)
+  WHERE estado = 'aceptada' AND atasco_avisado_el IS NULL;
 
 -- Las tablas de avisos ya guardaban el caso; ahora existe y lleva su clave.
 ALTER TABLE eventos DROP CONSTRAINT IF EXISTS eventos_caso_fk;

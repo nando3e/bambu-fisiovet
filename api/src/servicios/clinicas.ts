@@ -32,12 +32,24 @@ export async function fusionarClinica(
     'UPDATE usuarios SET clinica_id = $2 WHERE clinica_id = $1 RETURNING id',
     [origenId, destinoId],
   );
+  const { rows: casos } = await bd.query<{ id: number }>(
+    'UPDATE casos SET clinica_id = $2 WHERE clinica_id = $1 RETURNING id',
+    [origenId, destinoId],
+  );
+  const { rows: pacientes } = await bd.query<{ id: number }>(
+    'UPDATE pacientes SET clinica_origen_id = $2 WHERE clinica_origen_id = $1 RETURNING id',
+    [origenId, destinoId],
+  );
+  await bd.query('UPDATE propietarios SET clinica_origen_id = $2 WHERE clinica_origen_id = $1', [origenId, destinoId]);
   await bd.query('UPDATE clinicas SET activa = false WHERE id = $1', [origenId]);
   await registrarCambio(bd, {
     tabla: 'clinicas',
     filaId: origenId,
     antes: { activa: true },
-    despues: { activa: false, fusionada_en: destinoId, usuarios_movidos: movidos.map((m) => m.id) },
+    despues: {
+      activa: false, fusionada_en: destinoId, usuarios_movidos: movidos.map((m) => m.id),
+      casos_movidos: casos.map((c) => c.id), pacientes_movidos: pacientes.map((p) => p.id),
+    },
     usuarioId,
     origen: usuarioId ? 'pantalla' : 'sistema',
   });
@@ -59,8 +71,10 @@ export async function solicitarUnion(
   solicitante: Solicitante,
   destinoId: number,
 ): Promise<'auto' | 'pendiente'> {
-  const { rows: destinos } = await bd.query<{ id: number; nombre: string; dominio_correo: string | null }>(
-    'SELECT id, nombre, dominio_correo FROM clinicas WHERE id = $1 AND activa',
+  const { rows: destinos } = await bd.query<{
+    id: number; nombre: string; dominio_correo: string | null; validada: boolean;
+  }>(
+    'SELECT id, nombre, dominio_correo, validada FROM clinicas WHERE id = $1 AND activa',
     [destinoId],
   );
   const destino = destinos[0];
@@ -112,7 +126,9 @@ export async function solicitarUnion(
     actor: { id: solicitante.id, rol: 'derivador' },
     clinicaId: destino.id,
     datos: { nombre: nombreCompleto(solicitante), clinicaDestino: destino.nombre },
-    derivadoresInteresados: await derivadoresActivos(bd, destino.id),
+    // En una clínica que Bambú no ha validado, solo resuelve Bambú: a sus
+    // miembros no se les avisa (podría ser alguien que registró un nombre ajeno).
+    derivadoresInteresados: destino.validada ? await derivadoresActivos(bd, destino.id) : [],
   });
   return 'pendiente';
 }
@@ -129,15 +145,19 @@ export async function resolverSolicitud(
     clinica_destino_id: number;
     estado: string;
     destino_nombre: string;
+    destino_validada: boolean;
   }>(
-    `SELECT s.usuario_id, s.clinica_origen_id, s.clinica_destino_id, s.estado, c.nombre AS destino_nombre
+    `SELECT s.usuario_id, s.clinica_origen_id, s.clinica_destino_id, s.estado, c.nombre AS destino_nombre,
+            c.validada AS destino_validada
      FROM solicitudes_union s JOIN clinicas c ON c.id = s.clinica_destino_id
      WHERE s.id = $1 FOR UPDATE OF s`,
     [solicitudId],
   );
   const s = rows[0];
-  // Un veterinario solo resuelve las de su clínica; lo demás no existe para él.
-  const puede = sesion.rol !== 'derivador' || sesion.clinicaId === s?.clinica_destino_id;
+  // Un veterinario solo resuelve las de su clínica, y solo si Bambú la ha
+  // validado; lo demás no existe para él.
+  const puede = sesion.rol !== 'derivador'
+    || (sesion.clinicaId === s?.clinica_destino_id && s.destino_validada);
   if (!s || !puede) throw noEncontrado('Aquesta sol·licitud no existeix');
   if (s.estado !== 'pendiente') throw conflicto('Aquesta sol·licitud ja està resolta');
 

@@ -3,7 +3,7 @@
 // el API; esto solo evita pintar pantallas que no tocan.
 import type { ReactNode } from 'react';
 import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router';
-import { Building2, ClipboardPlus, Home, LayoutDashboard, Settings, UserRound } from 'lucide-react';
+import { Building2, ClipboardList, ClipboardPlus, LayoutDashboard, PawPrint, Settings, UserRound } from 'lucide-react';
 import { t } from './i18n/index.ts';
 import { ProveedorSesion, useSesion, zonaDe } from './sesion.tsx';
 import { Cargando } from './componentes/comunes.tsx';
@@ -14,7 +14,10 @@ import { Acceso } from './pantallas/acceso/Acceso.tsx';
 import { Establece, Privacidad, Recupera, VerificaCorreo } from './pantallas/acceso/Enlaces.tsx';
 import { Perfil } from './pantallas/comun/Perfil.tsx';
 import { PaginaNotificaciones } from './pantallas/comun/PaginaNotificaciones.tsx';
-import { InicioDerivador, NovaDerivacion } from './pantallas/derivador/Derivador.tsx';
+import { ListaCasos } from './pantallas/casos/ListaCasos.tsx';
+import { FichaCaso } from './pantallas/casos/FichaCaso.tsx';
+import { NovaDerivacion } from './pantallas/casos/NovaDerivacion.tsx';
+import { FichaPaciente, ListaPacientes } from './pantallas/casos/Pacientes.tsx';
 import { Clinicas, InicioBambu } from './pantallas/bambu/Bambu.tsx';
 import { Configuracion } from './pantallas/bambu/configuracion/Configuracion.tsx';
 
@@ -27,13 +30,16 @@ function Guarda({ zona, children }: { zona: '/d' | '/b'; children: ReactNode }) 
 }
 
 const MENU_DERIVADOR = [
-  { a: '/d', texto: t('menu.inicio'), icono: Home, exacta: true },
+  { a: '/d', texto: t('menu.derivaciones'), icono: ClipboardList, exacta: true },
   { a: '/d/nova', texto: t('menu.nueva'), icono: ClipboardPlus },
+  { a: '/d/pacients', texto: t('menu.pacientes'), icono: PawPrint },
   { a: '/d/perfil', texto: t('menu.perfil'), icono: UserRound },
 ];
 
 const MENU_BAMBU = [
   { a: '/b', texto: t('menu.inicio'), icono: LayoutDashboard, exacta: true },
+  { a: '/b/casos', texto: t('menu.casos'), icono: ClipboardList },
+  { a: '/b/pacients', texto: t('menu.pacientes'), icono: PawPrint },
   { a: '/b/cliniques', texto: t('menu.clinicas'), icono: Building2 },
   { a: '/b/configuracio', texto: t('menu.configuracion'), icono: Settings },
   { a: '/b/perfil', texto: t('menu.perfil'), icono: UserRound },
@@ -66,8 +72,11 @@ export function App() {
           <Route path="/legal/privacitat" element={<Privacidad />} />
 
           <Route path="/d" element={<Guarda zona="/d"><Esqueleto zona="/d" menu={MENU_DERIVADOR} /></Guarda>}>
-            <Route index element={<InicioDerivador />} />
-            <Route path="nova" element={<NovaDerivacion />} />
+            <Route index element={<ListaCasos zona="/d" />} />
+            <Route path="nova" element={<NovaDerivacion modo="derivador" />} />
+            <Route path="casos/:id" element={<FichaCaso zona="/d" />} />
+            <Route path="pacients" element={<ListaPacientes zona="/d" />} />
+            <Route path="pacients/:id" element={<FichaPaciente zona="/d" />} />
             <Route path="perfil" element={<Perfil />} />
             <Route path="notificacions" element={<PaginaNotificaciones />} />
             <Route path="*" element={<NoEncontrada />} />
@@ -75,6 +84,11 @@ export function App() {
 
           <Route path="/b" element={<Guarda zona="/b"><Esqueleto zona="/b" menu={MENU_BAMBU} /></Guarda>}>
             <Route index element={<InicioBambu />} />
+            <Route path="casos" element={<ListaCasos zona="/b" />} />
+            <Route path="casos/nou" element={<NovaDerivacion modo="bambu" />} />
+            <Route path="casos/:id" element={<FichaCaso zona="/b" />} />
+            <Route path="pacients" element={<ListaPacientes zona="/b" />} />
+            <Route path="pacients/:id" element={<FichaPaciente zona="/b" />} />
             <Route path="cliniques" element={<Clinicas />} />
             <Route path="configuracio/*" element={<Configuracion />} />
             <Route path="perfil" element={<Perfil />} />

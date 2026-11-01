@@ -1,12 +1,16 @@
-// Zona de Bambú: portada con lo que pide atención y la lista de clínicas y
-// veterinarios con las solicitudes de unión.
+// Zona de Bambú: portada con lo que pide atención (derivaciones nuevas,
+// pendientes de cita, encalladas) y la lista de clínicas y veterinarios con
+// las solicitudes de unión.
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { Bell, Building2, Check, ChevronDown, ChevronUp, MailWarning, UserCheck, Users, X } from 'lucide-react';
+import {
+  AlertTriangle, Bell, Building2, CalendarClock, Check, ChevronDown, ChevronUp, ClipboardList, Inbox, MailWarning,
+  PhoneCall, Plus, ShieldCheck, Stethoscope, UserCheck, Users, X,
+} from 'lucide-react';
 import { api, mensajeDe, type Notificacion } from '../../api.ts';
 import { haceCuanto, t } from '../../i18n/index.ts';
 import { useSesion } from '../../sesion.tsx';
-import { Aviso, Cargando, TituloPagina, Vacio } from '../../componentes/comunes.tsx';
+import { Aviso, Campo, Cargando, TituloPagina, Vacio } from '../../componentes/comunes.tsx';
 import { ListaNotificaciones, useAbrirNotificacion } from '../../componentes/Notificaciones.tsx';
 
 interface Solicitud {
@@ -23,9 +27,22 @@ interface Clinica {
   id: number;
   nombre: string;
   poblacion: string | null;
+  direccion: string | null;
+  codigo_postal: string | null;
   telefono: string | null;
   email: string | null;
+  validada: boolean;
   veterinarios: number;
+  derivaciones: number;
+}
+
+interface Contadores {
+  sin_abrir: number;
+  noves: number;
+  pendientes_cita: number;
+  atascados: number;
+  en_tratamiento: number;
+  dias_pendiente_cita: number;
 }
 
 export function InicioBambu() {
@@ -34,6 +51,7 @@ export function InicioBambu() {
   const [datos, setDatos] = useState<{
     notificaciones: Notificacion[];
     noLeidas: number;
+    contadores: Contadores;
     solicitudes: number;
     clinicas: number;
     fallidos: number;
@@ -45,11 +63,13 @@ export function InicioBambu() {
       api.get<{ notificaciones: Notificacion[]; no_leidas: number }>('/notificaciones?limite=8'),
       api.get<{ clinicas: Clinica[]; solicitudes: Solicitud[] }>('/clinicas'),
       api.get<{ correos: { estado: string }[] }>('/configuracion/avisos/cola'),
+      api.get<Contadores>('/panel/contadores'),
     ])
-      .then(([n, c, cola]) =>
+      .then(([n, c, cola, contadores]) =>
         setDatos({
           notificaciones: n.notificaciones,
           noLeidas: n.no_leidas,
+          contadores,
           solicitudes: c.solicitudes.length,
           clinicas: c.clinicas.length,
           fallidos: cola.correos.filter((x) => x.estado === 'fallido').length,
@@ -62,7 +82,29 @@ export function InicioBambu() {
   if (!datos || !usuario) return <Cargando />;
   return (
     <>
-      <TituloPagina antetitulo="BAMBÚ Fisiovet" titulo={t('bambu.hola', { nombre: usuario.nombre })} subtitulo={t('bambu.subtitulo')} />
+      <TituloPagina antetitulo="BAMBÚ Fisiovet" titulo={t('bambu.hola', { nombre: usuario.nombre })} subtitulo={t('bambu.subtitulo')}>
+        <Link to="/b/casos/nou" className="boton-secundario"><PhoneCall size={18} aria-hidden /> {t('bambu.registrar')}</Link>
+      </TituloPagina>
+      <div className="rejilla-tarjetas">
+        <Link to="/b/casos?f=sin_abrir" className="cifra">
+          <span className="icono-cifra"><Inbox size={22} aria-hidden /></span>
+          <div><strong>{datos.contadores.sin_abrir}</strong><span>{t('bambu.sinAbrir')}</span></div>
+        </Link>
+        <Link to="/b/casos?f=pendientes" className="cifra">
+          <span className="icono-cifra"><CalendarClock size={22} aria-hidden /></span>
+          <div><strong>{datos.contadores.pendientes_cita}</strong><span>{t('bambu.pendientesCita')}</span></div>
+        </Link>
+        {datos.contadores.atascados > 0 ? (
+          <Link to="/b/casos?f=atascados" className="cifra">
+            <span className="icono-cifra" style={{ background: 'var(--alerta-fondo)', color: 'var(--alerta)' }}><AlertTriangle size={22} aria-hidden /></span>
+            <div><strong>{datos.contadores.atascados}</strong><span>{t('bambu.atascados', { n: datos.contadores.dias_pendiente_cita })}</span></div>
+          </Link>
+        ) : null}
+        <Link to="/b/casos?f=tratamiento" className="cifra">
+          <span className="icono-cifra"><Stethoscope size={22} aria-hidden /></span>
+          <div><strong>{datos.contadores.en_tratamiento}</strong><span>{t('bambu.enTratamiento')}</span></div>
+        </Link>
+      </div>
       <div className="rejilla-tarjetas">
         <Link to="/b/notificacions" className="cifra">
           <span className="icono-cifra"><Bell size={22} aria-hidden /></span>
@@ -85,7 +127,7 @@ export function InicioBambu() {
       </div>
       <h2 style={{ fontSize: '1.15rem' }}>{t('bambu.ultimosAvisos')}</h2>
       <ListaNotificaciones notificaciones={datos.notificaciones} alAbrir={(n) => void abrir(n)} />
-      <p className="texto-suave" style={{ marginTop: 18, fontSize: '0.88rem' }}>{t('bambu.casosProximamente')}</p>
+      <p style={{ marginTop: 18 }}><Link to="/b/casos" className="boton-texto"><ClipboardList size={16} aria-hidden /> {t('menu.casos')}</Link></p>
     </>
   );
 }
@@ -94,6 +136,7 @@ export function Clinicas() {
   const [datos, setDatos] = useState<{ clinicas: Clinica[]; solicitudes: Solicitud[] } | null>(null);
   const [estado, setEstado] = useState<{ ok?: string; error?: string }>({});
   const [abierta, setAbierta] = useState<number | null>(null);
+  const [nueva, setNueva] = useState<{ nombre: string; poblacion: string; telefono: string; email: string } | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -117,10 +160,56 @@ export function Clinicas() {
     }
   }
 
+  async function crear() {
+    if (!nueva) return;
+    setEstado({});
+    try {
+      await api.post('/clinicas', nueva);
+      setNueva(null);
+      setEstado({ ok: t('clinicas.creada') });
+      await cargar();
+    } catch (err) {
+      setEstado({ error: mensajeDe(err) });
+    }
+  }
+
+  async function validar(c: Clinica) {
+    setEstado({});
+    try {
+      await api.patch(`/clinicas/${c.id}`, {
+        nombre: c.nombre, poblacion: c.poblacion ?? '', direccion: c.direccion ?? '', codigo_postal: c.codigo_postal ?? '',
+        telefono: c.telefono ?? '', email: c.email ?? '', validada: !c.validada,
+      });
+      await cargar();
+    } catch (err) {
+      setEstado({ error: mensajeDe(err) });
+    }
+  }
+
   if (!datos) return <Cargando />;
   return (
     <>
-      <TituloPagina titulo={t('clinicas.titulo')} subtitulo={t('clinicas.subtitulo')} />
+      <TituloPagina titulo={t('clinicas.titulo')} subtitulo={t('clinicas.subtitulo')}>
+        <button type="button" className="boton-secundario" onClick={() => setNueva({ nombre: '', poblacion: '', telefono: '', email: '' })}>
+          <Plus size={18} aria-hidden /> {t('clinicas.nueva')}
+        </button>
+      </TituloPagina>
+      {nueva ? (
+        <section className="tarjeta">
+          <h2>{t('clinicas.nueva')}</h2>
+          <div className="formulario dos">
+            <Campo etiqueta={t('clinica.nombre')} value={nueva.nombre} onChange={(e) => setNueva({ ...nueva, nombre: e.target.value })} />
+            <Campo etiqueta={t('clinica.poblacion')} value={nueva.poblacion} onChange={(e) => setNueva({ ...nueva, poblacion: e.target.value })} />
+            <Campo etiqueta={t('clinica.telefono')} type="tel" value={nueva.telefono} onChange={(e) => setNueva({ ...nueva, telefono: e.target.value })} />
+            <Campo etiqueta={t('clinica.email')} type="email" value={nueva.email} onChange={(e) => setNueva({ ...nueva, email: e.target.value })} />
+          </div>
+          <div className="acciones">
+            <button type="button" className="boton" disabled={nueva.nombre.trim().length < 2} onClick={() => void crear()}>{t('comun.guardar')}</button>
+            <button type="button" className="boton-texto" onClick={() => setNueva(null)}>{t('caso.cancelar')}</button>
+          </div>
+        </section>
+      ) : null}
+      <p className="texto-suave" style={{ fontSize: '0.88rem' }}>{t('clinicas.validarAyuda')}</p>
       {estado.ok ? <Aviso>{estado.ok}</Aviso> : null}
       {estado.error ? <Aviso tipo="error">{estado.error}</Aviso> : null}
 
@@ -157,6 +246,15 @@ export function Clinicas() {
                 <strong>{c.nombre}</strong>
                 <span>{[c.poblacion, c.telefono, c.email].filter(Boolean).join(' · ') || t('clinicas.sinDatos')}</span>
               </div>
+              <button
+                type="button"
+                className={c.validada ? 'chip' : 'chip gris'}
+                title={c.validada ? t('clinicas.desvalidar') : t('clinicas.validar')}
+                onClick={() => void validar(c)}
+              >
+                <ShieldCheck size={14} aria-hidden /> {c.validada ? t('clinicas.validada') : t('clinicas.sinValidar')}
+              </button>
+              <span className="chip gris" title={t('clinicas.derivaciones')}><ClipboardList size={14} aria-hidden /> {c.derivaciones}</span>
               <span className="chip"><Users size={14} aria-hidden /> {c.veterinarios}</span>
               <button
                 type="button"
