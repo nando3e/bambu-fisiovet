@@ -558,3 +558,74 @@ test('autoguardado: devolver la ficha tal como llega (con null en lo vacío) no 
   assert.equal(r.estado, 200, JSON.stringify(r.cuerpo));
   assert.equal(r.cuerpo.motivo, 'Coixesa anterior esquerra');
 });
+
+// --- Revisión de Sol (change 2) ---
+
+test('revisión: el borrador de un paciente con otra derivación aceptada no cambia la ficha por PATCH /casos', async () => {
+  const vet = await veterinarioVerificado(s);
+  const primera = await derivar(vet);
+  await pedir(s.app, 'POST', `/api/casos/${primera.id}/acepta`, { cookie: fisio.cookie, cuerpo: {} });
+  const b = await borrador(vet, { paciente_id: primera.paciente.id });
+  const r = await pedir(s.app, 'PATCH', `/api/casos/${b.id}`, {
+    cookie: vet.cookie, cuerpo: { paciente: { nombre: 'Un altre' }, propietario: { nombre: 'Algú' } },
+  });
+  assert.equal(r.estado, 409);
+  const ficha = await pedir(s.app, 'GET', `/api/pacientes/${primera.paciente.id}`, { cookie: vet.cookie });
+  assert.equal(ficha.cuerpo.nombre, 'Nala');
+  assert.equal(ficha.cuerpo.propietario.nombre, 'Joan Ferrer');
+  // Lo suyo, el texto de la derivación, sí.
+  const caso = await pedir(s.app, 'PATCH', `/api/casos/${b.id}`, { cookie: vet.cookie, cuerpo: { caso: { motivo: 'Recaiguda' } } });
+  assert.equal(caso.estado, 200);
+});
+
+test('revisión: un borrador descartado no se envía, no se edita ni se descarta dos veces', async () => {
+  const vet = await veterinarioVerificado(s);
+  const b = await borrador(vet);
+  await pedir(s.app, 'POST', `/api/casos/${b.id}/descarta`, { cookie: vet.cookie });
+  assert.equal((await pedir(s.app, 'POST', `/api/casos/${b.id}/envia`, { cookie: vet.cookie, cuerpo: { acepta_consentimiento: true } })).estado, 404);
+  assert.equal((await pedir(s.app, 'PATCH', `/api/casos/${b.id}`, { cookie: vet.cookie, cuerpo: { caso: { motivo: 'x' } } })).estado, 404);
+  assert.equal((await pedir(s.app, 'POST', `/api/casos/${b.id}/descarta`, { cookie: vet.cookie })).estado, 404);
+  assert.equal((await s.pool.query('SELECT estado FROM casos WHERE id = $1', [b.id])).rows[0].estado, 'borrador');
+});
+
+test('revisión: el aviso de ficha modificada no salta a un caso de otra clínica del mismo paciente', async () => {
+  const vet = await veterinarioVerificado(s);
+  const c = await derivar(vet);
+  const otraClinica = await pedir(s.app, 'POST', '/api/clinicas', { cookie: fisio.cookie, cuerpo: { nombre: 'Clínica Aliena' } });
+  // Un dato incoherente (importación, histórico): un caso más reciente del mismo paciente en otra clínica.
+  const { rows } = await s.pool.query<{ id: number }>(
+    `INSERT INTO casos (paciente_id, clinica_id, registrado_por, creado_por, estado, motivo, enviado_el, creado)
+     VALUES ($1, $2, $3, $3, 'enviada', 'x', now(), now() + interval '1 minute') RETURNING id`,
+    [c.paciente.id, otraClinica.cuerpo.id, fisio.id],
+  );
+  await pedir(s.app, 'PATCH', `/api/propietarios/${c.propietario.id}`, { cookie: vet.cookie, cuerpo: { telefono: '688777666' } });
+  assert.equal(await eventos('paciente.ficha_modificada', rows[0]!.id), 0);
+  assert.equal(await eventos('paciente.ficha_modificada', c.id), 1);
+});
+
+test('revisión: /clinicas/mia no enseña solicitudes de unión mientras la clínica no esté validada', async () => {
+  const destino = await veterinarioVerificado(s);
+  const solicitante = await veterinarioVerificado(s);
+  await pedir(s.app, 'POST', `/api/clinicas/${destino.usuario.clinica.id}/solicitudes-union`, { cookie: solicitante.cookie });
+  assert.equal((await pedir(s.app, 'GET', '/api/clinicas/mia', { cookie: destino.cookie })).cuerpo.solicitudes_recibidas.length, 0);
+  await validarClinica(destino.usuario.clinica.id);
+  assert.equal((await pedir(s.app, 'GET', '/api/clinicas/mia', { cookie: destino.cookie })).cuerpo.solicitudes_recibidas.length, 1);
+});
+
+test('revisión: «001» → «1» en la raza es un cambio (solo el peso se compara como número)', async () => {
+  const vet = await veterinarioVerificado(s);
+  const c = await derivar(vet);
+  await pedir(s.app, 'PATCH', `/api/pacientes/${c.paciente.id}`, { cookie: fisio.cookie, cuerpo: { raza: '001' } });
+  await pedir(s.app, 'PATCH', `/api/pacientes/${c.paciente.id}`, { cookie: fisio.cookie, cuerpo: { raza: '1' } });
+  assert.equal((await pedir(s.app, 'GET', `/api/pacientes/${c.paciente.id}`, { cookie: fisio.cookie })).cuerpo.raza, '1');
+});
+
+test('revisión: dos pasadas a la vez de pendientes de cita avisan una sola vez', async () => {
+  const vet = await veterinarioVerificado(s);
+  const c = await derivar(vet);
+  await pedir(s.app, 'POST', `/api/casos/${c.id}/acepta`, { cookie: fisio.cookie, cuerpo: {} });
+  await s.pool.query(`UPDATE casos SET resuelto_el = now() - interval '5 days' WHERE id = $1`, [c.id]);
+  await Promise.all([comprobarPendientesCita(s.pool), comprobarPendientesCita(s.pool)]);
+  assert.equal(await eventos('caso.sin_noticias', c.id), 1);
+  assert.equal(await notificaciones(fisio.id, 'caso.sin_noticias', c.id), 1);
+});

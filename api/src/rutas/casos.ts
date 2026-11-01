@@ -13,7 +13,7 @@ import {
 } from '../dominio/estados-caso.ts';
 import { validarDerivacion } from '../dominio/validacion-derivacion.ts';
 import { ambitoCaso } from '../dominio/visibilidad.ts';
-import { conflicto, datosIncorrectos, ErrorHttp, prohibido } from '../errores.ts';
+import { conflicto, datosIncorrectos, ErrorHttp, noEncontrado, prohibido } from '../errores.ts';
 import {
   avisarCaso, CAMPOS_CASO, CAMPOS_PACIENTE, CAMPOS_PROPIETARIO, casoVisible, crearPaciente,
   guardarCambios, pacienteVisible, tocarActividad, type FilaCaso,
@@ -280,7 +280,18 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
     }), peticion.body);
     await enTransaccion(pool, async (bd) => {
       const caso = await casoVisible(bd, sesion, id, true);
+      if (caso.descartado_el) throw noEncontrado('Aquest cas no existeix');
       if (sesion.rol === 'derivador' && !EDITABLE_POR_DERIVADOR.includes(caso.estado)) throw conflicto(NO_EDITABLE);
+      const tocaFicha = Object.keys(d.paciente ?? {}).length > 0 || Object.keys(d.propietario ?? {}).length > 0;
+      if (sesion.rol === 'derivador' && tocaFicha) {
+        // La ficha es del paciente, no de esta derivación: si otra suya ya está
+        // aceptada, la misma regla que en PATCH /pacientes/:id.
+        const { rows } = await bd.query(
+          'SELECT 1 FROM casos WHERE paciente_id = $1 AND NOT (estado = ANY($2))',
+          [caso.paciente_id, EDITABLE_POR_DERIVADOR],
+        );
+        if (rows[0]) throw conflicto(NO_EDITABLE);
+      }
       const campos = [
         ...await guardarCambios(bd, 'casos', caso.id, CAMPOS_CASO, d.caso ?? {}, sesion.usuarioId),
         ...await guardarCambios(bd, 'pacientes', caso.paciente_id, CAMPOS_PACIENTE, d.paciente ?? {}, sesion.usuarioId),
@@ -308,6 +319,8 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
   ) {
     await enTransaccion(pool, async (bd) => {
       const caso = await casoVisible(bd, sesion, id, true);
+      // Descartado = ya no existe para nadie: ni se envía ni se vuelve a descartar.
+      if (caso.descartado_el) throw noEncontrado('Aquest cas no existeix');
       const actor = sesion.rol === 'derivador' ? 'derivador' : 'bambu';
       const decision = decidirTransicion(caso.estado, accion, actor);
       if (!decision.ok) {

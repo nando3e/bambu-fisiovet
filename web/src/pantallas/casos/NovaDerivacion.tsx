@@ -98,8 +98,27 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
     cargar.catch((err) => setError(mensajeDe(err))).finally(() => setCargando(false));
   }, [bambu, casoUrl, navegar]);
 
-  // Autoguardado del borrador: 800 ms después de dejar de escribir.
+  // Autoguardado del borrador: 800 ms después de dejar de escribir. Los
+  // guardados van en fila (uno detrás de otro), para que una respuesta lenta
+  // no deje en el servidor una versión anterior, y «Envia» guarda lo último
+  // antes de enviar.
   const primeraVez = useRef(true);
+  const fila = useRef<Promise<unknown>>(Promise.resolve());
+  const pendiente = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const guardarAhora = useCallback(() => {
+    if (!casoId) return Promise.resolve();
+    const cuerpo = existente
+      ? { caso: derivacion }
+      : { paciente: pacienteParaApi(paciente), propietario, caso: derivacion };
+    setGuardado('guardando');
+    const vuelta = fila.current.catch(() => {}).then(() => api.patch(`/casos/${casoId}`, cuerpo));
+    fila.current = vuelta;
+    return vuelta.then(() => {
+      setGuardado('guardado');
+      setErrores({});
+    });
+  }, [casoId, existente, derivacion, paciente, propietario]);
+
   useEffect(() => {
     if (bambu || !casoId) return;
     if (primeraVez.current) {
@@ -107,23 +126,19 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
       return;
     }
     setGuardado('guardando');
-    const espera = setTimeout(() => {
-      const cuerpo = existente
-        ? { caso: derivacion }
-        : { paciente: pacienteParaApi(paciente), propietario, caso: derivacion };
-      api.patch(`/casos/${casoId}`, cuerpo)
-        .then(() => {
-          setGuardado('guardado');
-          setErrores({});
-        })
-        .catch((err) => {
-          setGuardado('nada');
-          if (err instanceof ErrorApi && err.campos) setErrores(err.campos);
-          else setError(mensajeDe(err));
-        });
+    pendiente.current = setTimeout(() => {
+      pendiente.current = null;
+      guardarAhora().catch((err) => {
+        setGuardado('nada');
+        if (err instanceof ErrorApi && err.campos) setErrores(err.campos);
+        else setError(mensajeDe(err));
+      });
     }, 800);
-    return () => clearTimeout(espera);
-  }, [bambu, casoId, paciente, propietario, derivacion, existente]);
+    return () => {
+      if (pendiente.current) clearTimeout(pendiente.current);
+      pendiente.current = null;
+    };
+  }, [bambu, casoId, guardarAhora]);
 
   const crearBorrador = useCallback(async () => {
     const r = await api.post<Ficha>('/casos', existente
@@ -167,6 +182,10 @@ export function NovaDerivacion({ modo }: { modo: 'derivador' | 'bambu' }) {
         navegar(`/b/casos/${r.id}`, { replace: true });
         return;
       }
+      // Lo último que se ha escrito, guardado antes de enviar.
+      if (pendiente.current) clearTimeout(pendiente.current);
+      pendiente.current = null;
+      await guardarAhora();
       await api.post(`/casos/${casoId}/envia`, { acepta_consentimiento: acepta });
       navegar(`/d/casos/${casoId}`, { replace: true, state: { aviso: t('nova.enviada') } });
     } catch (err) {

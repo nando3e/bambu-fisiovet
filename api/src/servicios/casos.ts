@@ -163,13 +163,13 @@ export async function guardarCambios(
     const v = vacioANull(datos[c]);
     return v === null && tabla === 'casos' ? '' : v;
   };
-  // El peso llega de Postgres como texto ('12.40'): se compara como número.
-  const comparable = (v: unknown) => {
+  // El peso llega de Postgres como texto ('12.40'): solo él se compara como
+  // número. El resto, como texto («001» y «1» son nombres distintos).
+  const comparable = (c: string, v: unknown) => {
     if (v === null || v === undefined) return null;
-    const numerico = typeof v === 'number' || (tabla === 'pacientes' && /^-?\d+(\.\d+)?$/.test(String(v)));
-    return numerico ? String(Number(v)) : String(v);
+    return c === 'peso_kg' ? String(Number(v)) : String(v);
   };
-  const cambiados = claves.filter((c) => comparable(actual[c]) !== comparable(nuevo(c)));
+  const cambiados = claves.filter((c) => comparable(c, actual[c]) !== comparable(c, nuevo(c)));
   if (cambiados.length === 0) return [];
   const valores = cambiados.map(nuevo);
   await bd.query(
@@ -230,12 +230,15 @@ export async function avisarFichaModificada(
   campos: string[],
 ): Promise<void> {
   for (const pacienteId of pacienteIds) {
+    const ambito = ambitoCaso(sesion, 'c', 2);
     const { rows } = await bd.query<{ id: number }>(
-      `SELECT id FROM casos WHERE paciente_id = $1 AND estado <> 'borrador' ORDER BY creado DESC LIMIT 1`,
-      [pacienteId],
+      `SELECT c.id FROM casos c
+       WHERE c.paciente_id = $1 AND c.estado <> 'borrador' AND c.descartado_el IS NULL AND ${ambito.sql}
+       ORDER BY c.creado DESC LIMIT 1`,
+      [pacienteId, ...ambito.params],
     );
     if (!rows[0]) continue;
-    const caso = await casoVisible(bd, { ...sesion, rol: 'bambu' }, rows[0].id);
+    const caso = await casoVisible(bd, sesion, rows[0].id);
     await tocarActividad(bd, caso.id);
     await avisarCaso(bd, sesion, caso, 'paciente.ficha_modificada', {
       nombre: `${sesion.nombre} ${sesion.apellidos}`.trim(),

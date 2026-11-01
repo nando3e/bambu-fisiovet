@@ -68,8 +68,11 @@ export async function rutasClinicas(app: FastifyInstance, deps: Deps): Promise<v
       [sesion.clinicaId],
     );
     const { rows: recibidas } = await pool.query(
+      // Como en GET /solicitudes-union: en una clínica sin validar las
+      // resuelve Bambú y sus miembros no las ven.
       `SELECT s.id, s.creado, u.nombre, u.apellidos, u.email
        FROM solicitudes_union s JOIN usuarios u ON u.id = s.usuario_id
+       JOIN clinicas d ON d.id = s.clinica_destino_id AND d.validada
        WHERE s.clinica_destino_id = $1 AND s.estado = 'pendiente' ORDER BY s.creado`,
       [sesion.clinicaId],
     );

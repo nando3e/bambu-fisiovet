@@ -117,7 +117,7 @@ corre con otro modelo.
       casos existentes y con la URL de producción.
 - [x] 4.2 `npm test`, `npm run typecheck`, `npm run comprova-produccio` en
       verde; corregir la propuesta (plantillas de correo, D5).
-- [ ] 4.3 Revisor sobre el diff del change con un modelo distinto; corregir lo
+- [x] 4.3 Revisor sobre el diff del change con un modelo distinto; corregir lo
       que proceda y justificar aquí lo descartado.
 - [ ] 4.4 Redesplegar y recorrido en producción (design, Migration Plan).
       Anotar hallazgos en el cuaderno §12 y aplazados en §11.

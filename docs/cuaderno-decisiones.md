@@ -471,6 +471,26 @@ De la revisión del change 1 (Fable, dos pasadas, 2026-10-31):
   «el superadmin no puede recuperar» usaba un correo que no existía y no
   ejercitaba nada.
 
+Del change `casos-y-derivaciones` (2026-11-01):
+
+- **El autoguardado devolvía la ficha con `null` y el API solo aceptaba
+  texto.** Los tests mandaban cuerpos escritos a mano y pasaban; el recorrido
+  en Chrome (puppeteer-core con el Chrome del sistema, fuera del repo) cazó el
+  400 en el primer intento. Lección: **probar también el ida y vuelta: lo que
+  el API devuelve tiene que poder volver a entrar tal cual**.
+- **Un efecto que cambia la URL vuelve a disparar la carga de la pantalla.**
+  Crear el borrador ponía `?cas=ID` y la recarga podía llegar tarde y pisar
+  lo que ya se escribía. El borrador creado en la propia pantalla no se
+  recarga.
+- **El límite del portal lo marca Wakyma.** Al saber que las visitas van allí,
+  la transición automática a «en tratamiento» por primera sesión no tenía
+  sentido: se cambió por el botón «Ja té cita», una marca de «vista» sin clic
+  y el aviso de derivaciones aceptadas sin cita.
+- **Las comprobaciones de comparación en tests deben leer la fuente viva.** El
+  test que comparaba el catálogo de eventos con el CHECK leía el fichero de la
+  004; con la 005 redefiniendo el CHECK habría mentido. Ahora compara con la
+  restricción de la base.
+
 ## 13. Estado del despliegue
 
 - Dokploy, proyecto **BambuFisioVet**, entorno `production`:
