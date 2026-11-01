@@ -3,7 +3,7 @@
 // el API; esto solo evita pintar pantallas que no tocan.
 import type { ReactNode } from 'react';
 import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router';
-import { Building2, ClipboardList, ClipboardPlus, LayoutDashboard, PawPrint, Settings, UserRound } from 'lucide-react';
+import { Building2, ChartColumn, ClipboardList, ClipboardPlus, LayoutDashboard, PawPrint, Settings, UserRound } from 'lucide-react';
 import { t } from './i18n/index.ts';
 import { ProveedorSesion, useSesion, zonaDe } from './sesion.tsx';
 import { Cargando } from './componentes/comunes.tsx';
@@ -20,6 +20,7 @@ import { NovaDerivacion } from './pantallas/casos/NovaDerivacion.tsx';
 import { FichaPaciente, ListaPacientes } from './pantallas/casos/Pacientes.tsx';
 import { InformeVista } from './pantallas/casos/Informes.tsx';
 import { Clinicas, InicioBambu } from './pantallas/bambu/Bambu.tsx';
+import { Panel } from './pantallas/bambu/Panel.tsx';
 import { Configuracion } from './pantallas/bambu/configuracion/Configuracion.tsx';
 
 function Guarda({ zona, children }: { zona: '/d' | '/b'; children: ReactNode }) {
@@ -42,6 +43,7 @@ const MENU_BAMBU = [
   { a: '/b/casos', texto: t('menu.casos'), icono: ClipboardList },
   { a: '/b/pacients', texto: t('menu.pacientes'), icono: PawPrint },
   { a: '/b/cliniques', texto: t('menu.clinicas'), icono: Building2 },
+  { a: '/b/panell', texto: t('menu.panel'), icono: ChartColumn },
   { a: '/b/configuracio', texto: t('menu.configuracion'), icono: Settings },
   { a: '/b/perfil', texto: t('menu.perfil'), icono: UserRound },
 ];
@@ -93,6 +95,7 @@ export function App() {
             <Route path="pacients" element={<ListaPacientes zona="/b" />} />
             <Route path="pacients/:id" element={<FichaPaciente zona="/b" />} />
             <Route path="cliniques" element={<Clinicas />} />
+            <Route path="panell" element={<Panel />} />
             <Route path="configuracio/*" element={<Configuracion />} />
             <Route path="perfil" element={<Perfil />} />
             <Route path="notificacions" element={<PaginaNotificaciones />} />

@@ -473,7 +473,7 @@ export function InformeVista({ zona }: { zona: '/d' | '/b' }) {
         <img src="/logo-bambu.png" alt={t('web.logoAlt')} width={64} height={64} />
         <div>
           <h1>{titulo(informe.tipo)}</h1>
-          <p className="texto-suave">{t('informes.marca')}</p>
+          <p className="texto-suave">{t('marca')}</p>
         </div>
       </header>
       <dl className="datos">

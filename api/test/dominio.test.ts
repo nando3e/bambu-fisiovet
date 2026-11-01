@@ -17,6 +17,7 @@ import { ACCIONES, decidirTransicion, ESTADOS, TRANSICIONES, EDITABLE_POR_DERIVA
 import { ambitoCaso, ambitoPaciente } from '../src/dominio/visibilidad.ts';
 import { validarDerivacion } from '../src/dominio/validacion-derivacion.ts';
 import { nombreSeguro, tipoDeAdjunto } from '../src/ficheros/adjuntos.ts';
+import { horasLaborables, mediana } from '../src/dominio/indicadores.ts';
 
 test('cuentas y secretos: contraseña, scrypt, cifrado, dominios, unión a clínica y config', async () => {
   assert.match(problemaDeContrasena('123456789', null)!, /10 caràcters/);
@@ -125,4 +126,13 @@ test('adjuntos: el tipo se decide por el contenido, nunca por la extensión; nom
   assert.equal(tipoDeAdjunto(Buffer.from('hola'), 'nota.txt'), null);
   assert.equal(nombreSeguro(String.raw`C:\fotos\rx "dreta".jpg`), 'rx dreta.jpg');
   assert.equal(nombreSeguro('../../etc/passwd'), 'passwd');
+});
+
+test('indicadores: horas laborables de lunes a viernes y mediana sin datos → null', () => {
+  const h = (a: string, b: string) => horasLaborables(new Date(`${a}Z`), new Date(`${b}Z`));
+  assert.equal(h('2026-03-06T18:00:00', '2026-03-09T10:00:00'), 16); // viernes → lunes
+  assert.equal(h('2026-03-10T09:00:00', '2026-03-10T13:30:00'), 4.5);
+  assert.equal(h('2026-03-07T08:00:00', '2026-03-08T20:00:00'), 0); // sábado → domingo
+  assert.equal(h('2026-03-09T10:00:00', '2026-03-09T09:00:00'), 0);
+  assert.deepEqual([mediana([]), mediana([5, 1, 3]), mediana([4, 1, 3, 2])], [null, 3, 2.5]);
 });

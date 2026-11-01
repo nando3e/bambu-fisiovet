@@ -96,7 +96,7 @@ export function InicioBambu() {
   if (!datos || !usuario) return <Cargando />;
   return (
     <>
-      <TituloPagina antetitulo="BAMBÚ Fisiovet" titulo={t('bambu.hola', { nombre: usuario.nombre })} subtitulo={t('bambu.subtitulo')}>
+      <TituloPagina antetitulo={t('marca')} titulo={t('bambu.hola', { nombre: usuario.nombre })} subtitulo={t('bambu.subtitulo')}>
         <Link to="/b/casos/nou" className="boton-secundario"><PhoneCall size={18} aria-hidden /> {t('bambu.registrar')}</Link>
       </TituloPagina>
       <div className="rejilla-tarjetas">

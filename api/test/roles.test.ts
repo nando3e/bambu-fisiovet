@@ -60,6 +60,7 @@ const RUTAS: [Metodo, string, Quien][] = [
   ['POST', '/api/casos/1/leido', 'cualquiera'],
   ['GET', '/api/casos/1/historial', 'bambu'],
   ['GET', '/api/panel/contadores', 'bambu'],
+  ['GET', '/api/panel/indicadores', 'bambu'],
   ['GET', '/api/pacientes', 'cualquiera'],
   ['GET', '/api/pacientes/1', 'cualquiera'],
   ['PATCH', '/api/pacientes/1', 'cualquiera'],

@@ -142,9 +142,18 @@
   align-items: center;
   justify-content: center;
   gap: 3px;
-  font-size: 0.72rem;
+  min-width: 0;
+  padding: 0 2px;
+  font-size: 0.66rem;
   font-weight: 600;
   color: var(--texto-suave);
+}
+/* Siete entradas en 360 px: la etiqueta se recorta antes que montarse con la vecina. */
+.navegacion a span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .navegacion a.activo {
   color: var(--verde-oscuro);
@@ -498,7 +507,7 @@
 .lista .principal span {
   color: var(--texto-suave);
   font-size: 0.85rem;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .lista .icono-fila {
   width: 38px;
@@ -1241,4 +1250,75 @@ button.chip {
     padding: 0;
     max-width: none;
   }
+}
+
+/* ---------- Panel de indicadores ---------- */
+.seccion-panel {
+  font-size: 1rem;
+  color: var(--texto-suave);
+  margin: 4px 0 10px;
+}
+.rejilla-panel {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+.rejilla-panel .tarjeta {
+  margin-bottom: 0;
+}
+.barras-panel {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+.barra-fila {
+  display: grid;
+  grid-template-columns: 6rem 1fr 2.5rem;
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+}
+.barras-panel.anchas .barra-fila {
+  grid-template-columns: minmax(0, 10rem) 1fr 2.5rem;
+}
+.barra-etiqueta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.barra-etiqueta small {
+  align-self: flex-start;
+  font-size: 0.75rem;
+}
+.barra-fondo {
+  height: 12px;
+  background: var(--hoja);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.barra-relleno {
+  display: block;
+  height: 100%;
+  background: var(--verde);
+  border-radius: 6px;
+}
+a.barra-fila:hover .barra-relleno {
+  background: var(--verde-oscuro);
+}
+.barra-fila strong {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cifra-grande {
+  font: 700 2rem var(--fuente-titulo);
+  margin: 8px 0;
+}
+.cifra-grande small {
+  font: 400 0.85rem var(--fuente-texto);
+  color: var(--texto-suave);
+  margin-left: 8px;
 }

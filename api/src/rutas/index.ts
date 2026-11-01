@@ -16,6 +16,7 @@ import { rutasCasos } from './casos.ts';
 import { rutasPacientes } from './pacientes.ts';
 import { rutasHilo } from './hilo.ts';
 import { rutasInformes } from './informes.ts';
+import { rutasPanel } from './panel.ts';
 
 export interface Deps {
   pool: Pool;
@@ -54,6 +55,7 @@ export async function registrarRutas(app: FastifyInstance, deps: Deps): Promise<
     await rutasPacientes(api, deps);
     await rutasHilo(api, deps);
     await rutasInformes(api, deps);
+    await rutasPanel(api, deps);
   }, { prefix: '/api' });
 }
 

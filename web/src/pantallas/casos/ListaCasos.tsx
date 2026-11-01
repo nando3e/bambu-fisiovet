@@ -51,6 +51,9 @@ export function ListaCasos({ zona }: { zona: '/d' | '/b' }) {
     if (novedades) p.set('novedades', '1');
     const q = url.get('q');
     if (q) p.set('q', q);
+    // Desde el panel: las derivaciones de una clínica.
+    const clinica = url.get('clinica');
+    if (clinica) p.set('clinica_id', clinica);
     if (antes) p.set('antes_de', antes);
     return `/casos?${p.toString()}`;
   };
@@ -98,7 +101,7 @@ export function ListaCasos({ zona }: { zona: '/d' | '/b' }) {
     }
   }
 
-  const sinNada = casos?.length === 0 && filtro.clave === 'todas' && !novedades && !url.get('q');
+  const sinNada = casos?.length === 0 && filtro.clave === 'todas' && !novedades && !url.get('q') && !url.get('clinica');
 
   return (
     <>
