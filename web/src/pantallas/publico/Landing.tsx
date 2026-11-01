@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import {
-  ArrowDown, ArrowUpRight, Asterisk, Check, ClipboardList, AtSign, Mail, MapPin,
+  ArrowDown, ArrowUpRight, Asterisk, Check, ClipboardList, AtSign, LogIn, Mail, MapPin,
   Menu, MessagesSquare, Phone, Clock, Sprout, TrendingUp, UserPlus, Waves, X,
 } from 'lucide-react';
 import { api } from '../../api.ts';
@@ -58,6 +58,9 @@ export function Landing() {
           <a href="#com-funciona" onClick={cerrar}>{t('web.menu.comoFunciona')}</a>
           <a href="#installacions" onClick={cerrar}>{t('web.menu.instalaciones')}</a>
           <a href="#contacte" onClick={cerrar}>{t('web.menu.contacto')}</a>
+          <Link to="/acces" className="web-acceder" onClick={cerrar}>
+            <LogIn size={18} aria-hidden /> {t('web.acceder')}
+          </Link>
           <Link to="/acces" className="boton" onClick={cerrar}>
             {t('web.derivaUnCaso')} <ArrowUpRight size={18} aria-hidden />
           </Link>
@@ -155,6 +158,12 @@ export function Landing() {
                 <p>{t(texto)}</p>
               </article>
             ))}
+          </div>
+          <div className="web-pasos-cta aparece">
+            <Link to="/acces" className="boton">
+              {t('web.pasos.cta')} <ArrowUpRight size={18} aria-hidden />
+            </Link>
+            <p>{t('web.pasos.ctaTexto')}</p>
           </div>
         </section>
 

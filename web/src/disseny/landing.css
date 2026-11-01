@@ -53,6 +53,11 @@
 .web-menu .boton {
   min-height: 44px;
 }
+.web-acceder {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .web-hamburguesa {
   display: none;
 }
@@ -242,6 +247,18 @@
 }
 
 /* Cómo funciona */
+.web-pasos-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-top: 28px;
+}
+.web-pasos-cta p {
+  margin: 0;
+  color: var(--texto-suave);
+  max-width: 46ch;
+}
 .web-pasos {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

@@ -54,16 +54,14 @@ services:
       TZ: Europe/Madrid
     volumes:
       - datos:/datos
+    # Los dominios se gestionan en la interfaz de Dokploy (Compose `portal` →
+    # Domains: servicio bambu-app, puerto 8105, HTTPS con Let's Encrypt), que
+    # añade sus labels de Traefik al desplegar. Aquí no van labels: dos
+    # routers para el mismo host se pisarían. APP_HOST solo da la URL pública
+    # de los enlaces de los correos.
     networks:
       - interna
       - dokploy-network
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=dokploy-network
-      - traefik.http.routers.bambu.rule=Host(`${APP_HOST:?hace falta APP_HOST}`)
-      - traefik.http.routers.bambu.entrypoints=websecure
-      - traefik.http.routers.bambu.tls.certresolver=letsencrypt
-      - traefik.http.services.bambu.loadbalancer.server.port=8105
 
 volumes:
   pgdata:
