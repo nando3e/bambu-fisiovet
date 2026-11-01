@@ -1,7 +1,7 @@
 // Pestaña Informes de la ficha y vista imprimible de un informe. Bambú dicta
 // notas, pide un borrador (con IA o a mano), lo revisa, lo regenera o lo edita
 // y solo cuando lo confirma sale hacia el veterinario.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { AlertTriangle, ArrowLeft, Check, FileText, PenLine, Printer, RefreshCw, Sparkles, Trash2, X } from 'lucide-react';
 import { api, ErrorApi, mensajeDe } from '../../api.ts';
@@ -234,13 +234,15 @@ function NuevoInforme({ casoId, alPublicar }: { casoId: number; alPublicar: () =
             <Campo etiqueta={t('informes.instrucciones')} value={instrucciones} onChange={(e) => setInstrucciones(e.target.value)} />
           ) : null}
           {tipo === 'alta' ? <Aviso tipo="info">{t('informes.altaAviso')}</Aviso> : null}
+          {/* Una sola propuesta pendiente por caso: el servidor lo exige y aquí se dice antes. */}
+          {pendientes.length ? <Aviso tipo="info">{t('informes.yaHayPendiente')}</Aviso> : null}
           <div className="acciones">
             {ia.redactor ? (
-              <button type="button" className="boton" disabled={redactando} onClick={() => void redactar(false)}>
+              <button type="button" className="boton" disabled={redactando || pendientes.length > 0} onClick={() => void redactar(false)}>
                 <Sparkles size={18} aria-hidden /> {redactando ? t('informes.redactando') : t('informes.redactarIa')}
               </button>
             ) : null}
-            <button type="button" className="boton-secundario" disabled={redactando} onClick={() => void redactar(true)}>
+            <button type="button" className="boton-secundario" disabled={redactando || pendientes.length > 0} onClick={() => void redactar(true)}>
               <PenLine size={18} aria-hidden /> {t('informes.redactarMano')}
             </button>
           </div>
@@ -434,6 +436,9 @@ export function InformeVista({ zona }: { zona: '/d' | '/b' }) {
   const { usuario } = useSesion();
   const [informe, setInforme] = useState<InformeCompleto | null>(null);
   const [error, setError] = useState('');
+  // Un segundo toque en «Corregeix» antes de que vuelva el primero no hace nada.
+  const corrigiendo = useRef(false);
+  const [ocupado, setOcupado] = useState(false);
   useEffect(() => {
     api.get<InformeCompleto>(`/informes/${iid}`).then(setInforme).catch((err) => setError(mensajeDe(err)));
   }, [iid]);
@@ -446,7 +451,10 @@ export function InformeVista({ zona }: { zona: '/d' | '/b' }) {
         <Link to={`${zona}/casos/${id}?p=informes`} className="volver"><ArrowLeft size={16} aria-hidden /> {t('caso.volver')}</Link>
         <button type="button" className="boton-secundario" onClick={() => window.print()}><Printer size={18} aria-hidden /> {t('informes.imprimir')}</button>
         {bambu ? (
-          <button type="button" className="boton-texto" onClick={async () => {
+          <button type="button" className="boton-texto" disabled={ocupado} onClick={async () => {
+            if (corrigiendo.current) return;
+            corrigiendo.current = true;
+            setOcupado(true);
             try {
               await api.post(`/casos/${informe.caso_id}/propuestas-informe`, {
                 tipo: informe.tipo, manual: true, datos: informe.contenido, sustituye_informe_id: informe.id,
@@ -454,15 +462,18 @@ export function InformeVista({ zona }: { zona: '/d' | '/b' }) {
               navegar(`/b/casos/${informe.caso_id}?p=informes`);
             } catch (err) {
               setError(mensajeDe(err));
+            } finally {
+              corrigiendo.current = false;
+              setOcupado(false);
             }
           }}><PenLine size={16} aria-hidden /> {t('informes.corregir')}</button>
         ) : null}
       </div>
       <header className="informe-cabecera">
-        <img src="/logo-bambu.png" alt="BAMBÚ Fisiovet" width={64} height={64} />
+        <img src="/logo-bambu.png" alt={t('web.logoAlt')} width={64} height={64} />
         <div>
           <h1>{titulo(informe.tipo)}</h1>
-          <p className="texto-suave">BAMBÚ Fisiovet</p>
+          <p className="texto-suave">{t('informes.marca')}</p>
         </div>
       </header>
       <dl className="datos">

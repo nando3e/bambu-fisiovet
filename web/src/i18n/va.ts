@@ -534,6 +534,8 @@ export const va = {
   'informes.imprimir': 'Imprimeix',
   'informes.sustituye': 'Corregeix l’informe del {fecha}',
   'informes.corregir': 'Corregeix amb un informe nou',
+  'informes.marca': 'BAMBÚ Fisiovet',
+  'informes.yaHayPendiente': 'Hi ha una proposta pendent: confirma-la, edita-la o descarta-la abans de fer-ne una altra.',
   'informes.ver': 'Obri l’informe',
   'informes.paciente': 'Pacient',
   'informes.veterinario': 'Veterinari',

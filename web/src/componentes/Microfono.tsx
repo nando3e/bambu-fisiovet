@@ -19,20 +19,39 @@ export function Microfono({ alTerminar, desactivado = false }: {
   const trozos = useRef<Blob[]>([]);
   const descartar = useRef(false);
   const limpiar = useRef<() => void>(() => {});
+  const montado = useRef(true);
+  // Mientras el navegador pide permiso: un segundo toque no abre otro flujo.
+  const [pidiendo, setPidiendo] = useState(false);
+  const pidiendoRef = useRef(false);
 
   // Al desmontar: parar y descartar.
-  useEffect(() => () => {
-    descartar.current = true;
-    limpiar.current();
+  useEffect(() => {
+    montado.current = true;
+    return () => {
+      montado.current = false;
+      descartar.current = true;
+      limpiar.current();
+    };
   }, []);
 
   async function empezar() {
+    if (pidiendoRef.current || grabadora.current?.state === 'recording') return;
+    pidiendoRef.current = true;
+    setPidiendo(true);
     setError('');
     let flujo: MediaStream;
     try {
       flujo = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
-      setError(t('informes.sinMicro'));
+      if (montado.current) setError(t('informes.sinMicro'));
+      return;
+    } finally {
+      pidiendoRef.current = false;
+      if (montado.current) setPidiendo(false);
+    }
+    // Si la pantalla se cerró mientras se pedía permiso, el micro no se queda abierto.
+    if (!montado.current) {
+      flujo.getTracks().forEach((pista) => pista.stop());
       return;
     }
     const contexto = new AudioContext();
@@ -99,7 +118,7 @@ export function Microfono({ alTerminar, desactivado = false }: {
           </button>
         </>
       ) : (
-        <button type="button" className="boton-secundario" disabled={desactivado} onClick={() => void empezar()}>
+        <button type="button" className="boton-secundario" disabled={desactivado || pidiendo} onClick={() => void empezar()}>
           <Mic size={18} aria-hidden /> {t('informes.grabar')}
         </button>
       )}

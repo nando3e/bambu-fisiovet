@@ -15,6 +15,7 @@ import { decidirTransicion } from '../dominio/estados-caso.ts';
 import { ambitoCaso } from '../dominio/visibilidad.ts';
 import { conflicto, datosIncorrectos, ErrorHttp, noEncontrado } from '../errores.ts';
 import { esquemaInforme, ESQUEMA_JSON, informeVacio, TIPOS_INFORME, type DatosInforme, type TipoInforme } from '../informes/esquema.ts';
+import { anonimizar } from '../informes/anonimizar.ts';
 import { construirPrompt } from '../informes/prompt.ts';
 import { renderInforme, TITULO_INFORME } from '../informes/render.ts';
 import { modelosDisponibles } from '../llm/factory.ts';
@@ -196,13 +197,31 @@ export async function rutasInformes(app: FastifyInstance, deps: Deps): Promise<v
        ORDER BY creado, id`,
       [caso.id, transcripcionIds ?? null, anterior[0]?.creado ?? null],
     );
-    const { sistema, texto } = construirPrompt({
+    // Lo que se sabe del propietario, del veterinario y de la clínica, para
+    // taparlo si aparece copiado en un campo libre.
+    const { rows: quien } = await pool.query<{
+      p_nombre: string; p_telefono: string | null; p_email: string | null;
+      v_nombre: string | null; v_apellidos: string | null; v_email: string | null;
+    }>(
+      `SELECT pr.nombre AS p_nombre, pr.telefono AS p_telefono, pr.email AS p_email,
+              d.nombre AS v_nombre, d.apellidos AS v_apellidos, d.email AS v_email
+       FROM propietarios pr LEFT JOIN usuarios d ON d.id = $2 WHERE pr.id = $1`,
+      [caso.propietario_id, caso.derivador_id],
+    );
+    const q = quien[0];
+    const prompt = construirPrompt({
       tipo,
       paciente: pac[0],
       caso: { motivo: caso.motivo, historia_clinica: caso.historia_clinica, tratamiento_actual: caso.tratamiento_actual, objetivos: caso.objetivos },
       transcripciones: notas.map((n) => ({ creado: new Date(n.creado).toISOString(), texto: n.texto })),
       informeAnterior: anterior[0]?.texto ?? null,
       instrucciones,
+    });
+    const sistema = prompt.sistema;
+    const texto = anonimizar(prompt.texto, {
+      propietario: [q?.p_nombre ?? null, q?.p_telefono ?? null, q?.p_email ?? null],
+      veterinario: [q?.v_nombre ?? null, q?.v_apellidos ?? null, q?.v_email ?? null, caso.derivador_nombre],
+      clinica: [caso.clinica_nombre],
     });
     let r;
     try {
@@ -217,18 +236,24 @@ export async function rutasInformes(app: FastifyInstance, deps: Deps): Promise<v
     return { datos: valido.data, modelo: r.modelo, latenciaMs: r.latenciaMs, transcripcionIds: notas.map((n) => n.id) };
   }
 
+  const YA_HAY_PENDIENTE = 'Ja hi ha una proposta pendent en aquest cas: confirma-la, edita-la o descarta-la abans de fer-ne una altra.';
+
   async function insertarPropuesta(bd: Consultable, p: {
     casoId: number; autorId: number; tipo: TipoInforme; origen: 'ia' | 'manual' | 'edicion'; datos: DatosInforme;
     transcripcionIds: number[]; instrucciones: string | null; modelo: string | null; latenciaMs: number | null;
     origenId: number | null; sustituyeId: number | null;
   }) {
+    // Una sola pendiente por caso: la base lo garantiza aunque lleguen dos a la vez.
     const { rows } = await bd.query<{ id: number }>(
       `INSERT INTO propuestas_informe (caso_id, autor_id, tipo, origen, datos, ficha, transcripcion_ids, instrucciones,
                                        modelo, latencia_ms, propuesta_origen_id, sustituye_informe_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
       [p.casoId, p.autorId, p.tipo, p.origen, JSON.stringify(p.datos), renderInforme(p.tipo, p.datos), p.transcripcionIds,
         p.instrucciones, p.modelo, p.latenciaMs, p.origenId, p.sustituyeId],
-    );
+    ).catch((error: { code?: string; constraint?: string }) => {
+      if (error.code === '23505' && error.constraint === 'propuestas_pendiente_unica') throw conflicto(YA_HAY_PENDIENTE);
+      throw error;
+    });
     return rows[0]!.id;
   }
 
@@ -282,6 +307,9 @@ export async function rutasInformes(app: FastifyInstance, deps: Deps): Promise<v
       const { rows } = await pool.query('SELECT 1 FROM informes WHERE id = $1 AND caso_id = $2', [d.sustituye_informe_id, caso.id]);
       if (!rows[0]) throw datosIncorrectos('L’informe que es corregeix no és d’aquest cas');
     }
+    // Antes de gastar una llamada al modelo.
+    const { rows: pendiente } = await pool.query(`SELECT 1 FROM propuestas_informe WHERE caso_id = $1 AND estado = 'pendiente'`, [caso.id]);
+    if (pendiente[0]) throw conflicto(YA_HAY_PENDIENTE);
     const ia = d.manual ? null : await redactarConIa(sesion, caso.id, d.tipo, d.transcripcion_ids, d.instrucciones || null);
     const id = await insertarPropuesta(pool, {
       casoId: caso.id, autorId: sesion.usuarioId, tipo: d.tipo, origen: ia ? 'ia' : 'manual',

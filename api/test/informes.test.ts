@@ -59,7 +59,12 @@ type Vet = Awaited<ReturnType<typeof veterinarioVerificado>>;
 const DATOS = {
   paciente: { nombre: 'Nala', especie: 'perro', raza: 'Beagle', peso_kg: 12.4 },
   propietario: { nombre: 'Marta Puig', telefono: '600 123 456', email: 'marta.puig@exemple.cat' },
-  caso: { motivo: 'Coixesa posterior dreta', notas_derivador: 'Truqueu a la Marta Puig al 600 123 456' },
+  caso: {
+    motivo: 'Coixesa posterior dreta',
+    notas_derivador: 'Truqueu a la Marta Puig al 600 123 456',
+    // Datos personales copiados en campos libres que sí entran en el prompt.
+    historia_clinica: 'La porta la Sra. Puig (600123456, marta.puig@exemple.cat). La va operar el Dr. Ramon a la Clínica Secreta Montgó.',
+  },
 };
 
 async function enviado(vet: Vet) {
@@ -115,13 +120,17 @@ test('contrato con el modelo: esquema estricto igual al zod, render determinista
 
   const vet = await veterinarioVerificado(s, { nombre: 'Ramon', clinica: 'Clínica Secreta Montgó' });
   const c = await casoAceptado(vet);
-  await dictar(fisio.cookie, c.id);
-  assert.equal((await proponer(c.id, { tipo: 'valoracion' })).estado, 201);
+  // Un informe anterior, un dictado y unas instrucciones que también los nombran.
+  const anterior = await proponer(c.id, { tipo: 'evolucion', manual: true, datos: { ...VALIDO, resumen: 'Parlat amb Marta Puig: millora.' } });
+  await confirmar(anterior.cuerpo.id);
+  const nota = (await dictar(fisio.cookie, c.id)).cuerpo;
+  await pedir(s.app, 'PATCH', `/api/transcripciones/${nota.id}`, { cookie: fisio.cookie, cuerpo: { texto: 'Avui ha fet làser. La Marta diu que el Ramon li va receptar antiinflamatori.' } });
+  assert.equal((await proponer(c.id, { tipo: 'valoracion', instrucciones: 'Envia-li còpia a marta.puig@exemple.cat o al 600 123 456' })).estado, 201);
   const viajado = `${ultimaPeticion!.sistema}\n${ultimaPeticion!.texto}`;
-  for (const prohibido of ['Marta Puig', '600 123 456', 'marta.puig@exemple.cat', 'Ramon', vet.email, 'Clínica Secreta Montgó']) {
+  for (const prohibido of ['Marta', 'Puig', '600 123 456', '600123456', 'marta.puig@exemple.cat', 'Ramon', vet.email, 'Secreta Montgó']) {
     assert.ok(!viajado.includes(prohibido), `«${prohibido}» ha viajado al modelo`);
   }
-  assert.ok(viajado.includes('Nala') && viajado.includes('Beagle') && viajado.includes('Avui ha fet làser'));
+  assert.ok(['Nala', 'Beagle', 'Avui ha fet làser', '[propietari]', '[veterinari]', '[clínica]', '[telèfon]', '[correu]'].every((x) => viajado.includes(x)), viajado);
 });
 
 test('IA en el panel: sin claves está apagada; con clave en el panel se enciende, la clave nunca vuelve ni va al historial y quitarla la apaga', async () => {
@@ -181,12 +190,14 @@ test('proponer: pendiente con sus dudas; lo inválido o rechazado no guarda; edi
   assert.deepEqual([p.estado, p.origen, p.datos.dudas], ['pendiente', 'ia', ['Quantes sessions setmanals se li fan?']]);
   assert.equal((await pedir(s.app, 'GET', `/api/propuestas-informe/${p.id}`, { cookie: vet.cookie })).estado, 403);
 
-  const contar = async () => (await s.pool.query('SELECT count(*)::int AS n FROM propuestas_informe WHERE caso_id = $1', [c.id])).rows[0].n;
+  // En un caso sin pendiente: una respuesta inválida o un rechazo no guardan nada.
+  const limpio = await casoAceptado(vet);
+  const contar = async () => (await s.pool.query('SELECT count(*)::int AS n FROM propuestas_informe WHERE caso_id = $1', [limpio.id])).rows[0].n;
   const antes = await contar();
   respuestaRedactor = async () => ({ resumen: 'x', inventat: true });
-  const mala = await proponer(c.id, { tipo: 'evolucion' });
+  const mala = await proponer(limpio.id, { tipo: 'evolucion' });
   respuestaRedactor = async () => { throw new ErrorModelo('rechazo', 'El model no ha volgut redactar aquest informe. Redacta’l a mà.'); };
-  const rechazo = await proponer(c.id, { tipo: 'evolucion' });
+  const rechazo = await proponer(limpio.id, { tipo: 'evolucion' });
   respuestaRedactor = async () => VALIDO;
   assert.deepEqual([mala.estado, rechazo.estado, await contar()], [502, 422, antes]);
   assert.match(rechazo.cuerpo.error, /a mà/);
@@ -203,6 +214,20 @@ test('proponer: pendiente con sus dudas; lo inválido o rechazado no guarda; edi
   const regenerada = (await pedir(s.app, 'POST', `/api/propuestas-informe/${editada.id}/regenera`, { cookie: fisio.cookie, cuerpo: { instrucciones: 'més breu' } })).cuerpo;
   assert.deepEqual([regenerada.propuesta_origen_id, (await propuesta(editada.id)).estado], [editada.id, 'cancelada']);
   assert.match(ultimaPeticion!.texto, /més breu/);
+
+  // Una sola pendiente por caso: con una abierta, otra → 409 (sin llamar al modelo); dos toques a la vez → un 201 y un 409.
+  const llamadas = ultimaPeticion;
+  assert.equal((await proponer(c.id, { tipo: 'evolucion' })).estado, 409);
+  assert.equal(ultimaPeticion, llamadas);
+  await pedir(s.app, 'POST', `/api/propuestas-informe/${regenerada.id}/cancela`, { cookie: fisio.cookie });
+  const dobles = await Promise.all([1, 2].map(() => proponer(limpio.id, { tipo: 'evolucion', manual: true })));
+  assert.deepEqual(dobles.map((r) => r.estado).sort(), [201, 409]);
+  assert.equal((await s.pool.query(`SELECT count(*)::int AS n FROM propuestas_informe WHERE caso_id = $1 AND estado = 'pendiente'`, [limpio.id])).rows[0].n, 1);
+  // Y la base lo garantiza aunque la comprobación previa se cruce: una segunda pendiente no entra.
+  await assert.rejects(
+    s.pool.query(`INSERT INTO propuestas_informe (caso_id, autor_id, tipo, origen, datos, ficha) SELECT caso_id, autor_id, tipo, origen, datos, ficha FROM propuestas_informe WHERE caso_id = $1 AND estado = 'pendiente'`, [limpio.id]),
+    (e: { constraint?: string }) => e.constraint === 'propuestas_pendiente_unica',
+  );
 
   // A mano sin datos: vacía y pendiente; el inicio de Bambú cuenta las pendientes; sin aceptar, 409.
   const vacia = await proponer(c.id, { tipo: 'evolucion', manual: true });
