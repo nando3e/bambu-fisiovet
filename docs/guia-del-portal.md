@@ -204,8 +204,8 @@ en cada una, qué hay que hacer y qué enciende «Amb novetats».
   3. **«Confirma»**: se publica en el hilo y le llega al veterinario.
   - **Un informe nunca sale sin confirmar.** Corregir uno ya publicado es
     publicar otro que lo sustituye.
-- **Fisio responsable**: si el caso tiene, los mensajes y documentos del
-  veterinario le llegan solo a esa persona; si no, a todo el equipo.
+- **Fisio responsable**: es quien lleva el caso, pero los avisos (mensajes,
+  documentos, cambios de ficha) le llegan a todo el equipo igualmente.
 - Si el veterinario cambia datos de la ficha, llega un aviso.
 
 ### Terminar
@@ -226,8 +226,8 @@ Valores de serie; se cambian en «Configuració» → «Avisos».
 | Se da de alta un veterinario nuevo | Todo el equipo de Bambú | sí | sí |
 | Entra alguien nuevo en el equipo de Bambú | Todo el equipo de Bambú | sí | no |
 | A un fisio le asignan un caso | Solo ese fisio | sí | no |
-| El veterinario escribe o adjunta en el hilo | El fisio responsable (o todo el equipo si no hay) | sí | sí |
-| El veterinario cambia datos de la ficha | El fisio responsable (o todo el equipo) | sí | no |
+| El veterinario escribe o adjunta en el hilo | Todo el equipo de Bambú | sí | sí |
+| El veterinario cambia datos de la ficha | Todo el equipo de Bambú | sí | no |
 | Una derivación se encalla (3 días sin cita) | Todo el equipo de Bambú, una vez | sí | sí |
 | Bambú acepta, rechaza, da el alta o cierra | El veterinario que derivó y los compañeros que escribieron en el hilo | sí | sí |
 | Bambú marca «Ja té cita» | El veterinario | sí | no |
@@ -246,7 +246,7 @@ Para cada aviso del equipo, el portal mira en este orden:
 1. Si el aviso tiene **«Correu a»** (una o varias direcciones separadas por
    comas), a esas.
 2. Si no, al **correo del centro**.
-3. Si tampoco hay, **a cada persona avisada**, a su correo.
+3. Si tampoco hay, **a cada persona del equipo**, a su correo.
 
 El correo del centro puede quedar vacío si se rellena «Correu a» en los
 avisos que interesen.

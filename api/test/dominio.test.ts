@@ -48,12 +48,12 @@ test('cuentas y secretos: contraseña, scrypt, cifrado, dominios, CIF/NIF y conf
   assert.equal(c.SUPERADMIN_CONTRASENA, undefined);
 });
 
-test('avisos: destinatarios según evento, fisio responsable y actor; plantillas completas y escapadas', () => {
+test('avisos: destinatarios según evento y actor (en Bambú, todo el equipo); plantillas completas y escapadas', () => {
   const u = (id: number, rol: UsuarioAviso['rol'] = 'bambu'): UsuarioAviso => ({ id, rol, nombre: `u${id}`, email: `u${id}@x.es`, recibeCorreos: true });
   const ids = (l: UsuarioAviso[]) => l.map((x) => x.id);
   const equipo = [u(1), u(2)];
-  // El veterinario escribe: al fisio responsable, no a él; sin fisio, a todo el equipo.
-  assert.deepEqual(ids(resolverDestinatarios({ tipo: 'mensaje.nuevo', actor: { id: 10, rol: 'derivador' }, equipoBambu: equipo, fisioResponsableId: 2, derivadores: [u(10, 'derivador')] }).bambu), [2]);
+  // El veterinario escribe: a todo el equipo de Bambú aunque haya fisio responsable, nunca a él.
+  assert.deepEqual(ids(resolverDestinatarios({ tipo: 'mensaje.nuevo', actor: { id: 10, rol: 'derivador' }, equipoBambu: equipo, fisioResponsableId: 2, derivadores: [u(10, 'derivador')] }).bambu), [1, 2]);
   assert.deepEqual(ids(resolverDestinatarios({ tipo: 'adjunto.nuevo', actor: { id: 10, rol: 'derivador' }, equipoBambu: equipo, fisioResponsableId: null, derivadores: [] }).bambu), [1, 2]);
   // La derivación nueva, a todo el equipo aunque haya fisio; la asignación, solo al fisio.
   assert.deepEqual(ids(resolverDestinatarios({ tipo: 'derivacion.enviada', actor: { id: 10, rol: 'derivador' }, equipoBambu: equipo, fisioResponsableId: 2, derivadores: [] }).bambu), [1, 2]);

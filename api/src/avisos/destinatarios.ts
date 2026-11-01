@@ -57,12 +57,11 @@ export function resolverDestinatarios(e: EntradaDestinatarios): Destinatarios {
     }
   }
 
+  // En Bambú se entera todo el equipo, tenga o no el caso fisio responsable
+  // (decisión de Nando, 01/11). Solo «T'han assignat un cas» es personal.
   let bambu: UsuarioAviso[] = [];
   if (ladoBambu) {
-    const fisio = e.equipoBambu.filter((u) => u.id === e.fisioResponsableId);
-    if (def.soloFisio) bambu = fisio;
-    else if (def.todoElEquipo) bambu = e.equipoBambu;
-    else bambu = fisio.length > 0 ? fisio : e.equipoBambu;
+    bambu = def.soloFisio ? e.equipoBambu.filter((u) => u.id === e.fisioResponsableId) : e.equipoBambu;
   }
 
   const actorId = e.actor?.id ?? null;

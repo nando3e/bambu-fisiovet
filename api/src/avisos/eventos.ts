@@ -16,8 +16,6 @@ interface DefEvento {
   titulo: (d: DatosEvento) => string;
   cuerpo: (d: DatosEvento) => string;
   enlace: (d: DatosEvento, rol: Rol) => string;
-  /** En el lado Bambú avisa a todo el equipo aunque el caso tenga fisio responsable. */
-  todoElEquipo?: boolean;
   /** En el lado Bambú solo avisa al fisio responsable (y a nadie si no hay). */
   soloFisio?: boolean;
   /** No manda otro correo a quien ya tiene una notificación sin leer del caso. */
@@ -32,7 +30,7 @@ const enlaceCaso = (d: DatosEvento, rol: Rol) =>
 
 export const CATALOGO = {
   'derivacion.enviada': {
-    audiencia: 'bambu', notificacion: true, correo: true, plantilla: 'aviso', todoElEquipo: true,
+    audiencia: 'bambu', notificacion: true, correo: true, plantilla: 'aviso',
     titulo: (d) => `Nova derivació: ${paciente(d)}`,
     cuerpo: (d) => `${clinica(d)} ha derivat un cas.`,
     enlace: enlaceCaso,
@@ -98,19 +96,19 @@ export const CATALOGO = {
     enlace: enlaceCaso,
   },
   'usuario.derivador_alta': {
-    audiencia: 'bambu', notificacion: true, correo: true, plantilla: 'aviso', todoElEquipo: true,
+    audiencia: 'bambu', notificacion: true, correo: true, plantilla: 'aviso',
     titulo: (d) => `Nou veterinari: ${nombre(d)}`,
     cuerpo: (d) => `S'ha donat d'alta des de ${clinica(d)}.`,
     enlace: () => '/b/cliniques',
   },
   'usuario.bambu_alta': {
-    audiencia: 'bambu', notificacion: true, correo: false, plantilla: 'aviso', todoElEquipo: true,
+    audiencia: 'bambu', notificacion: true, correo: false, plantilla: 'aviso',
     titulo: (d) => `${nombre(d)} s'ha incorporat a l'equip`,
     cuerpo: () => 'Ja pot entrar al panell de Bambú.',
     enlace: () => '/b/configuracio/equip',
   },
   'caso.sin_noticias': {
-    audiencia: 'bambu', notificacion: true, correo: true, plantilla: 'aviso', todoElEquipo: true,
+    audiencia: 'bambu', notificacion: true, correo: true, plantilla: 'aviso',
     titulo: (d) => `Pendent de cita: ${paciente(d)}`,
     cuerpo: (d) => `Fa més de ${String(d.dias ?? 'uns')} dies que està acceptada i encara no té cita.`,
     enlace: enlaceCaso,

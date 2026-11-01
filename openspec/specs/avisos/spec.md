@@ -86,16 +86,16 @@ publicación, sin caché: un cambio afecta al siguiente evento sin reiniciar.
 ### Requirement: Destinatarios resueltos sin incluir al actor
 Los destinatarios de cada evento SHALL calcularse con una función pura a
 partir del caso, los usuarios activos y quién actúa, y nunca incluyen a quien
-provocó el evento. Audiencia `bambu`: el fisio responsable del caso si lo hay;
-si no, todos los usuarios `bambu` activos (en `derivacion.enviada` y los
-`usuario.*`, siempre todos). El superadmin cuenta como usuario de Bambú para la
+provocó el evento. Audiencia `bambu`: todos los usuarios `bambu` activos,
+tenga o no el caso fisio responsable (decisión de Nando, 01/11); solo
+`caso.fisio_asignado` va únicamente al fisio asignado. El superadmin cuenta como usuario de Bambú para la
 campana; como no tiene correo, nunca recibe correos. Audiencia `derivador`: el veterinario que derivó
 y los compañeros de su clínica que hayan escrito en el hilo. Audiencia
 `ambas`: el lado contrario al de quien actúa.
 
 #### Scenario: Escribe el veterinario
 - **WHEN** el veterinario escribe un mensaje en un caso con fisio responsable
-- **THEN** la notificación va al fisio responsable y no al veterinario
+- **THEN** la notificación va a todo el equipo de Bambú y no al veterinario
 
 #### Scenario: Escribe Bambú
 - **WHEN** un fisio escribe en el hilo
