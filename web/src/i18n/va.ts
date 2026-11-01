@@ -352,6 +352,11 @@ export const va = {
   'evento.paciente.ficha_modificada': 'Fitxa del pacient modificada',
   'evento.usuario.derivador_alta': 'Nou veterinari al portal',
   'evento.usuario.bambu_alta': 'Nova persona a l’equip',
+  // Tipos retirados (change union-por-cif): ya no se publican, pero los avisos
+  // antiguos siguen en «Últims moviments» y en la campana.
+  'evento.derivacion.registrada': 'Derivació registrada per Bambú',
+  'evento.usuario.solicita_union': 'Sol·licitud per a unir-se a una clínica',
+  'evento.usuario.union_resuelta': 'Sol·licitud d’unió resolta',
   'evento.caso.sin_noticias': 'Derivació pendent de cita massa dies',
   'correo.ayuda': 'El compte de correu des del qual ixen els avisos (Dondominio). La contrasenya es guarda xifrada i no es torna a mostrar.',
   'correo.host': 'Servidor SMTP',

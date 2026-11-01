@@ -5,9 +5,15 @@ import { va } from './va.ts';
 
 export type ClaveTexto = keyof typeof va;
 
-/** El texto de la clave, con {marcadores} sustituidos. */
+/**
+ * El texto de la clave, con {marcadores} sustituidos. Las claves que se montan
+ * con datos (`evento.${tipo}`, `estado.${estado}`…) pueden no existir —un tipo
+ * de aviso antiguo que se retiró, por ejemplo—: entonces sale la clave tal
+ * cual, nunca una página en blanco.
+ */
 export function t(clave: ClaveTexto, valores: Record<string, string | number> = {}): string {
-  return va[clave].replace(/\{(\w+)\}/g, (_, nombre: string) =>
+  const texto: string | undefined = va[clave];
+  return (texto ?? clave).replace(/\{(\w+)\}/g, (_, nombre: string) =>
     nombre in valores ? String(valores[nombre]) : `{${nombre}}`,
   );
 }
