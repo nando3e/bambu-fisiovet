@@ -27,5 +27,11 @@ test('demo: siembra aunque ya haya otros datos; con un buzón real lo reparte co
   assert.equal(correos.length, 6);
   const hilo = (await pool.query(`SELECT count(*) FILTER (WHERE visibilidad = 'bambu')::int AS internas, count(*)::int AS n FROM mensajes`)).rows[0];
   assert.ok(hilo.n > 10 && hilo.internas > 0, 'hay conversación y notas internas');
+  // Ninguna fecha en el futuro (si no, esos mensajes salen al final del hilo como «ara mateix»).
+  const futuro = (await pool.query(
+    `SELECT (SELECT count(*) FROM casos WHERE greatest(enviado_el, resuelto_el, en_tratamiento_el, cerrado_el, ultima_actividad, creado) > now())
+           + (SELECT count(*) FROM mensajes WHERE creado > now())::int AS n`,
+  )).rows[0].n;
+  assert.equal(Number(futuro), 0);
   await assert.rejects(sembrarDemo(pool, 'http://localhost:8105', 'demo-bambu-2026', 'nando@ejemplo.com'), /no pisa/);
 });

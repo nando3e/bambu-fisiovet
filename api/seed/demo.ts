@@ -102,8 +102,12 @@ export async function sembrarDemo(pool: pg.Pool, urlPublica: string, contrasena:
       const pacienteId = i === estados.length - 1 ? primerPaciente : await crearPaciente(bd, i, clinicaDe[v]!, autor);
       if (i === 1) primerPaciente = pacienteId;
       const dias = 30 - i * 2;
-      const enviado = estado === 'borrador' ? null : `now() - interval '${dias} days'`;
-      const resuelto = ['borrador', 'enviada'].includes(estado) ? null : `now() - interval '${dias - 1} days'`;
+      // Cada fecha es una parte del tiempo desde el envío: nunca cae en el
+      // futuro, ni en los casos más recientes (2 días).
+      const h = dias * 24;
+      const hace = (parte: number) => `now() - interval '${Math.round(h * parte)} hours'`;
+      const enviado = estado === 'borrador' ? null : hace(1);
+      const resuelto = ['borrador', 'enviada'].includes(estado) ? null : hace(0.9);
       const { rows: creado } = await bd.query<{ id: number }>(
         `INSERT INTO casos (paciente_id, clinica_id, derivador_id, derivador_nombre, registrado_por, creado_por, estado,
                             fisio_responsable_id, motivo, historia_clinica, objetivos,
@@ -111,10 +115,10 @@ export async function sembrarDemo(pool: pg.Pool, urlPublica: string, contrasena:
                             ultima_actividad, creado)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
                  ${enviado ?? 'NULL'}, ${resuelto ?? 'NULL'},
-                 ${['en_tratamiento', 'alta'].includes(estado) ? `now() - interval '${dias - 3} days'` : 'NULL'},
-                 ${['en_tratamiento', 'alta'].includes(estado) ? `(now() - interval '${dias - 4} days')::date` : 'NULL'},
-                 ${['alta', 'rechazada', 'abandonada'].includes(estado) ? `now() - interval '${Math.max(dias - 10, 1)} days'` : 'NULL'},
-                 $12, now() - interval '${Math.max(dias - 5, 0)} days', now() - interval '${dias} days')
+                 ${['en_tratamiento', 'alta'].includes(estado) ? hace(0.75) : 'NULL'},
+                 ${['en_tratamiento', 'alta'].includes(estado) ? `(${hace(0.6)})::date` : 'NULL'},
+                 ${['alta', 'rechazada', 'abandonada'].includes(estado) ? hace(0.3) : 'NULL'},
+                 $12, ${hace(0.2)}, ${hace(1)})
          RETURNING id`,
         [pacienteId, clinicaDe[v], vets[v], null, null, autor, estado, ['borrador', 'enviada'].includes(estado) ? null : (i % 2 ? laia : jordi),
           pacientes[i % pacientes.length]![3], 'Sense altres patologies rellevants.', 'Recuperar la funcionalitat i reduir el dolor.',
@@ -131,7 +135,7 @@ export async function sembrarDemo(pool: pg.Pool, urlPublica: string, contrasena:
     const mensaje = async (casoId: number, autor: number | null, cuerpo: string, hace: number, visibilidad = 'todos') =>
       bd.query(
         `INSERT INTO mensajes (caso_id, autor_id, tipo, visibilidad, cuerpo, creado)
-         VALUES ($1, $2, $3, $4, $5, now() - make_interval(hours => $6))`,
+         VALUES ($1, $2, $3, $4, $5, now() - make_interval(secs => $6::float8 * 3600))`,
         [casoId, autor, autor ? 'texto' : 'sistema', visibilidad, cuerpo, hace],
       );
     let mensajes = 0;
@@ -139,19 +143,19 @@ export async function sembrarDemo(pool: pg.Pool, urlPublica: string, contrasena:
       if (c.estado === 'borrador') continue;
       const h = c.dias * 24;
       if (c.vet) {
-        await mensaje(c.id, c.vet, 'Hola! Us passe aquest cas. El propietari prefereix que el telefoneu per la vesprada.', h - 1);
+        await mensaje(c.id, c.vet, 'Hola! Us passe aquest cas. El propietari prefereix que el telefoneu per la vesprada.', h * 0.98);
         mensajes++;
       }
       if (['aceptada', 'en_tratamiento', 'alta', 'abandonada'].includes(c.estado) && c.fisio) {
-        await mensaje(c.id, c.fisio, 'Rebut, gràcies. Li telefonem esta setmana per a donar-li cita.', h - 20);
+        await mensaje(c.id, c.fisio, 'Rebut, gràcies. Li telefonem esta setmana per a donar-li cita.', h * 0.88);
         mensajes++;
       }
       if (['en_tratamiento', 'alta'].includes(c.estado) && c.fisio) {
-        await mensaje(c.id, c.fisio, 'Primera visita feta: tolera bé l’exercici a l’aigua. Seguim dos dies per setmana.', h - 80);
-        await mensaje(c.id, c.fisio, 'Nota interna: revisar amb el veterinari si manté l’antiinflamatori.', h - 81, 'bambu');
+        await mensaje(c.id, c.fisio, 'Primera visita feta: tolera bé l’exercici a l’aigua. Seguim dos dies per setmana.', h * 0.55);
+        await mensaje(c.id, c.fisio, 'Nota interna: revisar amb el veterinari si manté l’antiinflamatori.', h * 0.54, 'bambu');
         mensajes += 2;
         if (c.vet) {
-          await mensaje(c.id, c.vet, 'Perfecte. Manté l’antiinflamatori una setmana més i després el retirem.', h - 90);
+          await mensaje(c.id, c.vet, 'Perfecte. Manté l’antiinflamatori una setmana més i després el retirem.', h * 0.5);
           mensajes++;
         }
       }
