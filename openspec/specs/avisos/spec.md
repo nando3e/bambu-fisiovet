@@ -12,6 +12,7 @@ valores por defecto son:
 | Evento | Audiencia | Notificación | Correo |
 |---|---|---|---|
 | `derivacion.enviada` | bambu | sí | sí, al correo del centro |
+| `derivacion.registrada` | derivador | sí | sí |
 | `derivacion.aceptada` | derivador | sí | sí |
 | `derivacion.rechazada` | derivador | sí | sí |
 | `caso.fisio_asignado` | bambu | sí | no |
@@ -27,7 +28,12 @@ valores por defecto son:
 | `usuario.bambu_alta` | bambu | sí | no |
 | `usuario.solicita_union` | ambas | sí | sí |
 | `usuario.union_resuelta` | derivador | sí | sí |
-| `caso.sin_noticias` | bambu | sí | sí, un resumen diario al correo del centro |
+| `caso.sin_noticias` | bambu | sí | sí, al correo del centro, una vez por derivación atascada |
+
+`derivacion.registrada` avisa al veterinario de que Bambú ha registrado en el
+portal la derivación que hizo por teléfono o por correo, para que pueda
+seguirla. `caso.sin_noticias` avisa de una derivación que lleva más de N días
+aceptada sin cita.
 
 Publicar un tipo que no está en la lista MUST fallar en el servidor.
 
@@ -42,6 +48,10 @@ Publicar un tipo que no está en la lista MUST fallar en el servidor.
 #### Scenario: La semilla no pisa
 - **WHEN** Bambú ha apagado el correo de `mensaje.nuevo` y la aplicación se reinicia
 - **THEN** sigue apagado
+
+#### Scenario: Eventos nuevos en una base que ya existía
+- **WHEN** la aplicación arranca con este change sobre una base que ya tenía la matriz
+- **THEN** aparecen las filas de los eventos nuevos con sus valores por defecto y las existentes no cambian
 
 ### Requirement: El evento se publica dentro de la transacción de la acción
 Toda acción que genera un evento SHALL publicarlo con el mismo cliente de BD y

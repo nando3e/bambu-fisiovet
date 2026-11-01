@@ -119,5 +119,5 @@ corre con otro modelo.
       verde; corregir la propuesta (plantillas de correo, D5).
 - [x] 4.3 Revisor sobre el diff del change con un modelo distinto; corregir lo
       que proceda y justificar aquí lo descartado.
-- [ ] 4.4 Redesplegar y recorrido en producción (design, Migration Plan).
+- [x] 4.4 Redesplegar y recorrido en producción (design, Migration Plan).
       Anotar hallazgos en el cuaderno §12 y aplazados en §11.
