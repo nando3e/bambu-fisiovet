@@ -31,6 +31,47 @@ pestañas tal como salen en pantalla, en valenciano.
 
 ---
 
+## Los estados de una derivación
+
+Cada derivación está siempre en uno de estos siete estados. La tabla dice qué
+significa cada uno, qué tiene que pasar para salir de él, a qué estado pasa y
+quién lo hace. El diagrama 2, al final, lo dibuja.
+
+| Estado | Qué significa | Qué tiene que pasar | Pasa a | Quién |
+|---|---|---|---|---|
+| **«Esborrany»** | La derivación está a medias. Solo la ve quien la escribe | Pulsar «Envia la derivació» con todo rellenado | «Nova» | Veterinario |
+| | | Pulsar «Descarta l'esborrany» | Desaparece (no pasa a ningún estado) | Veterinario |
+| **«Nova»** (el veterinario la ve como «Enviada») | Enviada; Bambú la tiene que mirar. El veterinario aún puede corregir datos | Pulsar «Accepta» (y, si se quiere, elegir el fisio) | «Pendent de cita» | Bambú |
+| | | Pulsar «Rebutja» y escribir el motivo | «Rebutjada» | Bambú |
+| **«Pendent de cita»** | Aceptada. Falta llamar al propietario y darle cita en Wakyma | Dar la cita en Wakyma y pulsar «Ja té cita» (la fecha es opcional) | «En tractament» | Bambú |
+| | | Pulsar «Tanca» con el motivo (no contesta, no viene, lo descarta) | «Tancada» | Bambú |
+| | | Confirmar un informe de alta | «Alta» | Bambú |
+| **«En tractament»** | Ya tiene cita: el animal viene a Bambú. Se habla por el hilo y se hacen informes | Pulsar «Alta», o confirmar un informe de alta | «Alta» | Bambú |
+| | | Pulsar «Tanca» con el motivo | «Tancada» | Bambú |
+| **«Alta»** | Tratamiento acabado | — | Es final: no cambia | — |
+| **«Rebutjada»** | Bambú no la ha aceptado; el motivo queda escrito | — | Es final: no cambia | — |
+| **«Tancada»** | Se cerró sin terminar el tratamiento; el motivo queda escrito | — | Es final: no cambia | — |
+
+**Cosas que conviene saber**
+
+- **Solo se avanza, nunca se vuelve atrás.** No hay botón para reabrir. Si el
+  animal vuelve (una recaída, otra lesión), el veterinario hace una derivación
+  nueva del mismo paciente.
+- **El veterinario solo mueve dos cosas**: enviar su borrador y descartarlo.
+  Todo lo demás lo hace Bambú.
+- **«Encallada» no es un estado.** Es una marca para las derivaciones que
+  llevan más de 3 días en «Pendent de cita». Siguen en ese estado, pero salen
+  también en la pestaña «Encallades» y el equipo recibe un aviso, una sola
+  vez.
+- **«Sense obrir» tampoco es un estado.** Es una derivación «Nova» que nadie de
+  Bambú ha abierto todavía. Al abrirla, el veterinario ve «Rebuda per Bambú».
+- **Hasta que Bambú la acepta**, el veterinario puede corregir los datos de su
+  derivación. Después, lo que quiera añadir lo escribe en el hilo.
+- **Cada cambio de estado avisa al veterinario** y queda apuntado en el hilo
+  del caso y en su historial.
+
+---
+
 ## Parte 1. El recorrido del veterinario
 
 ### Paso 1. Darse de alta (una sola vez)
