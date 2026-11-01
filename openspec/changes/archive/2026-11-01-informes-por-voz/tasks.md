@@ -44,4 +44,4 @@ y viendo el test en rojo. Toda ruta nueva con su test de rol y de ámbito.
 
 - [x] 4.1 `npm test`, typecheck, `comprova-produccio`.
 - [x] 4.2 Revisor con un modelo distinto; corregir y justificar.
-- [ ] 4.3 Redesplegar, probar el camino a mano en producción y archivar.
+- [x] 4.3 Redesplegar, probar el camino a mano en producción y archivar.

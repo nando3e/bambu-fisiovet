@@ -527,6 +527,8 @@ Del change `informes-por-voz` y `panel-e-indicadores` (2026-11-01):
     `bambu-fisiovet.91-99-128-20.sslip.io` (sslip.io resuelve a la IP del VPS).
     `CORREO_DRY_RUN=true`. Environment: copia local en `.env.produccion`
     (ignorado por git).
+  - 2026-11-01: v1 completa desplegada (changes 1-5). Camino del informe a
+    mano probado en producción con la clínica «PROVA — Clínica de proves».
 - Pendiente (decisión de Nando): pasar `bambufisiovet.com` del Application
   antiguo al Compose `portal` (cambiar `APP_HOST`, quitar el dominio del
   Application y redesplegar), configurar el SMTP de Dondominio desde el panel,

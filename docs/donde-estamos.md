@@ -1,72 +1,84 @@
-# Dónde estamos — 2026-10-31 (segunda sesión)
+# Dónde estamos — 2026-11-01
 
 Leer esto primero al retomar. Después, `CLAUDE.md` y el cuaderno.
 
-## Estado
+## Estado: v1 construida, revisada y desplegada en el portal de pruebas
 
-- **Fases 1-4 del protocolo `nuevo-proyecto`: cerradas.** Cuaderno en
-  `docs/cuaderno-decisiones.md` (decisiones D1-D16, dictamen, riesgos,
-  aplazados §11, hallazgos §12, despliegue §13).
-- **Change 1 `fundamentos-acceso-y-avisos`: cerrado y archivado** en
-  `openspec/changes/archive/2026-10-31-fundamentos-acceso-y-avisos/`. Sus
-  specs ya están en `openspec/specs/` (acceso, avisos, configuracion,
-  diseno).
-  - Revisor con Fable (dos pasadas): informe y resolución de cada hallazgo en
-    `revision.md` dentro del change archivado. Todo lo GRAVE y lo MEDIO
-    corregido con su test; cada arreglo verificado por mutación (quitarlo →
-    test en rojo).
-  - API: 100 tests en verde (`cd api && npm test`, necesita el Postgres
-    local). Web: build con las seis comprobaciones en verde.
-  - **Los arreglos de la revisión están sin commit y sin desplegar.**
-    Producción todavía corre la versión anterior.
-- **Change 2 `casos-y-derivaciones`: `design.md` y `tasks.md` escritos y
-  válidos, pendientes de que Nando los valide** (dos preguntas abiertas,
-  abajo). No hay código del change 2.
-- **Changes 3-5** (`hilo-adjuntos-y-sesiones`, `informes-por-voz`,
-  `panel-e-indicadores`): propuesta y specs; les faltan design.md y tasks.md.
+Los cinco changes de la v1 están cerrados y archivados en
+`openspec/changes/archive/`. Sus specs vigentes están en `openspec/specs/`.
+Cada uno tiene su `revision.md` con los hallazgos del revisor (Sol) y lo que
+se hizo con cada uno.
+
+| Change | Qué trae |
+|---|---|
+| 1 `fundamentos-acceso-y-avisos` | Alta y acceso, equipo, clínicas, avisos (matriz, cola de correo, campana), configuración, landing |
+| 2 `casos-y-derivaciones` | Nova derivació (autoguardado), estados, Bambú registra derivaciones por teléfono, pacientes, «Ja té cita», aviso de pendientes de cita |
+| 3 `hilo-adjuntos-y-sesiones` | Hilo por caso, notas internas, adjuntos protegidos con miniaturas, últimos movimientos |
+| 4 `informes-por-voz` | Dictado, propuesta con IA o a mano, confirmar, informe imprimible; IA cifrada en el panel; anonimización antes del modelo |
+| 5 `panel-e-indicadores` | `/b/panell`: seis indicadores sin sesiones, con enlaces a la lista filtrada |
+
+**Tests**: 51, uno por caso de uso, en unos 10 s (`cd api && npm test`).
+También pasan el typecheck, `comprova-produccio` y la build de la web con
+sus comprobaciones.
+
+**RGPD**: `docs/rgpd.md` describe qué datos hay, quién los ve, qué viaja a
+la IA y los plazos, con la lista de lo pendiente para el asesor.
 
 ## Desplegado
 
 | Qué | Dónde |
 |---|---|
-| Portal nuevo (Compose `portal`, proyecto Dokploy **BambuFisioVet**) | https://bambu-fisiovet.91-99-128-20.sslip.io |
-| Web antigua (Application `bambu-fisiovet`, landing estática) | https://bambufisiovet.com y www — **intacta**, autodespliegue **desactivado** el 31/10 |
-| Environment de producción (secretos) | `.env.produccion` en la raíz del repo (ignorado por git) y en Dokploy |
-| Superadmin de producción | usuario y contraseña en `.env.produccion` |
-| Local | `docker compose -f docker-compose.local.yml up -d` (Postgres 5438) + `api/.env` |
+| Portal nuevo (Compose `portal`, proyecto Dokploy **BambuFisioVet**) | https://bambu-fisiovet.91-99-128-20.sslip.io: v1 completa, `/salud` 200, camino del informe a mano probado |
+| Web antigua (Application `bambu-fisiovet`) | https://bambufisiovet.com: **intacta**, autodespliegue desactivado |
+| Environment de producción | `.env.produccion` (raíz, ignorado por git) y Dokploy |
 
 Redesplegar: un push no despliega. Skill `desplegar-dokploy`, `composeId`
-`KsDhH9XS4pHR4h-fPxCra`. Cliente de la API: llamadas con Node `fetch`
-(UTF-8), credenciales en las variables de usuario de Windows.
+`KsDhH9XS4pHR4h-fPxCra`.
 
-## Por dónde seguir (en este orden)
+**Datos de prueba en el portal de pruebas**: para probar el informe en
+producción se creó la clínica «PROVA — Clínica de proves» con un caso
+(paciente «Prova») y un informe de evolución. Se puede desactivar desde
+Clíniques cuando moleste.
 
-1. **Commit, push y redespliegue** de los arreglos de la revisión (esperan
-   el visto bueno de Nando). Después del despliegue, comprobar en producción
-   que una invitación pide la casilla de privacidad y que el alta sigue
-   funcionando.
-2. **Change 2 `casos-y-derivaciones`**: con el design validado, construir
-   por el orden de `tasks.md`. Al cerrar, revisor con un modelo distinto
-   (Nando ofrece Sol/Codex, skill `codex`, como revisor de otra casa).
+## Lo que necesito de Nando (en este orden)
 
-## Decisiones pendientes de Nando
+1. **Mirar el portal de pruebas**: el inicio de Bambú, una derivación por
+   teléfono, el informe a mano y `/b/panell`.
+2. **Claves de IA** (Configuració → Intel·ligència artificial, como
+   superadmin): Anthropic para redactar y OpenAI para Whisper. Sin ellas, los
+   informes se redactan a mano y el micrófono no aparece. Antes, que el
+   asesor vea el §4 de `docs/rgpd.md` (transferencia internacional y pauta de
+   no dictar nombres).
+3. **SMTP de Dondominio**: configurarlo en Configuració → Servidor de correu,
+   mandar el correo de prueba, publicar SPF/DKIM/DMARC y poner
+   `CORREO_DRY_RUN=false` en Dokploy. Mientras tanto, ningún correo sale de
+   verdad.
+4. **Correo del centro** para los avisos (Configuració → Avisos).
+5. **Pasar `bambufisiovet.com` al portal nuevo**: quitar los dominios del
+   Application antiguo, poner `APP_HOST=bambufisiovet.com` en el Compose
+   `portal` (y `www` como redirección) y redesplegar. El DNS ya apunta al VPS.
+6. **Textos legales** definitivos (privacidad y consentimiento del
+   propietario) y revisión del valenciano por un nativo; fotos reales.
+7. **Supuestos de Bambú** que siguen abiertos (cuaderno §6 y §10): plazo de
+   conservación, copias de seguridad fuera del servidor, la promesa de «menys
+   de 24 h laborables».
 
-- **Change 2, borradores**: ¿solo los ve quien los escribe (propuesta) o
-  toda la clínica?
-- **Change 2, recaída de un paciente derivado**: ¿el caso nuevo es `propio`
-  de Bambú (propuesta; el veterinario no lo ve) o sigue ligado a la clínica?
-- **Uniones a clínicas no validadas** (revisión del change 1, cuaderno §11):
-  ¿que las apruebe solo Bambú hasta que la clínica esté validada? Antes de
-  abrir a veterinarios reales.
-- **Pasar `bambufisiovet.com` al portal nuevo.** Pasos: en Dokploy quitar los
-  dominios del Application antiguo, poner `APP_HOST=bambufisiovet.com` en el
-  Compose `portal` (y añadir `www` como segundo router o redirección) y
-  redesplegar. El DNS ya apunta al VPS.
-- **SMTP de Dondominio**: configurarlo como superadmin en Configuració →
-  Servidor de correu, mandar el correo de prueba, publicar SPF/DKIM/DMARC y
-  poner `CORREO_DRY_RUN=false` en Dokploy.
-- **Correo del centro** para los avisos (Configuració → Avisos).
-- Fotos reales de Bambú, textos legales (privacidad y consentimiento del
-  propietario), revisión del valenciano por un nativo.
-- Servidor: si se usa la CPX12 de 2 GB, swap y limpieza de imágenes
-  (cuaderno §10.12).
+## Ideas para Wakyma (sin API)
+
+Lo que se puede hacer sin integración, por si interesa en una iteración:
+
+- Enlace iCal de solo lectura con las primeras visitas que se apuntan en «Ja
+  té cita», para suscribirse desde el calendario.
+- Exportar a CSV las derivaciones aceptadas para importarlas en Wakyma.
+- Preguntar a Wakyma si tienen importación por fichero o una API privada para
+  socios.
+
+## Registro de aplazados
+
+Cuaderno §11. Lo nuevo de esta sesión:
+
+- Pruebas de componentes de la web.
+- Festivos en las horas laborables.
+- Filtro por fechas en la lista de casos.
+- Indicadores para el veterinario.
+- Datos dichos en voz alta en los dictados.

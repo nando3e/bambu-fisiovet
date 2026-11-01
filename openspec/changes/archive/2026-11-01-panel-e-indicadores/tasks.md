@@ -29,5 +29,5 @@ y viendo el test en rojo. Toda ruta nueva con su test de rol.
 - [x] 3.1 `docs/rgpd.md` y `CLAUDE.md` al día.
 - [x] 3.2 Revisor (Sol) sobre el diff; hallazgos corregidos con su test o
       descartados por escrito en `revision.md`.
-- [ ] 3.3 Desplegar en el portal de pruebas, comprobar `/salud` y el panel, y
+- [x] 3.3 Desplegar en el portal de pruebas, comprobar `/salud` y el panel, y
       archivar.
