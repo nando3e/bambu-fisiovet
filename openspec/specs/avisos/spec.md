@@ -21,7 +21,6 @@ valores por defecto son:
 | `caso.abandonado` | derivador | sí | sí |
 | `mensaje.nuevo` | ambas | sí | sí |
 | `adjunto.nuevo` | ambas | sí | sí |
-| `intervencion.registrada` | derivador | sí | no |
 | `informe.publicado` | derivador | sí | sí |
 | `paciente.ficha_modificada` | ambas | sí | no |
 | `usuario.derivador_alta` | bambu | sí | sí, al correo del centro |
@@ -32,7 +31,7 @@ valores por defecto son:
 
 `derivacion.registrada` avisa al veterinario de que Bambú ha registrado en el
 portal la derivación que hizo por teléfono o por correo, para que pueda
-seguirla. `caso.sin_noticias` avisa de una derivación que lleva más de N días
+seguirla. Las sesiones se llevan en Wakyma, así que no hay evento de sesión registrada. `caso.sin_noticias` avisa de una derivación que lleva más de N días
 aceptada sin cita.
 
 Publicar un tipo que no está en la lista MUST fallar en el servidor.
@@ -48,6 +47,10 @@ Publicar un tipo que no está en la lista MUST fallar en el servidor.
 #### Scenario: La semilla no pisa
 - **WHEN** Bambú ha apagado el correo de `mensaje.nuevo` y la aplicación se reinicia
 - **THEN** sigue apagado
+
+#### Scenario: Evento retirado del catálogo
+- **WHEN** la aplicación arranca con este change sobre una base que tenía la fila de `intervencion.registrada` en la matriz
+- **THEN** la fila ya no aparece en Configuració → Avisos
 
 #### Scenario: Eventos nuevos en una base que ya existía
 - **WHEN** la aplicación arranca con este change sobre una base que ya tenía la matriz
