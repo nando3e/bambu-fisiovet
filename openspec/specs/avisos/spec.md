@@ -12,7 +12,6 @@ valores por defecto son:
 | Evento | Audiencia | Notificación | Correo |
 |---|---|---|---|
 | `derivacion.enviada` | bambu | sí | sí, al correo del centro |
-| `derivacion.registrada` | derivador | sí | sí |
 | `derivacion.aceptada` | derivador | sí | sí |
 | `derivacion.rechazada` | derivador | sí | sí |
 | `caso.fisio_asignado` | bambu | sí | no |
@@ -25,13 +24,10 @@ valores por defecto son:
 | `paciente.ficha_modificada` | ambas | sí | no |
 | `usuario.derivador_alta` | bambu | sí | sí, al correo del centro |
 | `usuario.bambu_alta` | bambu | sí | no |
-| `usuario.solicita_union` | ambas | sí | sí |
-| `usuario.union_resuelta` | derivador | sí | sí |
 | `caso.sin_noticias` | bambu | sí | sí, al correo del centro, una vez por derivación atascada |
 
-`derivacion.registrada` avisa al veterinario de que Bambú ha registrado en el
-portal la derivación que hizo por teléfono o por correo, para que pueda
-seguirla. Las sesiones se llevan en Wakyma, así que no hay evento de sesión registrada. `caso.sin_noticias` avisa de una derivación que lleva más de N días
+Bambú no registra derivaciones en nombre de nadie, así que no hay evento de
+derivación registrada; los de una base antigua se quedan como están. Las sesiones se llevan en Wakyma, así que no hay evento de sesión registrada. `caso.sin_noticias` avisa de una derivación que lleva más de N días
 aceptada sin cita.
 
 Publicar un tipo que no está en la lista MUST fallar en el servidor.
@@ -95,8 +91,7 @@ si no, todos los usuarios `bambu` activos (en `derivacion.enviada` y los
 `usuario.*`, siempre todos). El superadmin cuenta como usuario de Bambú para la
 campana; como no tiene correo, nunca recibe correos. Audiencia `derivador`: el veterinario que derivó
 y los compañeros de su clínica que hayan escrito en el hilo. Audiencia
-`ambas`: el lado contrario al de quien actúa. En `usuario.solicita_union` son
-los veterinarios activos de la clínica destino y los usuarios `bambu`.
+`ambas`: el lado contrario al de quien actúa.
 
 #### Scenario: Escribe el veterinario
 - **WHEN** el veterinario escribe un mensaje en un caso con fisio responsable

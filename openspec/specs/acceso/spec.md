@@ -5,8 +5,12 @@ TBD - created by archiving change fundamentos-acceso-y-avisos. Update Purpose af
 ## Requirements
 ### Requirement: Alta de veterinario con verificación por correo
 La aplicación SHALL permitir que un veterinario cree su cuenta desde `/acces`
-con nombre, apellidos, clínica, correo, teléfono, número de colegiado
-(opcional) y aceptación de la política de privacidad. El alta MUST crear el
+con nombre, apellidos, teléfono, número de colegiado, correo, nombre de la
+clínica, población, CIF/NIF de la clínica y aceptación de la política de
+privacidad, **todos obligatorios**. El CIF/NIF se valida con su dígito o letra
+de control y se guarda normalizado. El alta no enseña ninguna clínica
+existente: no hay sugerencias ni listas antes de entrar. Las clínicas las dan
+de alta sus veterinarios así: Bambú no crea clínicas. El alta MUST crear el
 usuario con rol `derivador`, sin contraseña y sin verificar, y encolar un
 correo de verificación con un enlace de un solo uso a
 `/acces/estableix/:token` que caduca a las 48 horas. Se guarda la versión del
@@ -23,6 +27,18 @@ texto de privacidad aceptado y la fecha.
 #### Scenario: Sin aceptar la privacidad
 - **WHEN** se envía el alta sin marcar la casilla de privacidad
 - **THEN** 400 y no se crea el usuario
+
+#### Scenario: Falta un campo
+- **WHEN** se envía el alta sin número de colegiado, sin población o sin CIF
+- **THEN** 400 con el campo que falta y no se crea nada
+
+#### Scenario: CIF mal escrito
+- **WHEN** el CIF/NIF no cuadra con su letra o dígito de control
+- **THEN** 400 en el campo CIF
+
+#### Scenario: Demasiados correos a una dirección
+- **WHEN** alguien provoca más de tres correos de cuenta en una hora hacia la misma dirección (alta, recuperación o «clínica existent»)
+- **THEN** la respuesta es la de siempre, no sale ningún correo más y los enlaces anteriores siguen valiendo
 
 ### Requirement: Fijar la contraseña desde un enlace de un solo uso
 La aplicación SHALL usar el mismo enlace `/acces/estableix/:token` para
@@ -199,79 +215,21 @@ lo que el usuario hizo. El superadmin no se puede desactivar.
 - **WHEN** Bambú desactiva a un veterinario
 - **THEN** no puede entrar, sus sesiones caducan y su nombre sigue en lo que hizo
 
-### Requirement: Clínica provisional en el alta y sugerencias
-El alta de un veterinario SHALL crear una clínica nueva con el nombre que
-escribió, salvo que se una a una existente. Mientras escribe el nombre de la
-clínica, la pantalla MUST sugerir clínicas existentes parecidas
-(`GET /api/clinicas/sugerencias`), devolviendo solo nombre y población. Solo
-se sugieren clínicas activas que estén validadas por Bambú o que tengan algún
-usuario activo y verificado; la clínica de un alta sin confirmar no se ofrece
-a nadie. Cada clínica guarda el dominio de correo de su primer veterinario si
-no es un dominio genérico (gmail, hotmail, outlook, yahoo, icloud y
-similares, en una lista en código).
-
-#### Scenario: Clínica nueva
-- **WHEN** un veterinario se da de alta con una clínica que no se parece a ninguna
-- **THEN** se crea la clínica y él queda en ella
-
-#### Scenario: Sugerencia por nombre
-- **WHEN** escribe «Clinica Sant Roc» y existe «Clínica Veterinària Sant Roc»
-- **THEN** la pantalla la sugiere y ofrece «Sol·licita unir-te»
-
-#### Scenario: Clínica dada de alta por Bambú
-- **WHEN** escribe el nombre de una clínica que Bambú dio de alta y que aún no tiene usuarios
-- **THEN** la pantalla la sugiere
-
-#### Scenario: Clínica de un alta sin confirmar
-- **WHEN** escribe el nombre de una clínica cuyo único usuario no ha verificado el correo
-- **THEN** no se sugiere
-
-### Requirement: Unirse a una clínica sin cuello de botella
-Un veterinario SHALL poder solicitar unirse a una clínica existente, en el
-alta o después desde su perfil. La solicitud se aprueba sola si el dominio de
-su correo coincide con el de la clínica. Si no, la resuelve con un clic desde
-la notificación cualquier usuario de Bambú y, **solo si la clínica está
-validada por Bambú**, también cualquier veterinario activo de esa clínica; en
-una clínica no validada la solicitud solo avisa al lado Bambú y un veterinario
-que intente resolverla recibe 404. Mientras está pendiente, el veterinario
-trabaja con normalidad en su clínica provisional. Aprobar MUST volver a
-comprobar que la clínica de origen no tiene otros miembros y que la de destino
-sigue activa, y mover, en una transacción, al usuario y todo lo de su clínica
-provisional a la clínica destino; rechazar lo deja en su clínica. Cada paso
-publica su evento (`usuario.solicita_union`, `usuario.union_resuelta`).
-
-#### Scenario: Mismo dominio de correo
-- **WHEN** alguien con correo `@santroc.vet` pide unirse a la clínica cuyo dominio es `santroc.vet`
-- **THEN** queda unido al momento, sin solicitud pendiente, y se publica `usuario.union_resuelta`
-
-#### Scenario: Correo genérico hacia una clínica validada
-- **WHEN** alguien con correo de Gmail pide unirse a una clínica validada
-- **THEN** la solicitud queda pendiente y llega a los compañeros y a Bambú
-
-#### Scenario: Correo genérico hacia una clínica sin validar
-- **WHEN** alguien con correo de Gmail pide unirse a una clínica que Bambú no ha validado
-- **THEN** la solicitud queda pendiente, solo llega a Bambú y un veterinario de esa clínica no puede aprobarla (404)
-
-#### Scenario: El compañero aprueba
-- **WHEN** un compañero de una clínica validada aprueba la solicitud
-- **THEN** el solicitante pasa a la clínica con todo lo que ya había creado y recibe la notificación
-
-#### Scenario: Un ajeno intenta aprobar
-- **WHEN** un veterinario de otra clínica intenta aprobar la solicitud
-- **THEN** 404
-
-#### Scenario: Cambió algo entre la solicitud y la aprobación
-- **WHEN** el solicitante invitó a un compañero a su clínica después de pedir unirse
-- **THEN** aprobar responde 409 y nadie se mueve
-
 ### Requirement: Invitar a un compañero de clínica
-Un veterinario SHALL poder invitar a un compañero por correo. La invitación
-lleva la clínica y, al aceptarse, crea al compañero ya dentro de ella, sin
-solicitud.
+A una clínica que ya está en el portal SHALL entrarse solo por invitación de
+un compañero: un veterinario invita por correo desde su perfil, y la
+invitación lleva su clínica y, al aceptarse, crea al compañero ya dentro de
+ella. Nadie puede pedir entrar en una clínica, y Bambú no mete a nadie en
+ninguna. Invitar a un correo que ya tiene cuenta responde lo mismo y no hace
+nada.
 
 #### Scenario: Invitación aceptada
 - **WHEN** el compañero abre la invitación y fija contraseña
 - **THEN** entra como derivador de esa misma clínica
+
+#### Scenario: Bambú no invita
+- **WHEN** un usuario de Bambú intenta invitar a alguien a una clínica
+- **THEN** no hay ruta para ello (404)
 
 ### Requirement: Perfil propio
 Cada usuario SHALL poder editar su nombre, apellidos, teléfono y número de
@@ -281,4 +239,36 @@ El correo no se cambia desde el perfil en v1.
 #### Scenario: Apagar los correos
 - **WHEN** un derivador apaga «Rebre avisos per correu»
 - **THEN** sigue recibiendo notificaciones en la campana pero no correos de avisos
+
+### Requirement: Un CIF, una clínica
+Cada clínica activa SHALL tener un CIF/NIF distinto (índice único parcial
+sobre las activas). Si alguien se da de alta con el CIF de una clínica activa
+que tiene algún usuario activo y verificado (o que dio de alta Bambú antes de
+este change), no se crea nada: la respuesta es la misma que en un alta
+correcta y se encola a la dirección tecleada un correo que le dice que pida a
+alguien de su clínica que le invite. Nunca sale ningún correo hacia la clínica
+ni hacia sus veterinarios. Una clínica con ese CIF de un alta pendiente es de
+quien se registró primero mientras su enlace siga vigente; solo cuando el
+enlace ha caducado, nadie la ha confirmado y no tiene casos ni pacientes, se
+desactiva con sus usuarios sin verificar y el alta nueva sigue.
+
+#### Scenario: CIF de una clínica que ya está en el portal
+- **WHEN** alguien se da de alta con el CIF de una clínica con veterinarios verificados
+- **THEN** la pantalla responde lo de siempre, no se crea usuario ni clínica y a su correo le llega «demana una invitació»
+
+#### Scenario: Mismo CIF escrito de otra forma
+- **WHEN** el CIF llega con minúsculas, espacios o guiones
+- **THEN** se reconoce como el mismo
+
+#### Scenario: CIF de un alta pendiente con el enlace vigente
+- **WHEN** el CIF es de una clínica cuyo único usuario aún no ha confirmado y su enlace sigue vigente
+- **THEN** no se le quita: a quien llega después le llega «demana una invitació»
+
+#### Scenario: CIF de un alta abandonada
+- **WHEN** el CIF es de una clínica cuyo único usuario nunca confirmó, su enlace ya caducó y no tiene datos
+- **THEN** esa clínica se desactiva y la nueva alta sigue
+
+#### Scenario: El veterinario no cambia el CIF
+- **WHEN** un veterinario edita los datos de su clínica
+- **THEN** el CIF no cambia aunque lo envíe; solo lo cambia Bambú
 

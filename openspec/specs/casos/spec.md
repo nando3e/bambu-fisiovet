@@ -69,8 +69,7 @@ en Wakyma: «Ja té cita» es lo único que el portal necesita saber de ellas.
 | aceptada, en_tratamiento | abandonada (con motivo) | bambu |
 | en_tratamiento | alta | bambu (alta manual) o sistema (informe de alta, change 4) |
 
-Las derivaciones que registra Bambú en nombre de una clínica nacen en
-`aceptada`. No hay reapertura: si el animal vuelve a necesitar fisioterapia,
+No hay reapertura: si el animal vuelve a necesitar fisioterapia,
 es una derivación nueva del mismo paciente. Una transición no permitida MUST
 responder 409 sin cambiar nada. Toda transición deja `historial` y publica su
 evento.
@@ -78,10 +77,6 @@ evento.
 #### Scenario: Ja té cita
 - **WHEN** Bambú marca «Ja té cita» en una derivación aceptada, con la fecha de la primera visita
 - **THEN** pasa a `en_tratamiento`, guarda la fecha y el veterinario recibe la notificación
-
-#### Scenario: Registrada por teléfono con cita
-- **WHEN** Bambú registra una derivación por teléfono marcando que ya tiene cita
-- **THEN** nace directamente en `en_tratamiento`
 
 #### Scenario: Aceptar dos veces
 - **WHEN** Bambú acepta un caso que ya está aceptado
@@ -124,45 +119,16 @@ contacto del propietario de los pacientes de su clínica.
 - **WHEN** un fisio cambia el peso de 12,4 a 11,8 kg
 - **THEN** queda en el historial y el veterinario recibe la notificación
 
-### Requirement: Derivación registrada por Bambú
-Cuando una clínica deriva por teléfono o por correo, un usuario de Bambú SHALL
-poder registrar la derivación en su nombre: elige la clínica que la remite
-entre las validadas (o la da de alta en ese momento), y opcionalmente el
-veterinario, entre los usuarios de esa clínica o escrito a mano si no tiene
-cuenta. La derivación nace `aceptada`, con la clínica elegida y
-`registrado_por` = quien la registra; el consentimiento del
-propietario lo confirma el fisio. Se publica `derivacion.registrada` para el
-veterinario elegido o, si no hay ninguno con cuenta, para los veterinarios
-activos de la clínica.
-
-#### Scenario: Llamada de una clínica con cuenta
-- **WHEN** una fisio registra la derivación que le dicta por teléfono una veterinaria de una clínica validada
-- **THEN** el caso queda `aceptada` en esa clínica, la veterinaria lo ve en su lista y recibe la notificación y el correo
-
-#### Scenario: Clínica que no está en el portal
-- **WHEN** llama una clínica que no existe en el portal
-- **THEN** la fisio la da de alta (validada, sin usuarios) y registra la derivación con el nombre del veterinario escrito a mano
-
-### Requirement: Alta de clínicas por Bambú
-Bambú SHALL poder dar de alta clínicas a mano (nombre, población, dirección,
-teléfono, correo), que nacen validadas y sin usuarios, y marcar o desmarcar
-como validada cualquier clínica. Las clínicas validadas aparecen en las
-sugerencias del alta aunque no tengan usuarios, para que sus veterinarios se
-unan a ellas al registrarse.
-
-#### Scenario: El veterinario se registra después
-- **WHEN** un veterinario de una clínica que Bambú dio de alta se registra en el portal
-- **THEN** la sugerencia le ofrece su clínica y, al unirse, ve las derivaciones que Bambú registró a su nombre
-
 ### Requirement: El portal solo recibe derivaciones
-Todo caso SHALL venir de una clínica: lo deriva un veterinario desde el portal
-o lo registra Bambú en nombre de la clínica. Bambú no abre casos propios en el
-portal; los animales que llegan sin veterinario, y las visitas, se gestionan
-en su programa de gestión (Wakyma).
+Todo caso SHALL derivarlo un veterinario desde el portal. Bambú no registra
+derivaciones en nombre de una clínica ni abre casos propios: si una clínica
+llama, se le dice que se registre en el portal; los animales que llegan sin
+veterinario, y las visitas, se gestionan en Wakyma. Los casos que Bambú
+registró antes de este change se quedan como están.
 
-#### Scenario: Caso sin clínica
-- **WHEN** Bambú intenta registrar un caso sin clínica que lo derive
-- **THEN** 400 y no se crea nada
+#### Scenario: Bambú intenta crear un caso
+- **WHEN** un usuario de Bambú llama a `POST /api/casos`
+- **THEN** 403 y no se crea nada
 
 ### Requirement: Marca de vista
 La aplicación SHALL guardar quién y cuándo, la primera vez que un usuario
@@ -211,4 +177,19 @@ misma transacción, los casos y pacientes de la clínica provisional.
 #### Scenario: Unirse con casos ya derivados
 - **WHEN** un veterinario con dos derivaciones en su clínica provisional es aceptado en otra clínica
 - **THEN** sus compañeros nuevos ven esas dos derivaciones
+
+### Requirement: Bambú corrige los datos de las clínicas
+Bambú SHALL poder ver todas las clínicas activas con su CIF y editar sus
+datos (nombre, población y CIF/NIF obligatorios; dirección, teléfono y
+correo), pero no dar de alta clínicas: las dan de alta sus veterinarios al
+registrarse. Un CIF que ya tiene otra clínica activa → 409. Las clínicas
+anteriores al change sin CIF se marcan «Sense CIF». No hay «clínica validada».
+
+#### Scenario: CIF repetido
+- **WHEN** Bambú pone a una clínica el CIF de otra activa
+- **THEN** 409 en el campo CIF y no cambia nada
+
+#### Scenario: Bambú intenta crear una clínica
+- **WHEN** un usuario de Bambú llama a `POST /api/clinicas`
+- **THEN** 404
 
