@@ -717,10 +717,16 @@
 .tabla tr:last-child td {
   border-bottom: 0;
 }
+.tabla .fila-grupo th {
+  padding-top: 18px;
+  color: var(--tinta);
+  background: var(--papel);
+}
 @media (max-width: 699px) {
   .tabla,
   .tabla tbody,
   .tabla tr,
+  .tabla th,
   .tabla td {
     display: block;
     width: 100%;

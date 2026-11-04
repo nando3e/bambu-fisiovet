@@ -324,6 +324,9 @@ interface DatosAvisos {
   matriz: FilaMatriz[];
 }
 
+// Orden de los grupos de la matriz: dentro de cada uno, el del catálogo.
+const GRUPOS_AVISOS: FilaMatriz['audiencia'][] = ['bambu', 'derivador', 'ambas'];
+
 interface CorreoCola {
   id: number;
   destinatario: string;
@@ -435,11 +438,16 @@ function Avisos() {
               <th>{t('avisos.columna.correoA')}</th>
             </tr>
           </thead>
-          <tbody>
-            {d.matriz.map((f) => (
-              <FilaAviso key={f.evento} fila={f} correoCentro={d.correo_centro} alGuardar={guardarFila} />
-            ))}
-          </tbody>
+          {GRUPOS_AVISOS.map((audiencia) => (
+            <tbody key={audiencia}>
+              <tr className="fila-grupo">
+                <th colSpan={4} scope="colgroup">{t(`audiencia.${audiencia}` as ClaveTexto)}</th>
+              </tr>
+              {d.matriz.filter((f) => f.audiencia === audiencia).map((f) => (
+                <FilaAviso key={f.evento} fila={f} correoCentro={d.correo_centro} alGuardar={guardarFila} />
+              ))}
+            </tbody>
+          ))}
         </table>
       </section>
 
@@ -495,7 +503,6 @@ function FilaAviso({ fila, correoCentro, alGuardar }: {
       <td data-etiqueta={t('avisos.columna.evento')}>
         <div className="celda-evento">
           <strong style={{ display: 'block' }}>{etiqueta}</strong>
-          <span className="texto-suave" style={{ fontSize: '0.8rem' }}>{t(`audiencia.${fila.audiencia}` as ClaveTexto)}</span>
         </div>
       </td>
       <td data-etiqueta={t('avisos.columna.notificacion')}>
