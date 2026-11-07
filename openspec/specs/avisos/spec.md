@@ -66,6 +66,8 @@ Para cada evento, la configuración SHALL decidir si genera notificación
 interna, si genera correo y, en los de audiencia Bambú, a qué dirección
 («Correu a»; vacío = el correo del centro). La configuración se lee en cada
 publicación, sin caché: un cambio afecta al siguiente evento sin reiniciar.
+Sin «Correu a» ni correo del centro, el lado Bambú SHALL no recibir correo, y
+un evento de audiencia `bambu` SHALL no poder encender el correo.
 
 #### Scenario: Apagar la notificación
 - **WHEN** Bambú apaga la notificación de `intervencion.registrada` y luego se registra una sesión
@@ -82,6 +84,22 @@ publicación, sin caché: un cambio afecta al siguiente evento sin reiniciar.
 #### Scenario: Correo a vacío
 - **WHEN** «Correu a» de `derivacion.enviada` está vacío
 - **THEN** el correo va al correo del centro
+
+#### Scenario: Sin ninguna dirección
+- **WHEN** «Correu a» y el correo del centro están vacíos y llega una derivación
+- **THEN** no se encola ningún correo al equipo, queda traza con motivo `sin dirección` y la notificación sí se crea
+
+#### Scenario: Encender el correo sin dirección
+- **WHEN** Bambú enciende el correo de `derivacion.enviada` sin «Correu a» ni correo del centro
+- **THEN** la API responde 400 y el correo sigue apagado
+
+#### Scenario: Vaciar el correo del centro
+- **WHEN** Bambú vacía el correo del centro y un evento de audiencia `bambu` tiene el correo encendido sin «Correu a»
+- **THEN** la API responde 400 y el correo del centro no cambia
+
+#### Scenario: Evento de las dos partes sin dirección
+- **WHEN** `mensaje.nuevo` tiene el correo encendido, sin ninguna dirección, y hay un mensaje nuevo
+- **THEN** el correo llega al veterinario y no al equipo
 
 ### Requirement: Destinatarios resueltos sin incluir al actor
 Los destinatarios de cada evento SHALL calcularse con una función pura a

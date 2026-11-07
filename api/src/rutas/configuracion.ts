@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { esHueco, TAMANO_MAXIMO, tipoDeImagen } from '../ficheros/imagenes-web.ts';
 import { exigirSesion, ROLES_BAMBU, SOLO_SUPERADMIN } from '../auth/permisos.ts';
 import { reintentarCorreo, trazarAviso } from '../avisos/cola.ts';
-import { actualizarFilaMatriz, direccionesDe, leerMatriz } from '../avisos/matriz.ts';
+import { actualizarFilaMatriz, direccionesDe, exigirCentroSinDependientes, leerMatriz } from '../avisos/matriz.ts';
 import { cifrar, descifrar } from '../cifrado.ts';
 import {
   guardarConfiguracion, leerConfiguracion, type ValorConfig,
@@ -271,8 +271,13 @@ export async function rutasConfiguracion(app: FastifyInstance, deps: Deps): Prom
     const sesion = await exigirSesion(peticion, respuesta, deps, ROLES_BAMBU);
     const { clave } = peticion.params as { clave: string };
     if (!(CLAVES_PANEL as readonly string[]).includes(clave)) throw noEncontrado();
-    return enTransaccion(pool, (bd) =>
-      guardarConfiguracion(bd, clave as (typeof CLAVES_PANEL)[number], peticion.body, sesion.usuarioId),
-    );
+    return enTransaccion(pool, async (bd) => {
+      const centroAntes = (await leerConfiguracion(bd, 'avisos')).correo_centro;
+      const guardado = await guardarConfiguracion(bd, clave as (typeof CLAVES_PANEL)[number], peticion.body, sesion.usuarioId);
+      if (clave === 'avisos' && centroAntes && !(await leerConfiguracion(bd, 'avisos')).correo_centro) {
+        await exigirCentroSinDependientes(bd);
+      }
+      return guardado;
+    });
   });
 }

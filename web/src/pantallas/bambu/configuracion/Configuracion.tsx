@@ -381,6 +381,7 @@ function Avisos() {
     setEstado({});
     try {
       await api.put('/configuracion/avisos', centro);
+      setD((v) => v && { ...v, correo_centro: centro.correo_centro.trim() });
       setEstado({ ok: t('comun.guardado') });
     } catch (err) {
       setEstado(errorEn(err));
@@ -497,7 +498,12 @@ function FilaAviso({ fila, correoCentro, alGuardar }: {
   alGuardar: (f: FilaMatriz, cambio: Partial<FilaMatriz>) => Promise<void>;
 }) {
   const [correoA, setCorreoA] = useState(fila.correo_a ?? '');
+  // Si el servidor rechaza el cambio, el campo vuelve a lo guardado.
+  useEffect(() => setCorreoA(fila.correo_a ?? ''), [fila.correo_a]);
   const etiqueta = t(`evento.${fila.evento}` as ClaveTexto);
+  // Sin dirección, un aviso solo del equipo no llega a nadie: se ve apagado y
+  // no se enciende. Los de las dos partes llegan igualmente al veterinario.
+  const sinDireccion = fila.audiencia === 'bambu' && !fila.correo_a && !correoCentro;
   return (
     <tr>
       <td data-etiqueta={t('avisos.columna.evento')}>
@@ -515,7 +521,8 @@ function FilaAviso({ fila, correoCentro, alGuardar }: {
       <td data-etiqueta={t('avisos.columna.correo')}>
         <Interruptor
           etiqueta={`${t('avisos.columna.correo')}: ${etiqueta}`}
-          marcado={fila.correo}
+          marcado={fila.correo && !sinDireccion}
+          desactivado={sinDireccion}
           alCambiar={(v) => void alGuardar(fila, { correo: v })}
         />
       </td>
@@ -527,7 +534,6 @@ function FilaAviso({ fila, correoCentro, alGuardar }: {
             aria-label={`${t('avisos.columna.correoA')}: ${etiqueta}`}
             placeholder={correoCentro || t('avisos.correoAVacio')}
             value={correoA}
-            disabled={!fila.correo}
             onChange={(e) => setCorreoA(e.target.value)}
             onBlur={() => {
               if ((fila.correo_a ?? '') !== correoA.trim()) void alGuardar(fila, { correo_a: correoA.trim() || null });

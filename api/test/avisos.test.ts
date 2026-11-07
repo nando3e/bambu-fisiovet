@@ -92,6 +92,43 @@ test('matriz: apagar notificación o correo vale al momento; «Correu a» manda 
   await s.pool.query(`UPDATE configuracion_avisos SET correo = true WHERE evento NOT IN ('caso.fisio_asignado', 'caso.en_tratamiento', 'paciente.ficha_modificada', 'usuario.bambu_alta')`);
 });
 
+test('correo del equipo sin dirección: no se enciende, no sale a nadie y el centro no se vacía si un aviso depende de él', async () => {
+  const fisio = await fisioVerificada(s, admin);
+  const vet = await veterinarioVerificado(s);
+  const centro = (correo_centro: string) =>
+    pedir(s.app, 'PUT', '/api/configuracion/avisos', { cookie: admin, cuerpo: { correo_centro, dias_sin_noticias: 7 } });
+  const soloBambu = `('derivacion.enviada', 'usuario.derivador_alta', 'caso.sin_noticias')`;
+
+  assert.equal((await centro('avisos@bambufisiovet.com')).estado, 200);
+  assert.equal((await centro('')).estado, 400);
+  assert.equal((await pedir(s.app, 'GET', '/api/configuracion/avisos', { cookie: admin })).cuerpo.correo_centro, 'avisos@bambufisiovet.com');
+  await s.pool.query(`UPDATE configuracion_avisos SET correo = false WHERE evento IN ${soloBambu}`);
+  assert.equal((await centro('')).estado, 200);
+
+  assert.equal((await matriz('derivacion.enviada', { notificacion: true, correo: true })).estado, 400);
+  assert.equal((await matriz('derivacion.enviada', { notificacion: true, correo: true, correo_a: 'recepcio@bambufisiovet.com' })).estado, 200);
+  assert.equal((await matriz('derivacion.enviada', { notificacion: true, correo: true })).estado, 400);
+
+  // Una fila que ya estaba encendida sin dirección se puede tocar, y no manda nada.
+  await s.pool.query(`UPDATE configuracion_avisos SET correo = true, correo_a = NULL WHERE evento = 'derivacion.enviada'`);
+  assert.equal((await matriz('derivacion.enviada', { notificacion: true, correo: true })).estado, 200);
+  const sinDireccion = await publicar({ tipo: 'derivacion.enviada', actor: null, casoId: await casoDePrueba(s.pool) });
+  assert.deepEqual(sinDireccion.correosEncolados, []);
+  assert.ok(sinDireccion.notificados.includes(fisio.id));
+  assert.equal((await s.pool.query(`SELECT motivo FROM avisos_enviados WHERE evento_id = $1 AND canal = 'correo'`, [sinDireccion.eventoId])).rows[0].motivo, 'sin dirección');
+
+  // Los de las dos partes se encienden y llegan solo al veterinario.
+  await matriz('mensaje.nuevo', { notificacion: true, correo: false });
+  assert.equal((await matriz('mensaje.nuevo', { notificacion: true, correo: true })).estado, 200);
+  const mensaje = await publicar({
+    tipo: 'mensaje.nuevo', actor: null, casoId: await casoDePrueba(s.pool), derivadoresInteresados: [vet.usuario.id],
+  });
+  assert.deepEqual(mensaje.correosEncolados, [vet.email]);
+
+  await s.pool.query(`UPDATE configuracion_avisos SET correo = true WHERE evento IN ${soloBambu}`);
+  await centro('avisos@bambufisiovet.com');
+});
+
 test('anti-ruido y campana: dos mensajes sin leer dan dos notificaciones y un correo; leer rearma el correo; la notificación de otro → 404', async () => {
   const vet = await veterinarioVerificado(s);
   const otro = await veterinarioVerificado(s);

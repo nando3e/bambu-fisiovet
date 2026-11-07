@@ -142,15 +142,9 @@ export async function publicarEvento(bd: Consultable, ev: EventoAPublicar): Prom
           correosEncolados.push(direccion);
         }
       } else {
-        // Sin «Correu a» ni correo del centro: a cada persona del equipo avisada.
-        for (const u of avisados) {
-          if (!u.email) continue;
-          await encolarCorreo(bd, {
-            eventoId, destinatario: u.email, usuarioId: u.id, plantilla: def.plantilla,
-            datos: datosCorreo(u.rol, `Hola, ${u.nombre}`),
-          });
-          correosEncolados.push(u.email);
-        }
+        // Sin «Correu a» ni correo del centro no sale ningún correo al equipo:
+        // se entera por la campana.
+        await trazarAviso(bd, { canal: 'correo', eventoId, destinatario: 'equip', enviado: false, motivo: 'sin dirección' });
       }
     }
 

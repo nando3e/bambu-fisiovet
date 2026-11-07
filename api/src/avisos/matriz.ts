@@ -1,6 +1,7 @@
 // La matriz de avisos: por evento, si genera notificación, si genera correo y,
 // en los que llegan a Bambú, a qué dirección. Se siembra con los valores por
 // defecto del catálogo y nunca se pisa lo editado.
+import { leerConfiguracion } from '../configuracion.ts';
 import type { Consultable } from '../db/pool.ts';
 import { registrarCambio } from '../db/historial.ts';
 import { datosIncorrectos, noEncontrado } from '../errores.ts';
@@ -48,6 +49,14 @@ export async function leerMatriz(bd: Consultable): Promise<FilaMatriz[]> {
   });
 }
 
+/** Vaciar el correo del centro no puede dejar sin dirección a un aviso de Bambú encendido. */
+export async function exigirCentroSinDependientes(bd: Consultable): Promise<void> {
+  const dependen = (await leerMatriz(bd)).some((f) => f.audiencia === 'bambu' && f.correo && !f.correo_a);
+  if (dependen) {
+    throw datosIncorrectos('Hi ha avisos de l’equip que només tenen aquesta adreça: apaga’n el correu o omple «Correu a»');
+  }
+}
+
 /** Las direcciones de «Correu a»: una o varias, separadas por comas, punto y coma o espacios. */
 export function direccionesDe(texto: string | null | undefined): string[] {
   return (texto ?? '').split(/[,;\s]+/).map((d) => d.trim()).filter(Boolean);
@@ -71,7 +80,17 @@ export async function actualizarFilaMatriz(
   if (correoA && !admiteCorreoA(evento)) {
     throw datosIncorrectos('Aquest avís va als veterinaris: no admet una adreça pròpia');
   }
-  const antes = (await leerMatriz(bd)).find((f) => f.evento === evento);
+  const antes = (await leerMatriz(bd)).find((f) => f.evento === evento)!;
+  // Sin dirección, un aviso solo para Bambú no llega a nadie: no se enciende ni
+  // se le quita la última. Una fila que ya estaba así se puede seguir tocando
+  // (la notificación, por ejemplo). Los de las dos partes sí se encienden: el
+  // veterinario tiene su propia dirección.
+  if (antes.audiencia === 'bambu' && cambio.correo && !correoA && (!antes.correo || antes.correo_a)) {
+    const { correo_centro } = await leerConfiguracion(bd, 'avisos');
+    if (!correo_centro) {
+      throw datosIncorrectos('Cal una adreça: omple «Correu a» o el correu del centre');
+    }
+  }
   await bd.query(
     `INSERT INTO configuracion_avisos (evento, notificacion, correo, correo_a, actualizado, actualizado_por)
      VALUES ($1, $2, $3, $4, now(), $5)

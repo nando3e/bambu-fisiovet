@@ -360,10 +360,14 @@ Para cada aviso del equipo, el portal mira en este orden:
 1. Si el aviso tiene **«Correu a»** (una o varias direcciones separadas por
    comas), a esas.
 2. Si no, al **correo del centro**.
-3. Si tampoco hay, **a cada persona del equipo**, a su correo.
+3. Si tampoco hay, **no sale ningún correo al equipo**: el aviso se ve en la
+   campana.
 
-El correo del centro puede quedar vacío si se rellena «Correu a» en los
-avisos que interesen.
+Por eso el interruptor de correo de un aviso del equipo no se puede activar
+sin una de las dos direcciones, y el correo del centro no se puede vaciar
+mientras algún aviso encendido dependa de él. En los avisos que van a las dos
+partes, el interruptor sigue activo: sin dirección, el correo llega solo al
+veterinario.
 
 ### Clínicas y veterinarios («Clíniques»)
 
