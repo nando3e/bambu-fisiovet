@@ -1,15 +1,19 @@
-// El hilo del caso, como una conversación: el veterinario a la izquierda,
-// Bambú a la derecha (las notas internas, solo Bambú, en otro color) y los
-// mensajes del sistema en el centro. Los ficheros se preparan junto al texto y
-// salen con «Envia», pegados al mensaje; las fotos se reducen en el navegador
-// antes de subirlas y se ven al momento, atenuadas mientras suben.
+// El hilo del caso, como una conversación: lo que escribe mi lado (Bambú en
+// /b, la clínica en /d) a la derecha, lo del otro lado a la izquierda y los
+// mensajes del sistema en el centro; el color dice quién escribe (Bambú en
+// verde, sus notas internas en amarillo). Los ficheros se preparan junto al
+// texto y salen con «Envia», pegados al mensaje; las fotos se reducen en el
+// navegador antes de subirlas y se ven al momento, atenuadas mientras suben.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { FileText, Lock, Paperclip, Send, Trash2, X } from 'lucide-react';
 import { api, mensajeDe } from '../../api.ts';
-import { haceCuanto, t } from '../../i18n/index.ts';
+import { haceCuanto, t, type ClaveTexto } from '../../i18n/index.ts';
 import { useSesion } from '../../sesion.tsx';
 import { Aviso, Cargando } from '../../componentes/comunes.tsx';
+import { ACEPTADOS, tamano, vistaPrevia } from '../../imagenes.ts';
+import { useSubidas } from '../../subidas.ts';
+import type { Categoria } from './Documentos.tsx';
 
 interface Mensaje {
   id: number;
@@ -27,6 +31,7 @@ interface Mensaje {
   adjunto_miniatura: boolean | null;
   adjunto_retirado: boolean | null;
   adjunto_subido_por: number | null;
+  adjunto_categoria: Categoria | null;
   informe_id: number | null;
 }
 
@@ -37,40 +42,15 @@ interface Preparado {
   vista: string | null;
 }
 
-interface Subida {
-  clave: string;
-  nombre: string;
-  vista: string | null;
-}
-
-const ACEPTADOS = '.pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xlsx,.zip,image/*,application/pdf';
-const REDUCIR_DESDE = 1.5 * 1024 * 1024;
 const MINUTOS_RETIRAR = 15;
 /** Mensajes seguidos de la misma persona en este margen se pintan juntos. */
 const JUNTOS_MS = 5 * 60_000;
 
-/** Una foto grande se reduce a 1600 px en JPEG; si algo falla, va el original. */
-async function reducir(fichero: File): Promise<{ datos: Blob; nombre: string }> {
-  if (!fichero.type.startsWith('image/') || fichero.size < REDUCIR_DESDE) return { datos: fichero, nombre: fichero.name };
-  try {
-    const imagen = await createImageBitmap(fichero);
-    const escala = Math.min(1, 1600 / Math.max(imagen.width, imagen.height));
-    const lienzo = document.createElement('canvas');
-    lienzo.width = Math.round(imagen.width * escala);
-    lienzo.height = Math.round(imagen.height * escala);
-    lienzo.getContext('2d')!.drawImage(imagen, 0, 0, lienzo.width, lienzo.height);
-    const blob = await new Promise<Blob | null>((r) => lienzo.toBlob(r, 'image/jpeg', 0.85));
-    if (!blob) return { datos: fichero, nombre: fichero.name };
-    return { datos: blob, nombre: fichero.name.replace(/\.[^.]+$/, '') + '.jpg' };
-  } catch {
-    return { datos: fichero, nombre: fichero.name };
-  }
-}
+const CHIP_CATEGORIA: Record<Categoria, ClaveTexto> = {
+  radiografia: 'doc.chip.radiografia', informe: 'doc.chip.informe', analitica: 'doc.chip.analitica',
+};
 
-const tamano = (bytes: number | null) =>
-  bytes === null ? '' : bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB` : `${Math.ceil(bytes / 1024)} KB`;
-
-/** De qué lado va: Bambú (y sus notas internas) a la derecha, el veterinario a la izquierda. */
+/** Quién lo escribió: Bambú (y sus notas internas) o la clínica. */
 const deBambu = (m: Mensaje) => m.autor_bambu === true || m.visibilidad === 'bambu';
 
 export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }) {
@@ -80,7 +60,6 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
   const [texto, setTexto] = useState('');
   const [interna, setInterna] = useState(false);
   const [preparados, setPreparados] = useState<Preparado[]>([]);
-  const [subidas, setSubidas] = useState<Subida[]>([]);
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
   const selector = useRef<HTMLInputElement>(null);
@@ -90,6 +69,7 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
     const r = await api.get<{ mensajes: Mensaje[] }>(`/casos/${casoId}/mensajes`);
     setMensajes(r.mensajes);
   }, [casoId]);
+  const subidas = useSubidas(cargar);
 
   useEffect(() => {
     cargar().catch((err) => setError(mensajeDe(err)));
@@ -103,14 +83,14 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
 
   useEffect(() => {
     final.current?.scrollIntoView({ block: 'nearest' });
-  }, [mensajes?.length, subidas.length]);
+  }, [mensajes?.length, subidas.enCurso.length]);
 
   function preparar(ficheros: FileList | null) {
     if (!ficheros) return;
     const nuevos = Array.from(ficheros).map((fichero) => ({
       clave: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${fichero.name}`,
       fichero,
-      vista: fichero.type.startsWith('image/') ? URL.createObjectURL(fichero) : null,
+      vista: vistaPrevia(fichero),
     }));
     setPreparados((p) => [...p, ...nuevos]);
     if (selector.current) selector.current.value = '';
@@ -130,6 +110,7 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
     if (!texto.trim() && preparados.length === 0) return;
     setEnviando(true);
     setError('');
+    subidas.limpiarError();
     const loteInterno = bambu && interna;
     const lote = preparados;
     try {
@@ -138,18 +119,8 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
         setTexto('');
       }
       setPreparados([]);
-      for (const p of lote) {
-        setSubidas((s) => [...s, { clave: p.clave, nombre: p.fichero.name, vista: p.vista }]);
-        try {
-          const { datos, nombre } = await reducir(p.fichero);
-          await api.subir(`/casos/${casoId}/adjuntos`, datos, 'fichero', { interna: String(loteInterno) }, nombre);
-        } catch (err) {
-          setError(t('hilo.errorSubida', { nombre: p.fichero.name, error: mensajeDe(err) }));
-        } finally {
-          setSubidas((s) => s.filter((x) => x.clave !== p.clave));
-          if (p.vista) URL.revokeObjectURL(p.vista);
-        }
-      }
+      for (const p of lote) if (p.vista) URL.revokeObjectURL(p.vista);
+      await subidas.encolar(lote.map((p) => p.fichero), `/casos/${casoId}/adjuntos`, { interna: String(loteInterno) });
       await cargar();
     } catch (err) {
       setError(mensajeDe(err));
@@ -178,11 +149,16 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
       && antes.visibilidad === m.visibilidad && new Date(m.creado).getTime() - new Date(antes.creado).getTime() < JUNTOS_MS);
   };
 
+  /** A mi lado (derecha) o al del otro: según la población de quien mira. */
+  const clases = (m: Mensaje) =>
+    `mensaje ${deBambu(m) === bambu ? 'propio' : 'ajeno'} ${deBambu(m) ? 'de-bambu' : 'de-veterinario'}`;
+
   if (borrador) return <Aviso tipo="info">{t('hilo.borrador')}</Aviso>;
   if (!mensajes) return error ? <Aviso tipo="error">{error}</Aviso> : <Cargando />;
+  const mensajeError = error || subidas.error;
   return (
     <section className="hilo">
-      {mensajes.length === 0 && subidas.length === 0 ? <p className="texto-suave">{t('hilo.vacio')}</p> : null}
+      {mensajes.length === 0 && subidas.enCurso.length === 0 ? <p className="texto-suave">{t('hilo.vacio')}</p> : null}
       <ol className="mensajes">
         {mensajes.map((m, i) => m.tipo === 'sistema' ? (
           <li key={m.id} className={`mensaje sistema${m.visibilidad === 'bambu' ? ' interna' : ''}`}>
@@ -191,7 +167,7 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
         ) : (
           <li
             key={m.id}
-            className={`mensaje ${deBambu(m) ? 'de-bambu' : 'de-veterinario'}${m.visibilidad === 'bambu' ? ' interna' : ''}${seguido(m, i) ? ' seguido' : ''}`}
+            className={`${clases(m)}${m.visibilidad === 'bambu' ? ' interna' : ''}${seguido(m, i) ? ' seguido' : ''}`}
           >
             {seguido(m, i) ? null : (
               <div className="cabecera-mensaje">
@@ -211,7 +187,10 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
                     )}
                     <span>
                       <b>{m.adjunto_nombre}</b>
-                      <small>{tamano(m.adjunto_bytes)}</small>
+                      <small>
+                        {m.adjunto_categoria ? <span className="chip">{t(CHIP_CATEGORIA[m.adjunto_categoria])}</span> : null}
+                        {tamano(m.adjunto_bytes)}
+                      </small>
                     </span>
                   </a>
                   {puedeRetirar(m) ? (
@@ -229,8 +208,8 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
             ) : <p className="cuerpo-mensaje">{m.cuerpo}</p>}
           </li>
         ))}
-        {subidas.map((s) => (
-          <li key={s.clave} className={`mensaje ${bambu ? 'de-bambu' : 'de-veterinario'} subiendo`} aria-busy="true">
+        {subidas.enCurso.map((s) => (
+          <li key={s.clave} className={`mensaje propio ${bambu ? 'de-bambu' : 'de-veterinario'} subiendo`} aria-busy="true">
             <div className="cabecera-mensaje"><strong>{t('hilo.subiendo')}</strong></div>
             <div className="adjunto">
               <span className="adjunto-enlace">
@@ -242,7 +221,7 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
         ))}
       </ol>
       <div ref={final} />
-      {error ? <Aviso tipo="error">{error}</Aviso> : null}
+      {mensajeError ? <Aviso tipo="error">{mensajeError}</Aviso> : null}
 
       <div className={`compositor${interna ? ' interna' : ''}`}>
         <label className="campo">

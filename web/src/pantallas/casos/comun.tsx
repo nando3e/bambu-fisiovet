@@ -42,14 +42,16 @@ export interface DatosPropietario {
 
 export interface DatosDerivacion {
   motivo: string;
-  historia_clinica: string;
   tratamiento_actual: string;
-  objetivos: string;
-  notas_derivador: string;
 }
 
 export interface Ficha extends DatosDerivacion {
   id: number;
+  // Campos que la derivación ya no pide: solo los tienen los casos antiguos y
+  // la ficha los enseña si hay algo.
+  historia_clinica: string;
+  objetivos: string;
+  notas_derivador: string;
   estado: EstadoCaso;
   clinica: { id: number; nombre: string };
   derivador: { id: number; nombre: string } | null;

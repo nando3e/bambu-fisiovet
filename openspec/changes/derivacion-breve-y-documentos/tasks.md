@@ -19,16 +19,16 @@ y viendo el test en rojo. Toda ruta nueva con su test de ámbito y de rol.
 
 ## 2. Web
 
-- [ ] 2.1 `imagenes.ts` (reducir) y hook `useSubidas` (fila, vista previa,
+- [x] 2.1 `imagenes.ts` (reducir) y hook `useSubidas` (fila, vista previa,
       errores por fichero) extraídos del hilo; el hilo los usa.
-- [ ] 2.2 Nova derivació: paso 2 con motivo, tractament actual y las tres
+- [x] 2.2 Nova derivació: paso 2 con motivo, tractament actual y las tres
       zonas de documentos; «Envia» espera a las subidas en curso. Edición de
       la ficha con los dos campos; los antiguos solo se enseñan si tienen
       contenido.
-- [ ] 2.3 Bloque «Documents» en la pestaña Fitxa: grupos, miniaturas
+- [x] 2.3 Bloque «Documents» en la pestaña Fitxa: grupos, miniaturas
       perezosas, botón por categoría según rol y estado, retirar.
-- [ ] 2.4 Hilo: clases `propio` / `ajeno` según quién mira; CSS.
-- [ ] 2.5 Textos nuevos en `va.ts`; `npm run comprueba` y `build`.
+- [x] 2.4 Hilo: clases `propio` / `ajeno` según quién mira; CSS.
+- [x] 2.5 Textos nuevos en `va.ts`; `npm run comprueba` y `build`.
 
 ## 3. Documentación
 
@@ -39,4 +39,4 @@ y viendo el test en rojo. Toda ruta nueva con su test de ámbito y de rol.
 
 - [ ] 4.1 Skill `cerrar-change`: batería, revisor en otro modelo, archivar.
 
-Siguiente: task 2.1 — API hecha (migración, contrato de casos, adjuntos con categoría y lista); falta toda la web y la documentación.
+Siguiente: task 3.1 — API y web hechas (dos campos, documentos por categoría desde el borrador y en la ficha, burbujas según quién mira); falta la documentación, la prueba visual y el cierre.

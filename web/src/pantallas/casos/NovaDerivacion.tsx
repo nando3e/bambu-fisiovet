@@ -1,6 +1,8 @@
 // «Nova derivació» del veterinario: tres pasos, con borrador que se guarda
-// solo. Bambú no registra derivaciones: el portal solo las recibe (si una
-// clínica llama, se le dice que se registre).
+// solo. El segundo pide solo el motivo y el tratamiento actual, y deja subir
+// los documentos (radiografies, informes, analítiques) desde el borrador: van
+// subiendo en fila mientras se escribe y «Envia» espera a que acaben. Bambú
+// no registra derivaciones: el portal solo las recibe.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { ArrowLeft, ArrowRight, Check, Loader2, Search, Send, Trash2 } from 'lucide-react';
@@ -12,6 +14,8 @@ import {
   pacienteParaApi,
 } from './Formularios.tsx';
 import { nombreEspecie, type CasoLista, type DatosDerivacion, type DatosPaciente, type DatosPropietario, type Ficha } from './comun.tsx';
+import { Documentos } from './Documentos.tsx';
+import { useSubidas } from '../../subidas.ts';
 
 type Errores = Record<string, string>;
 
@@ -54,6 +58,7 @@ export function NovaDerivacion() {
   const [error, setError] = useState('');
   const [guardado, setGuardado] = useState<'nada' | 'guardando' | 'guardado'>('nada');
   const [enviando, setEnviando] = useState(false);
+  const subidas = useSubidas();
 
   useEffect(() => {
     api.get<{ texto: string; version: number }>('/consentimiento').then(setConsentimiento).catch(() => {});
@@ -157,6 +162,8 @@ export function NovaDerivacion() {
       if (pendiente.current) clearTimeout(pendiente.current);
       pendiente.current = null;
       await guardarAhora();
+      // Los documentos que aún suben: la derivación sale con todos.
+      await subidas.esperar();
       await api.post(`/casos/${casoId}/envia`, { acepta_consentimiento: acepta });
       navegar(`/d/casos/${casoId}`, { replace: true, state: { aviso: t('nova.enviada') } });
     } catch (err) {
@@ -247,7 +254,12 @@ export function NovaDerivacion() {
           </>
         ) : null}
 
-        {paso === 1 ? <CamposDerivacion valor={derivacion} cambiar={setDerivacion} errores={errores} /> : null}
+        {paso === 1 ? (
+          <>
+            <CamposDerivacion valor={derivacion} cambiar={setDerivacion} errores={errores} />
+            {casoId ? <Documentos casoId={casoId} estado="borrador" deriva subidas={subidas} enFormulario /> : null}
+          </>
+        ) : null}
 
         {ultimo ? (
           <>
@@ -274,7 +286,8 @@ export function NovaDerivacion() {
         )}
         {ultimo ? (
           <button type="button" className="boton" disabled={enviando} onClick={() => void terminar()}>
-            <Send size={18} aria-hidden /> {t('nova.enviar')}
+            {enviando && subidas.enCurso.length > 0 ? <Loader2 className="girando" size={18} aria-hidden /> : <Send size={18} aria-hidden />}
+            {' '}{enviando && subidas.enCurso.length > 0 ? t('doc.esperando') : t('nova.enviar')}
           </button>
         ) : (
           <button type="button" className="boton" onClick={() => void siguiente()}>

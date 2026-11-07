@@ -1103,8 +1103,9 @@ button.chip {
   display: grid;
   gap: 10px;
 }
-/* Conversación: el veterinario a la izquierda (blanco), Bambú a la derecha
-   (verde) y sus notas internas a la derecha (amarillo). */
+/* Conversación como un chat: lo mío (propio) a la derecha y lo del otro lado
+   (ajeno) a la izquierda, según quién mira. El color dice quién escribe: la
+   clínica en blanco, Bambú en verde y sus notas internas en amarillo. */
 .mensaje {
   max-width: min(560px, 85%);
   padding: 10px 14px;
@@ -1112,15 +1113,17 @@ button.chip {
   background: var(--superficie);
   border: 1px solid var(--linea);
 }
-.mensaje.de-veterinario {
+.mensaje.ajeno {
   justify-self: start;
   border-bottom-left-radius: 6px;
 }
-.mensaje.de-bambu {
+.mensaje.propio {
   justify-self: end;
+  border-bottom-right-radius: 6px;
+}
+.mensaje.de-bambu {
   background: var(--hoja);
   border-color: transparent;
-  border-bottom-right-radius: 6px;
 }
 .mensaje.de-bambu.interna {
   background: var(--aviso-fondo);
@@ -1129,8 +1132,11 @@ button.chip {
 .mensaje.seguido {
   margin-top: -6px;
 }
-.mensaje.de-bambu .cabecera-mensaje {
+.mensaje.propio .cabecera-mensaje {
   justify-content: flex-end;
+}
+.adjunto-enlace small .chip {
+  margin-right: 6px;
 }
 .tarjeta-informe {
   padding: 8px;
@@ -1253,6 +1259,62 @@ button.chip {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 220px;
+}
+
+/* ---------- Documents del cas ---------- */
+.documentos {
+  display: grid;
+  gap: 12px;
+}
+.documentos > p {
+  margin: 0;
+}
+.grupo-documentos {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--linea);
+}
+.cabecera-grupo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cabecera-grupo h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.grupo-documentos > p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.documentos-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.documentos-lista li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: var(--radio-control);
+  background: var(--superficie-2);
+}
+.documentos-lista li .adjunto-enlace {
+  flex: 1;
+}
+.documentos-lista li.subiendo {
+  opacity: 0.55;
+}
+.documentos-lista img {
+  width: 72px;
+  height: 72px;
+  max-height: 72px;
 }
 
 /* ---------- Línea temporal del caso ---------- */

@@ -15,9 +15,7 @@ export const PACIENTE_VACIO: DatosPaciente = {
   fecha_nacimiento: null, edad_texto: '', peso_kg: null,
 };
 export const PROPIETARIO_VACIO: DatosPropietario = { nombre: '', telefono: '', email: '' };
-export const DERIVACION_VACIA: DatosDerivacion = {
-  motivo: '', historia_clinica: '', tratamiento_actual: '', objetivos: '', notas_derivador: '',
-};
+export const DERIVACION_VACIA: DatosDerivacion = { motivo: '', tratamiento_actual: '' };
 
 /** Lo que manda el formulario: el peso con coma o punto, vacíos como null. */
 export function pacienteParaApi(p: DatosPaciente) {
@@ -130,10 +128,7 @@ export function CamposDerivacion({ valor, cambiar, errores = {} }: {
   return (
     <div className="formulario">
       {campo('motivo', 'caso.motivo', 4)}
-      {campo('historia_clinica', 'caso.historia', 4)}
       {campo('tratamiento_actual', 'caso.tratamiento', 3)}
-      {campo('objetivos', 'caso.objetivos', 2)}
-      {campo('notas_derivador', 'caso.notas', 2)}
     </div>
   );
 }

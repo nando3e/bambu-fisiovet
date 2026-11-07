@@ -14,6 +14,7 @@ import { avisarCambioNotificaciones } from '../../componentes/Notificaciones.tsx
 import { CamposDerivacion, CamposPaciente, CamposPropietario, pacienteParaApi } from './Formularios.tsx';
 import { INFORMES_ACTIVOS } from '../../funciones.ts';
 import { Hilo } from './Hilo.tsx';
+import { Documentos } from './Documentos.tsx';
 import { LineaTemporal } from './LineaTemporal.tsx';
 import { Informes } from './Informes.tsx';
 import { ChipEstado, fechaCorta, nombreEspecie, type Ficha } from './comun.tsx';
@@ -131,13 +132,15 @@ export function FichaCaso({ zona }: { zona: '/d' | '/b' }) {
             </div>
             <dl className="datos apilados">
               <Texto etiqueta="caso.motivo" valor={ficha.motivo} />
-              <Texto etiqueta="caso.historia" valor={ficha.historia_clinica} />
               <Texto etiqueta="caso.tratamiento" valor={ficha.tratamiento_actual} />
+              {/* Solo los casos antiguos traen algo aquí. */}
+              <Texto etiqueta="caso.historia" valor={ficha.historia_clinica} />
               <Texto etiqueta="caso.objetivos" valor={ficha.objetivos} />
               <Texto etiqueta="caso.notas" valor={ficha.notas_derivador} />
             </dl>
             {deriva && !puedeEditar ? <p className="texto-suave">{t('caso.noEditable')}</p> : null}
           </section>
+          <Documentos casoId={ficha.id} estado={ficha.estado} deriva={deriva} />
           <section className="tarjeta">
             <h2>{t('caso.paciente')}</h2>
             <dl className="datos">
@@ -314,10 +317,7 @@ function Acciones({ ficha, alCambiar, setError }: {
 function Edicion({ ficha, alTerminar }: { ficha: Ficha; alTerminar: (f: Ficha | null) => void }) {
   const [paciente, setPaciente] = useState(ficha.paciente);
   const [propietario, setPropietario] = useState(ficha.propietario);
-  const [derivacion, setDerivacion] = useState({
-    motivo: ficha.motivo, historia_clinica: ficha.historia_clinica, tratamiento_actual: ficha.tratamiento_actual,
-    objetivos: ficha.objetivos, notas_derivador: ficha.notas_derivador,
-  });
+  const [derivacion, setDerivacion] = useState({ motivo: ficha.motivo, tratamiento_actual: ficha.tratamiento_actual });
   const [errores, setErrores] = useState<Errores>({});
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
