@@ -91,7 +91,10 @@ test('datos: la base rechaza lo incoherente, el consentimiento versiona solo y u
 test('una derivación de punta a punta: borrador privado, envío validado, vista, aceptación con fisio, cita y alta, con sus avisos', async () => {
   const vet = await veterinarioVerificado(s);
   assert.equal((await pedir(s.app, 'POST', '/api/casos', { cookie: vet.cookie, cuerpo: { ...DATOS, paciente: { ...DATOS.paciente, especie: 'caball' } } })).estado, 400);
-  const b = await borrador(vet, { caso: { motivo: '' } });
+  // La derivación pide solo motivo y tratamiento: los campos retirados dan 400, al crear y al editar.
+  assert.equal((await pedir(s.app, 'POST', '/api/casos', { cookie: vet.cookie, cuerpo: { ...DATOS, caso: { ...DATOS.caso, historia_clinica: 'x' } } })).estado, 400);
+  const b = await borrador(vet, { caso: { motivo: '', tratamiento_actual: 'Meloxicam' } });
+  assert.equal((await pedir(s.app, 'PATCH', `/api/casos/${b.id}`, { cookie: vet.cookie, cuerpo: { caso: { objetivos: 'x' } } })).estado, 400);
 
   // El borrador lo retoma su autor en otra sesión; ni un compañero ni Bambú lo ven, tampoco a su paciente.
   const otraSesion = (await pedir(s.app, 'POST', '/api/auth/entrar', { cuerpo: { identificador: vet.email, contrasena: CONTRASENA } })).cookie;
@@ -149,7 +152,7 @@ test('una derivación de punta a punta: borrador privado, envío validado, vista
 test('quién edita qué: el veterinario hasta que se acepta (ficha incluida), Bambú siempre con historial y aviso; descartar no borra', async () => {
   const vet = await veterinarioVerificado(s);
   const c = await derivar(vet);
-  assert.equal((await pedir(s.app, 'PATCH', `/api/casos/${c.id}`, { cookie: vet.cookie, cuerpo: { caso: { objetivos: 'Caminar sense dolor' } } })).cuerpo.objetivos, 'Caminar sense dolor');
+  assert.equal((await pedir(s.app, 'PATCH', `/api/casos/${c.id}`, { cookie: vet.cookie, cuerpo: { caso: { tratamiento_actual: 'Caminar sense dolor' } } })).cuerpo.tratamiento_actual, 'Caminar sense dolor');
   await accion(fisio.cookie, c.id, 'acepta');
   const tarde = await pedir(s.app, 'PATCH', `/api/casos/${c.id}`, { cookie: vet.cookie, cuerpo: { caso: { motivo: 'Un altre' } } });
   assert.deepEqual([tarde.estado, tarde.cuerpo.error], [409, "La derivació ja s'ha acceptat; afegeix la informació al fil"]);

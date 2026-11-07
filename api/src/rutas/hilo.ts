@@ -12,7 +12,8 @@ import { enTransaccion } from '../db/pool.ts';
 import { ambitoCaso } from '../dominio/visibilidad.ts';
 import { conflicto, datosIncorrectos, noEncontrado, prohibido } from '../errores.ts';
 import {
-  esImagen, MIME_ADJUNTO, nombreSeguro, seMuestraEnLinea, TAMANO_MAXIMO_ADJUNTO, tipoDeAdjunto, type TipoAdjunto,
+  categoriaDe, esImagen, MIME_ADJUNTO, nombreSeguro, seMuestraEnLinea, TAMANO_MAXIMO_ADJUNTO, tipoDeAdjunto,
+  type TipoAdjunto,
 } from '../ficheros/adjuntos.ts';
 import { avisarCaso, casoVisible, nombrePersona, tocarActividad } from '../servicios/casos.ts';
 import { mensajeSistema } from '../servicios/hilo.ts';
@@ -24,6 +25,7 @@ const rfc5987 = (texto: string) =>
 
 /** Minutos en los que el veterinario puede retirar su propio adjunto. */
 const MINUTOS_RETIRAR = 15;
+const SOLO_TRAS_ENVIAR = 'Envia la derivació abans d’adjuntar fitxers';
 
 type Sharp = typeof import('sharp');
 let sharp: Promise<Sharp | null> | null = null;
@@ -56,7 +58,8 @@ export async function rutasHilo(app: FastifyInstance, deps: Deps): Promise<void>
               u.rol IN ('bambu', 'superadmin') AS autor_bambu,
               a.id AS adjunto_id, a.nombre_original AS adjunto_nombre, a.mime AS adjunto_mime,
               a.bytes AS adjunto_bytes, a.miniatura_ruta IS NOT NULL AS adjunto_miniatura,
-              a.eliminado_el IS NOT NULL AS adjunto_retirado, a.subido_por AS adjunto_subido_por
+              a.eliminado_el IS NOT NULL AS adjunto_retirado, a.subido_por AS adjunto_subido_por,
+              a.categoria AS adjunto_categoria
        FROM mensajes m
        LEFT JOIN usuarios u ON u.id = m.autor_id
        LEFT JOIN adjuntos a ON a.id = m.adjunto_id
@@ -99,11 +102,18 @@ export async function rutasHilo(app: FastifyInstance, deps: Deps): Promise<void>
     const sesion = await exigirSesion(peticion, respuesta, deps);
     const id = idDeRuta(peticion.params);
     // El caso se mira antes de leer el fichero: sin ámbito, 404 sin gastar disco.
+    // En borrador solo entran los documentos de la derivación (con categoría),
+    // y solo los sube quien la está escribiendo.
     const previo = await casoVisible(pool, sesion, id);
-    if (previo.estado === 'borrador') throw conflicto('Envia la derivació abans d’adjuntar fitxers');
+    if (previo.estado === 'borrador' && sesion.rol !== 'derivador') throw conflicto(SOLO_TRAS_ENVIAR);
 
     const archivo = await peticion.file({ limits: { fileSize: TAMANO_MAXIMO_ADJUNTO, files: 1 } });
     if (!archivo) throw datosIncorrectos('Falta el fitxer');
+    const campoCategoria = archivo.fields.categoria as { value?: unknown } | undefined;
+    const cat = categoriaDe(campoCategoria?.value);
+    if (!cat.ok) throw datosIncorrectos('Categoria de document desconeguda');
+    const categoria = cat.categoria;
+    if (previo.estado === 'borrador' && !categoria) throw conflicto(SOLO_TRAS_ENVIAR);
     // Más de 12 MB: toBuffer lanza el error del complemento con su 413.
     const datos = await archivo.toBuffer();
     const nombre = nombreSeguro(archivo.filename);
@@ -121,21 +131,24 @@ export async function rutasHilo(app: FastifyInstance, deps: Deps): Promise<void>
       const miniatura = esImagen(tipo) ? await crearMiniatura(datos, base, tipo, peticion.log) : null;
       const resultado = await enTransaccion(pool, async (bd) => {
         const caso = await casoVisible(bd, sesion, id, true);
-        if (caso.estado === 'borrador') throw conflicto('Envia la derivació abans d’adjuntar fitxers');
+        const enBorrador = caso.estado === 'borrador';
+        if (enBorrador && (sesion.rol !== 'derivador' || !categoria)) throw conflicto(SOLO_TRAS_ENVIAR);
         const { rows: adj } = await bd.query<{ id: number }>(
-          `INSERT INTO adjuntos (caso_id, subido_por, nombre_original, mime, bytes, ruta, miniatura_ruta, sha256)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+          `INSERT INTO adjuntos (caso_id, subido_por, nombre_original, mime, bytes, ruta, miniatura_ruta, sha256, categoria)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
           [caso.id, sesion.usuarioId, nombre, MIME_ADJUNTO[tipo], datos.length, ruta, miniatura,
-            createHash('sha256').update(datos).digest('hex')],
+            createHash('sha256').update(datos).digest('hex'), categoria],
         );
         const { rows: men } = await bd.query<{ id: number }>(
           `INSERT INTO mensajes (caso_id, autor_id, tipo, visibilidad, cuerpo, adjunto_id)
            VALUES ($1, $2, 'adjunto', $3, $4, $5) RETURNING id`,
           [caso.id, sesion.usuarioId, interna ? 'bambu' : 'todos', nombre, adj[0]!.id],
         );
-        if (!interna) {
+        // En borrador nadie más ve el caso: el aviso de «derivació enviada»
+        // dirá cuántos documentos trae.
+        if (!interna && !enBorrador) {
           await tocarActividad(bd, caso.id);
-          await avisarCaso(bd, sesion, caso, 'adjunto.nuevo', { nombre: nombrePersona(sesion) });
+          await avisarCaso(bd, sesion, caso, 'adjunto.nuevo', { nombre: nombrePersona(sesion), categoria });
         }
         return { id: adj[0]!.id, mensaje_id: men[0]!.id };
       });
@@ -150,6 +163,25 @@ export async function rutasHilo(app: FastifyInstance, deps: Deps): Promise<void>
         await rm(join(carpeta, `${base}-min.webp`), { force: true });
       }
     }
+  });
+
+  // Los documentos del caso: los adjuntos vivos, con su categoría (null = del
+  // hilo), con el ámbito del caso y sin las notas internas para el derivador.
+  app.get('/casos/:id/adjuntos', async (peticion, respuesta) => {
+    const sesion = await exigirSesion(peticion, respuesta, deps);
+    const caso = await casoVisible(pool, sesion, idDeRuta(peticion.params));
+    const { rows } = await pool.query(
+      `SELECT a.id, a.nombre_original AS nombre, a.mime, a.bytes, a.miniatura_ruta IS NOT NULL AS miniatura,
+              a.categoria, a.subido_por, a.creado, m.visibilidad,
+              nullif(trim(u.nombre || ' ' || u.apellidos), '') AS autor
+       FROM adjuntos a
+       JOIN mensajes m ON m.adjunto_id = a.id
+       LEFT JOIN usuarios u ON u.id = a.subido_por
+       WHERE a.caso_id = $1 AND a.eliminado_el IS NULL AND ($2::boolean OR m.visibilidad = 'todos')
+       ORDER BY a.creado, a.id`,
+      [caso.id, esBambu(sesion)],
+    );
+    return { adjuntos: rows };
   });
 
   async function crearMiniatura(datos: Buffer, base: string, tipo: TipoAdjunto, log: FastifyBaseLogger) {

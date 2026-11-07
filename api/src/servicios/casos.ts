@@ -25,19 +25,19 @@ export interface DatosPropietario {
   telefono?: string | null;
   email?: string | null;
 }
+// La derivación pide solo el motivo y el tratamiento actual. Las columnas
+// historia_clinica, objetivos y notas_derivador siguen en la base para los
+// casos viejos, pero ya no se escriben.
 export interface DatosCaso {
   motivo?: string;
-  historia_clinica?: string;
   tratamiento_actual?: string;
-  objetivos?: string;
-  notas_derivador?: string;
 }
 
 export const CAMPOS_PACIENTE = [
   'nombre', 'especie', 'especie_otra', 'raza', 'sexo', 'esterilizado', 'fecha_nacimiento', 'edad_texto', 'peso_kg',
 ] as const;
 export const CAMPOS_PROPIETARIO = ['nombre', 'telefono', 'email'] as const;
-export const CAMPOS_CASO = ['motivo', 'historia_clinica', 'tratamiento_actual', 'objetivos', 'notas_derivador'] as const;
+export const CAMPOS_CASO = ['motivo', 'tratamiento_actual'] as const;
 
 export interface FilaCaso {
   id: number;

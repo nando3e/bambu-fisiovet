@@ -25,6 +25,12 @@ interface DefEvento {
 const paciente = (d: DatosEvento) => String(d.paciente ?? 'el pacient');
 const nombre = (d: DatosEvento) => String(d.nombre ?? 'Una persona');
 const clinica = (d: DatosEvento) => String(d.clinica ?? 'la clínica');
+/** «Porta 2 documents.» cuando la derivación llega con documentos del borrador. */
+const documentos = (d: DatosEvento) => {
+  const n = Number(d.documentos ?? 0);
+  return n > 0 ? ` Porta ${n} ${n === 1 ? 'document' : 'documents'}.` : '';
+};
+
 const enlaceCaso = (d: DatosEvento, rol: Rol) =>
   rol === 'derivador' ? `/d/casos/${d.casoId}` : `/b/casos/${d.casoId}`;
 
@@ -32,7 +38,7 @@ export const CATALOGO = {
   'derivacion.enviada': {
     audiencia: 'bambu', notificacion: true, correo: true, plantilla: 'aviso',
     titulo: (d) => `Nova derivació: ${paciente(d)}`,
-    cuerpo: (d) => `${clinica(d)} ha derivat un cas.`,
+    cuerpo: (d) => `${clinica(d)} ha derivat un cas.${documentos(d)}`,
     enlace: enlaceCaso,
   },
   'derivacion.aceptada': {

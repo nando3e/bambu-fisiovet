@@ -48,13 +48,12 @@ export const esquemaPropietario = z.object({
   email: z.string().trim().toLowerCase().max(200)
     .refine((v) => v === '' || z.string().email().safeParse(v).success, 'Correu no vàlid').nullable().optional(),
 });
+// Estricto: los campos retirados (història clínica, objectius, notes) dan 400,
+// no se tragan en silencio.
 const esquemaCaso = z.object({
   motivo: textoLibre(4000).optional(),
-  historia_clinica: textoLibre(8000).optional(),
   tratamiento_actual: textoLibre(4000).optional(),
-  objetivos: textoLibre(4000).optional(),
-  notas_derivador: textoLibre(4000).optional(),
-});
+}).strict();
 const motivo = z.object({ motivo: z.string().trim().min(3, 'Cal escriure el motiu').max(1000) });
 
 const NO_EDITABLE = "La derivació ja s'ha acceptat; afegeix la informació al fil";
@@ -183,11 +182,9 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
         ? (await pacienteVisible(bd, sesion, d.paciente_id)).id
         : await crearPaciente(bd, clinicaId, sesion.usuarioId, d.paciente, d.propietario);
       const { rows } = await bd.query<{ id: number }>(
-        `INSERT INTO casos (paciente_id, clinica_id, derivador_id, creado_por, estado,
-                            motivo, historia_clinica, tratamiento_actual, objetivos, notas_derivador)
-         VALUES ($1, $2, $3, $3, 'borrador', $4, $5, $6, $7, $8) RETURNING id`,
-        [pacienteId, clinicaId, sesion.usuarioId, d.caso.motivo ?? '', d.caso.historia_clinica ?? '',
-          d.caso.tratamiento_actual ?? '', d.caso.objetivos ?? '', d.caso.notas_derivador ?? ''],
+        `INSERT INTO casos (paciente_id, clinica_id, derivador_id, creado_por, estado, motivo, tratamiento_actual)
+         VALUES ($1, $2, $3, $3, 'borrador', $4, $5) RETURNING id`,
+        [pacienteId, clinicaId, sesion.usuarioId, d.caso.motivo ?? '', d.caso.tratamiento_actual ?? ''],
       );
       await registrarCambio(bd, {
         tabla: 'casos', filaId: rows[0]!.id, antes: null, despues: { estado: 'borrador', ...d.caso },
@@ -292,7 +289,13 @@ export async function rutasCasos(app: FastifyInstance, deps: Deps): Promise<void
       await comprobarParaEnviar(bd, caso.id, d.acepta_consentimiento === true);
       await bd.query('UPDATE casos SET estado = $2, enviado_el = now() WHERE id = $1', [caso.id, a]);
       await mensajeSistema(bd, caso.id, `${nombrePersona(sesion)} ha enviat la derivació.`);
-      await avisarCaso(bd, sesion, caso, 'derivacion.enviada');
+      // Los documentos subidos en el borrador no avisaron: el aviso de la
+      // derivación dice cuántos trae.
+      const { rows: docs } = await bd.query<{ n: number }>(
+        'SELECT count(*)::int AS n FROM adjuntos WHERE caso_id = $1 AND eliminado_el IS NULL',
+        [caso.id],
+      );
+      await avisarCaso(bd, sesion, caso, 'derivacion.enviada', { documentos: docs[0]!.n });
     });
   });
 

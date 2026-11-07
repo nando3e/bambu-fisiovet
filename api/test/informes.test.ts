@@ -62,14 +62,18 @@ const DATOS = {
   propietario: { nombre: 'Marta Puig', telefono: '600 123 456', email: 'marta.puig@exemple.cat' },
   caso: {
     motivo: 'Coixesa posterior dreta',
-    notas_derivador: 'Truqueu a la Marta Puig al 600 123 456',
-    // Datos personales copiados en campos libres que sí entran en el prompt.
-    historia_clinica: 'La porta la Sra. Puig (600123456, marta.puig@exemple.cat). La va operar el Dr. Ramon a la Clínica Secreta Montgó.',
+    // Datos personales copiados en un campo libre que sí entra en el prompt.
+    tratamiento_actual: 'Truqueu a la Marta Puig al 600 123 456 per la pauta de meloxicam.',
   },
 };
+// La història clínica ya no se pide, pero los casos viejos la tienen y sigue
+// entrando en el prompt: se pone por SQL, como quedó en la base.
+const HISTORIA_VIEJA = 'La porta la Sra. Puig (600123456, marta.puig@exemple.cat). La va operar el Dr. Ramon a la Clínica Secreta Montgó.';
 
 async function enviado(vet: Vet) {
   const b = await pedir(s.app, 'POST', '/api/casos', { cookie: vet.cookie, cuerpo: DATOS });
+  assert.equal(b.estado, 201, JSON.stringify(b.cuerpo));
+  await s.pool.query('UPDATE casos SET historia_clinica = $2 WHERE id = $1', [b.cuerpo.id, HISTORIA_VIEJA]);
   await pedir(s.app, 'POST', `/api/casos/${b.cuerpo.id}/envia`, { cookie: vet.cookie, cuerpo: { acepta_consentimiento: true } });
   return b.cuerpo as { id: number };
 }

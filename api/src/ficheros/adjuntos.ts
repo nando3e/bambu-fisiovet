@@ -4,6 +4,19 @@
 
 export const TAMANO_MAXIMO_ADJUNTO = 12 * 1024 * 1024;
 
+/** Documentos de la derivación; los del clip del hilo van sin categoría. */
+export const CATEGORIAS_ADJUNTO = ['radiografia', 'informe', 'analitica'] as const;
+export type CategoriaAdjunto = (typeof CATEGORIAS_ADJUNTO)[number];
+
+/** La categoría tal como llega del formulario: vacía = ninguna; desconocida = null y error. */
+export function categoriaDe(valor: unknown): { ok: true; categoria: CategoriaAdjunto | null } | { ok: false } {
+  if (valor === undefined || valor === null || valor === '') return { ok: true, categoria: null };
+  if (typeof valor === 'string' && (CATEGORIAS_ADJUNTO as readonly string[]).includes(valor)) {
+    return { ok: true, categoria: valor as CategoriaAdjunto };
+  }
+  return { ok: false };
+}
+
 export type TipoAdjunto = 'pdf' | 'jpg' | 'png' | 'webp' | 'doc' | 'docx' | 'xlsx' | 'zip';
 
 export const MIME_ADJUNTO: Record<TipoAdjunto, string> = {

@@ -37,7 +37,7 @@ async function derivar(vet: Vet) {
 
 const mensajes = async (cookie: string, casoId: number) =>
   (await pedir(s.app, 'GET', `/api/casos/${casoId}/mensajes`, { cookie })).cuerpo.mensajes as {
-    id: number; tipo: string; visibilidad: string; cuerpo: string; adjunto_id: number | null; adjunto_retirado: boolean;
+    id: number; tipo: string; visibilidad: string; cuerpo: string; adjunto_id: number | null; adjunto_retirado: boolean; adjunto_categoria: string | null;
   }[];
 
 const notificaciones = async (usuarioId: number, tipo: string, casoId: number) =>
@@ -48,10 +48,11 @@ const notificaciones = async (usuarioId: number, tipo: string, casoId: number) =
   )).rows[0]!.n;
 
 /** Sube un fichero como lo haría el navegador (multipart). */
-async function subir(cookie: string | undefined, casoId: number, nombre: string, datos: Buffer, interna = false) {
+async function subir(cookie: string | undefined, casoId: number, nombre: string, datos: Buffer, interna = false, categoria = '') {
   const limite = `----bambu${Math.random().toString(16).slice(2)}`;
   const partes = [
     Buffer.from(`--${limite}\r\nContent-Disposition: form-data; name="interna"\r\n\r\n${interna}\r\n`),
+    Buffer.from(`--${limite}\r\nContent-Disposition: form-data; name="categoria"\r\n\r\n${categoria}\r\n`),
     Buffer.from(`--${limite}\r\nContent-Disposition: form-data; name="fichero"; filename="${nombre}"\r\nContent-Type: application/octet-stream\r\n\r\n`),
     datos,
     Buffer.from(`\r\n--${limite}--\r\n`),
@@ -68,6 +69,8 @@ const descargar = (cookie: string | undefined, id: number, que = 'fichero') =>
   s.app.inject({ method: 'GET', url: `/api/adjuntos/${id}/${que}`, headers: cookie ? { cookie } : {} });
 
 const PDF = Buffer.from('%PDF-1.7\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n');
+const eventos = async (tipo: string, casoId: number) =>
+  (await s.pool.query<{ n: number }>('SELECT count(*)::int AS n FROM eventos WHERE tipo = $1 AND caso_id = $2', [tipo, casoId])).rows[0]!.n;
 const CARPETA = resolve('./datos-test/adjuntos');
 const ficherosEnDisco = () => (existsSync(CARPETA) ? readdirSync(CARPETA).length : 0);
 
@@ -197,4 +200,45 @@ test('atomicidad: si la acción falla (validación o aviso que revienta), ni cam
   }
   assert.equal((await s.pool.query('SELECT estado FROM casos WHERE id = $1', [c.id])).rows[0].estado, 'enviada');
   assert.equal((await mensajes(fisio.cookie, c.id)).length, antes);
+});
+
+test('documents: radiografies al borrador sense avís, clip al borrador 409, l’enviament compta els documents, llista per categoria amb àmbit i nota interna oculta', async () => {
+  const vet = await veterinarioVerificado(s);
+  const b = (await pedir(s.app, 'POST', '/api/casos', { cookie: vet.cookie, cuerpo: DATOS })).cuerpo as { id: number };
+  const png = await sharp({ create: { width: 40, height: 40, channels: 3, background: '#888888' } }).png().toBuffer();
+
+  // Al borrador solo entran documentos con categoría; una desconocida es 400; Bambú ni lo ve.
+  assert.equal((await subir(vet.cookie, b.id, 'x.pdf', PDF)).estado, 409);
+  assert.equal((await subir(vet.cookie, b.id, 'x.pdf', PDF, false, 'video')).estado, 400);
+  assert.equal((await subir(fisio.cookie, b.id, 'x.pdf', PDF, false, 'informe')).estado, 404);
+  const rx1 = await subir(vet.cookie, b.id, 'rx1.png', png, false, 'radiografia');
+  const rx2 = await subir(vet.cookie, b.id, 'rx2.png', png, false, 'radiografia');
+  assert.deepEqual([rx1.estado, rx2.estado], [201, 201]);
+  assert.equal(await eventos('adjunto.nuevo', b.id), 0);
+
+  // Al enviar, el aviso a Bambú dice cuántos documentos trae.
+  assert.equal((await pedir(s.app, 'POST', `/api/casos/${b.id}/envia`, { cookie: vet.cookie, cuerpo: { acepta_consentimiento: true } })).estado, 200);
+  const { rows: aviso } = await s.pool.query<{ cuerpo: string }>(
+    `SELECT n.cuerpo FROM notificaciones n JOIN eventos e ON e.id = n.evento_id
+     WHERE e.tipo = 'derivacion.enviada' AND n.caso_id = $1 AND n.usuario_id = $2`,
+    [b.id, fisio.id],
+  );
+  assert.match(aviso[0]!.cuerpo, /Porta 2 documents\.$/);
+
+  // Enviada: una analítica avisa como cualquier adjunto; la nota interna de Bambú no la ve el veterinario.
+  assert.equal((await subir(vet.cookie, b.id, 'sang.pdf', PDF, false, 'analitica')).estado, 201);
+  assert.equal(await notificaciones(fisio.id, 'adjunto.nuevo', b.id), 1);
+  assert.equal((await subir(fisio.cookie, b.id, 'intern.pdf', PDF, true, 'informe')).estado, 201);
+  const lista = async (cookie: string) =>
+    (await pedir(s.app, 'GET', `/api/casos/${b.id}/adjuntos`, { cookie })).cuerpo.adjuntos as { nombre: string; categoria: string | null; miniatura: boolean }[];
+  assert.deepEqual((await lista(vet.cookie)).map((a) => [a.nombre, a.categoria, a.miniatura]),
+    [['rx1.png', 'radiografia', true], ['rx2.png', 'radiografia', true], ['sang.pdf', 'analitica', false]]);
+  assert.equal((await lista(fisio.cookie)).length, 4);
+  // En el hilo constan con su categoría; retirado uno, sale de la lista; otra clínica, 404.
+  const enHilo = (await mensajes(vet.cookie, b.id)).filter((m) => m.tipo === 'adjunto') as { adjunto_categoria: string | null }[];
+  assert.deepEqual(enHilo.map((m) => m.adjunto_categoria), ['radiografia', 'radiografia', 'analitica']);
+  assert.equal((await pedir(s.app, 'DELETE', `/api/adjuntos/${rx1.cuerpo.id}`, { cookie: vet.cookie })).estado, 200);
+  assert.equal((await lista(vet.cookie)).length, 2);
+  const ajeno = await veterinarioVerificado(s);
+  assert.equal((await pedir(s.app, 'GET', `/api/casos/${b.id}/adjuntos`, { cookie: ajeno.cookie })).estado, 404);
 });
