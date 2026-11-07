@@ -26,6 +26,9 @@ const rfc5987 = (texto: string) =>
 /** Minutos en los que el veterinario puede retirar su propio adjunto. */
 const MINUTOS_RETIRAR = 15;
 const SOLO_TRAS_ENVIAR = 'Envia la derivació abans d’adjuntar fitxers';
+/** Mientras el caso está en marcha, el derivador añade documentos; después, lo que haga falta va por el hilo. */
+const ABIERTO_PARA_DOCUMENTOS: readonly string[] = ['borrador', 'enviada', 'aceptada', 'en_tratamiento'];
+const CASO_CERRADO = 'El cas ja està tancat: si cal afegir alguna cosa, escriu-ho al fil';
 
 type Sharp = typeof import('sharp');
 let sharp: Promise<Sharp | null> | null = null;
@@ -105,17 +108,21 @@ export async function rutasHilo(app: FastifyInstance, deps: Deps): Promise<void>
     // En borrador solo entran los documentos de la derivación (con categoría),
     // y solo los sube quien la está escribiendo.
     const previo = await casoVisible(pool, sesion, id);
+    if (previo.descartado_el) throw noEncontrado('Aquest cas no existeix');
     if (previo.estado === 'borrador' && sesion.rol !== 'derivador') throw conflicto(SOLO_TRAS_ENVIAR);
 
     const archivo = await peticion.file({ limits: { fileSize: TAMANO_MAXIMO_ADJUNTO, files: 1 } });
     if (!archivo) throw datosIncorrectos('Falta el fitxer');
+    // Más de 12 MB: toBuffer lanza el error del complemento con su 413. Se lee
+    // entero antes de rechazar por categoría: así el navegador recibe el
+    // mensaje en vez de una conexión cortada.
+    const datos = await archivo.toBuffer();
     const campoCategoria = archivo.fields.categoria as { value?: unknown } | undefined;
     const cat = categoriaDe(campoCategoria?.value);
     if (!cat.ok) throw datosIncorrectos('Categoria de document desconeguda');
     const categoria = cat.categoria;
     if (previo.estado === 'borrador' && !categoria) throw conflicto(SOLO_TRAS_ENVIAR);
-    // Más de 12 MB: toBuffer lanza el error del complemento con su 413.
-    const datos = await archivo.toBuffer();
+    if (categoria && sesion.rol === 'derivador' && !ABIERTO_PARA_DOCUMENTOS.includes(previo.estado)) throw conflicto(CASO_CERRADO);
     const nombre = nombreSeguro(archivo.filename);
     const tipo = tipoDeAdjunto(datos, nombre);
     if (!tipo) throw datosIncorrectos('Aquest tipus de fitxer no s’admet. Puja PDF, imatges, Word, Excel o ZIP.');
@@ -131,8 +138,10 @@ export async function rutasHilo(app: FastifyInstance, deps: Deps): Promise<void>
       const miniatura = esImagen(tipo) ? await crearMiniatura(datos, base, tipo, peticion.log) : null;
       const resultado = await enTransaccion(pool, async (bd) => {
         const caso = await casoVisible(bd, sesion, id, true);
+        if (caso.descartado_el) throw noEncontrado('Aquest cas no existeix');
         const enBorrador = caso.estado === 'borrador';
         if (enBorrador && (sesion.rol !== 'derivador' || !categoria)) throw conflicto(SOLO_TRAS_ENVIAR);
+        if (categoria && sesion.rol === 'derivador' && !ABIERTO_PARA_DOCUMENTOS.includes(caso.estado)) throw conflicto(CASO_CERRADO);
         const { rows: adj } = await bd.query<{ id: number }>(
           `INSERT INTO adjuntos (caso_id, subido_por, nombre_original, mime, bytes, ruta, miniatura_ruta, sha256, categoria)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
@@ -148,7 +157,7 @@ export async function rutasHilo(app: FastifyInstance, deps: Deps): Promise<void>
         // dirá cuántos documentos trae.
         if (!interna && !enBorrador) {
           await tocarActividad(bd, caso.id);
-          await avisarCaso(bd, sesion, caso, 'adjunto.nuevo', { nombre: nombrePersona(sesion), categoria });
+          await avisarCaso(bd, sesion, caso, 'adjunto.nuevo', { nombre: nombrePersona(sesion) });
         }
         return { id: adj[0]!.id, mensaje_id: men[0]!.id };
       });
@@ -205,9 +214,10 @@ export async function rutasHilo(app: FastifyInstance, deps: Deps): Promise<void>
     const { rows } = await pool.query<{
       id: number; ruta: string; miniatura_ruta: string | null; mime: string; nombre_original: string;
       subido_por: number; creado: Date; caso_id: number; eliminado: boolean; visibilidad: 'todos' | 'bambu';
+      caso_estado: string;
     }>(
       `SELECT a.id, a.ruta, a.miniatura_ruta, a.mime, a.nombre_original, a.subido_por, a.creado, a.caso_id,
-              a.eliminado_el IS NOT NULL AS eliminado, m.visibilidad
+              a.eliminado_el IS NOT NULL AS eliminado, m.visibilidad, c.estado AS caso_estado
        FROM adjuntos a
        JOIN mensajes m ON m.adjunto_id = a.id
        JOIN casos c ON c.id = a.caso_id
@@ -245,7 +255,8 @@ export async function rutasHilo(app: FastifyInstance, deps: Deps): Promise<void>
       const a = await adjuntoVisible(sesion, id);
       if (a.eliminado) throw noEncontrado('Aquest fitxer ja s’ha retirat');
       if (sesion.rol === 'derivador') {
-        const fueraDePlazo = Date.now() - new Date(a.creado).getTime() > MINUTOS_RETIRAR * 60_000;
+        // En el borrador no corre el plazo: nadie más lo ve y Bambú no podría retirarlo.
+        const fueraDePlazo = a.caso_estado !== 'borrador' && Date.now() - new Date(a.creado).getTime() > MINUTOS_RETIRAR * 60_000;
         if (a.subido_por !== sesion.usuarioId || fueraDePlazo) {
           throw prohibido(`Només pots retirar els teus fitxers durant ${MINUTOS_RETIRAR} minuts. Demana-ho a Bambú.`);
         }

@@ -153,6 +153,7 @@ recuperación, invitación) y **la visibilidad por rol sobre el mismo caso**.
 | S6 | Modelo LLM para informes | `claude-sonnet-5-5` por defecto; variable de entorno. Comparar con el banco si hace falta |
 | S7 | Whisper y valenciano | `language=ca` (Whisper no distingue variante); revisar con audios reales |
 | S8 | Diccionario de textos un solo idioma (va) | Sí; `es` cuando se pida |
+| S9 | Las radiografías de más de 1,5 MB se suben **reducidas en el navegador** (1600 px, JPEG 0,85) y el original no llega al servidor | Propuesta: basta para fisioterapia y evita subidas de 5 MB por móvil (D21). **A confirmar con Bambú**: si alguna vez hace falta la placa original, se sube como PDF (no se reduce) o se añade un interruptor «puja l'original» |
 
 ## 7. Diseño funcional y técnico
 

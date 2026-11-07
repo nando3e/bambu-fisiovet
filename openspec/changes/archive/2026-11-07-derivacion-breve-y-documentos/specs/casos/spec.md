@@ -26,8 +26,8 @@ piden ni se aceptan; los casos que los tenían los siguen enseñando.
 - **THEN** queda `enviada`, todos los usuarios bambu tienen la notificación, el correo encolado dice que trae 2 documents y en el hilo constan los dos adjuntos sin aviso `adjunto.nuevo`
 
 #### Scenario: Campo retirado
-- **WHEN** se manda `historia_clinica` en `POST` o `PATCH /api/casos`
-- **THEN** 400: el campo ya no existe en el contrato
+- **WHEN** se manda `historia_clinica` con contenido en `POST` o `PATCH /api/casos`
+- **THEN** 400 indicando el campo; vacío o con claves sobrantes de la ficha, se guarda igual
 
 ### Requirement: Quién edita qué
 El derivador SHALL poder editar su derivación (motivo y tratamiento actual)
@@ -52,9 +52,11 @@ La ficha del caso SHALL tener un bloque «Documents» con los adjuntos no
 retirados agrupados por categoría (`radiografia`, `informe`, `analitica` y
 «altres» para los del hilo), con miniatura para las imágenes y un botón para
 añadir en cada categoría. Pueden añadir el derivador de la clínica del caso
-(en borrador, enviada, aceptada y en tratamiento) y Bambú (en cualquier
-estado que no sea borrador). `GET /api/casos/:id/adjuntos` MUST aplicar el
-mismo ámbito que el caso y excluir las notas internas al derivador.
+(en borrador, enviada, aceptada y en tratamiento; en un caso cerrado el API
+responde 409 y lo que haga falta va por el hilo) y Bambú (en cualquier
+estado que no sea borrador). Un caso descartado no admite nada (404).
+`GET /api/casos/:id/adjuntos` MUST aplicar el mismo ámbito que el caso y
+excluir las notas internas al derivador.
 
 #### Scenario: Analítica después de enviar
 - **WHEN** el veterinario añade una analítica a un caso aceptado desde «Documents»
@@ -67,3 +69,7 @@ mismo ámbito que el caso y excluir las notas internas al derivador.
 #### Scenario: Nota interna
 - **WHEN** Bambú sube un documento como nota interna
 - **THEN** el derivador no lo ve en «Documents» ni en el hilo
+
+#### Scenario: Caso cerrado
+- **WHEN** el veterinario añade una analítica a un caso rechazado
+- **THEN** 409; por el clip del hilo sí puede adjuntar

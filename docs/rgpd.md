@@ -99,7 +99,9 @@ Sin claves, la IA está apagada y los informes se redactan a mano.
       propietario (los de la v1 son provisionales y se editan desde el
       panel).
 - [ ] Plazo de conservación de casos, informes y adjuntos después del cierre
-      (propuesta: 5 años) y purga física al vencer.
+      (propuesta: 5 años) y purga física al vencer. Incluye los documentos
+      subidos a un borrador que después se descartó: quedan en disco sin que
+      nadie los vea (sin borrado duro en v1).
 - [ ] Contratos de encargado: hosting, Dondominio y, si se activa la IA,
       Anthropic y OpenAI. Mención de la transferencia internacional.
 - [ ] Copias de seguridad de Postgres y de `/datos` fuera del servidor:

@@ -95,6 +95,9 @@ test('una derivación de punta a punta: borrador privado, envío validado, vista
   assert.equal((await pedir(s.app, 'POST', '/api/casos', { cookie: vet.cookie, cuerpo: { ...DATOS, caso: { ...DATOS.caso, historia_clinica: 'x' } } })).estado, 400);
   const b = await borrador(vet, { caso: { motivo: '', tratamiento_actual: 'Meloxicam' } });
   assert.equal((await pedir(s.app, 'PATCH', `/api/casos/${b.id}`, { cookie: vet.cookie, cuerpo: { caso: { objetivos: 'x' } } })).estado, 400);
+  // Retomar un borrador: la web manda lo que le devolvió la ficha (con los retirados vacíos y claves de más) y tiene que guardar.
+  const retomado = (await ver(vet.cookie, b.id)).cuerpo;
+  assert.equal((await pedir(s.app, 'PATCH', `/api/casos/${b.id}`, { cookie: vet.cookie, cuerpo: { caso: { ...retomado, historia_clinica: null, objetivos: '  ' } } })).estado, 200);
 
   // El borrador lo retoma su autor en otra sesión; ni un compañero ni Bambú lo ven, tampoco a su paciente.
   const otraSesion = (await pedir(s.app, 'POST', '/api/auth/entrar', { cuerpo: { identificador: vet.email, contrasena: CONTRASENA } })).cookie;

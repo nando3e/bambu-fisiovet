@@ -48,12 +48,25 @@ export const esquemaPropietario = z.object({
   email: z.string().trim().toLowerCase().max(200)
     .refine((v) => v === '' || z.string().email().safeParse(v).success, 'Correu no vàlid').nullable().optional(),
 });
-// Estricto: los campos retirados (història clínica, objectius, notes) dan 400,
-// no se tragan en silencio.
+// Los campos retirados (història clínica, objectius, notes) con contenido dan
+// 400, no se tragan en silencio; cualquier otra clave sobrante se descarta,
+// como siempre (la web manda a veces la ficha entera).
+const CAMPOS_RETIRADOS = ['historia_clinica', 'objetivos', 'notas_derivador'] as const;
 const esquemaCaso = z.object({
   motivo: textoLibre(4000).optional(),
   tratamiento_actual: textoLibre(4000).optional(),
-}).strict();
+}).passthrough().superRefine((v, ctx) => {
+  for (const campo of CAMPOS_RETIRADOS) {
+    const valor = v[campo];
+    if (typeof valor === 'string' ? valor.trim() !== '' : valor != null) {
+      ctx.addIssue({ code: 'custom', path: [campo], message: 'Aquest camp ja no es demana: escriu-ho al fil' });
+    }
+  }
+}).transform(({ motivo, tratamiento_actual }) => ({
+  // Solo las claves que vinieron: así «qué cambió» no ve claves fantasma.
+  ...(motivo !== undefined ? { motivo } : {}),
+  ...(tratamiento_actual !== undefined ? { tratamiento_actual } : {}),
+}));
 const motivo = z.object({ motivo: z.string().trim().min(3, 'Cal escriure el motiu').max(1000) });
 
 const NO_EDITABLE = "La derivació ja s'ha acceptat; afegeix la informació al fil";

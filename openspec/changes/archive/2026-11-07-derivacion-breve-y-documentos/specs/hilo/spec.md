@@ -54,4 +54,18 @@ solo puede subir el derivador del caso y solo con categoría.
 
 #### Scenario: Clip en el borrador
 - **WHEN** se sube un fichero sin categoría a un borrador
-- **THEN** 409 «Envia la derivació abans d'adjuntar fitxers»
+- **THEN** 409 «Envia la derivació abans d'adjuntar fitxers» y nada en disco
+
+### Requirement: Retirar adjuntos sin borrarlos
+Bambú SHALL poder retirar cualquier adjunto, y su autor derivador durante los
+15 minutos posteriores a subirlo; en un borrador, que nadie más ve, el autor
+lo retira sin plazo. Retirar marca el adjunto como eliminado y deja en el
+hilo «Adjunt retirat»; el fichero no se borra en v1.
+
+#### Scenario: Derivador fuera de plazo
+- **WHEN** un derivador intenta retirar su adjunto media hora después
+- **THEN** 403
+
+#### Scenario: Placa equivocada en el borrador
+- **WHEN** el derivador retira una radiografía de su borrador dos horas después de subirla
+- **THEN** 200 y no cuenta en «Porta N documents» al enviar

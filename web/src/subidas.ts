@@ -17,20 +17,22 @@ export interface Subida {
 export interface Subidas {
   enCurso: Subida[];
   error: string;
+  /** Quita el error y pone a cero la cuenta de fallos. */
   limpiarError: () => void;
-  /** Encola ficheros hacia una ruta con sus campos; resuelve cuando ese lote ha terminado. */
-  encolar: (ficheros: File[], ruta: string, campos: Record<string, string>, etiqueta?: string) => Promise<void>;
-  /** Espera a todo lo que haya en la fila. */
-  esperar: () => Promise<void>;
+  /** Encola ficheros hacia una ruta con sus campos; resuelve, con cuántos han fallado, cuando ese lote ha terminado. */
+  encolar: (ficheros: File[], ruta: string, campos: Record<string, string>, etiqueta?: string) => Promise<number>;
+  /** Espera a todo lo que haya en la fila y dice cuántas subidas han fallado desde el último `limpiarError`. */
+  esperar: () => Promise<number>;
 }
 
 export function useSubidas(alTerminarLote?: () => Promise<void> | void): Subidas {
   const [enCurso, setEnCurso] = useState<Subida[]>([]);
   const [error, setError] = useState('');
-  const fila = useRef<Promise<void>>(Promise.resolve());
+  const fila = useRef<Promise<unknown>>(Promise.resolve());
+  const fallidas = useRef(0);
 
   const encolar = useCallback((ficheros: File[], ruta: string, campos: Record<string, string>, etiqueta?: string) => {
-    if (ficheros.length === 0) return Promise.resolve();
+    if (ficheros.length === 0) return Promise.resolve(0);
     const lote = ficheros.map((fichero) => ({
       fichero,
       subida: {
@@ -42,25 +44,37 @@ export function useSubidas(alTerminarLote?: () => Promise<void> | void): Subidas
     }));
     setEnCurso((s) => [...s, ...lote.map((l) => l.subida)]);
     const vuelta = fila.current.then(async () => {
+      let fallos = 0;
       for (const { fichero, subida } of lote) {
         try {
           const { datos, nombre } = await reducir(fichero);
           await api.subir(ruta, datos, 'fichero', campos, nombre);
         } catch (err) {
+          fallos += 1;
+          fallidas.current += 1;
           setError(t('hilo.errorSubida', { nombre: fichero.name, error: mensajeDe(err) }));
         } finally {
           setEnCurso((s) => s.filter((x) => x.clave !== subida.clave));
           if (subida.vista) URL.revokeObjectURL(subida.vista);
         }
       }
-      await alTerminarLote?.();
+      // Recargar la lista no puede tumbar la fila: si falla, se dice y sigue.
+      try {
+        await alTerminarLote?.();
+      } catch (err) {
+        setError(mensajeDe(err));
+      }
+      return fallos;
     });
-    fila.current = vuelta.catch(() => {});
+    fila.current = vuelta;
     return vuelta;
   }, [alTerminarLote]);
 
-  const esperar = useCallback(() => fila.current, []);
-  const limpiarError = useCallback(() => setError(''), []);
+  const esperar = useCallback(() => fila.current.then(() => fallidas.current), []);
+  const limpiarError = useCallback(() => {
+    setError('');
+    fallidas.current = 0;
+  }, []);
 
   return { enCurso, error, limpiarError, encolar, esperar };
 }

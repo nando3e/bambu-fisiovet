@@ -63,7 +63,7 @@
   categoría. Ahí pueden seguir subiendo después de enviar: el veterinario de
   la clínica y Bambú, con el aviso `adjunto.nuevo` de siempre.
 - Los avisos: el correo de «nova derivació» a Bambú dice cuántos documentos
-  trae y de qué tipo.
+  trae.
 
 ### 3. Imágenes sin cargar la app (lección de happydog)
 

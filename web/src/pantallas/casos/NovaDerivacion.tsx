@@ -81,7 +81,8 @@ export function NovaDerivacion() {
         setCasoId(f.id);
         setPaciente(f.paciente);
         setPropietario(f.propietario);
-        setDerivacion(f);
+        // Solo los dos campos de la derivación: la ficha trae mucho más y el API no lo quiere.
+        setDerivacion({ motivo: f.motivo, tratamiento_actual: f.tratamiento_actual });
         setYaConsentido(f.consentimiento_vigente);
         setBorradorPendiente(null);
       })
@@ -162,8 +163,12 @@ export function NovaDerivacion() {
       if (pendiente.current) clearTimeout(pendiente.current);
       pendiente.current = null;
       await guardarAhora();
-      // Los documentos que aún suben: la derivación sale con todos.
-      await subidas.esperar();
+      // Los documentos que aún suben: la derivación sale con todos, o no sale.
+      if (await subidas.esperar() > 0) {
+        setPaso(1);
+        setError(t('doc.subidaFallida'));
+        return;
+      }
       await api.post(`/casos/${casoId}/envia`, { acepta_consentimiento: acepta });
       navegar(`/d/casos/${casoId}`, { replace: true, state: { aviso: t('nova.enviada') } });
     } catch (err) {
@@ -182,6 +187,8 @@ export function NovaDerivacion() {
   async function descartar() {
     if (!casoId) return;
     try {
+      // Lo que aún suba acabaría en un caso descartado (404): mejor esperar.
+      await subidas.esperar();
       await api.post(`/casos/${casoId}/descarta`);
       navegar('/d', { replace: true });
     } catch (err) {

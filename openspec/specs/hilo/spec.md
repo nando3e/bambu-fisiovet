@@ -7,7 +7,10 @@ TBD - created by archiving change hilo-adjuntos-y-sesiones. Update Purpose after
 Cada caso SHALL tener un hilo con mensajes de tipo texto, adjunto, informe y
 sistema, en orden cronológico, con autor (o «Sistema») y fecha. Escribir en el
 hilo publica `mensaje.nuevo` y actualiza la actividad del caso. El hilo solo
-admite mensajes en casos que no están en borrador.
+admite mensajes de texto en casos que no están en borrador; los adjuntos con
+categoría sí entran en borrador. La web MUST pintar a la derecha lo que
+escribe la población de quien mira (Bambú en `/b`, la clínica en `/d`), a la
+izquierda lo del otro lado y en el centro lo del sistema.
 
 #### Scenario: Veterinario pregunta
 - **WHEN** el veterinario escribe una pregunta en un caso aceptado
@@ -16,6 +19,10 @@ admite mensajes en casos que no están en borrador.
 #### Scenario: Caso en borrador
 - **WHEN** se intenta escribir en el hilo de un borrador
 - **THEN** 409
+
+#### Scenario: Lado de las burbujas
+- **WHEN** la veterinaria abre el hilo en `/d`
+- **THEN** sus mensajes salen a la derecha y los de Bambú a la izquierda; en `/b` al revés
 
 ### Requirement: Notas internas de Bambú
 Los usuarios de Bambú SHALL poder escribir mensajes con visibilidad «només
@@ -45,11 +52,13 @@ ejemplo: «Bambú ha acceptat la derivació», «Laia Serra ha canviat el pes:
 ### Requirement: Adjuntos validados y protegidos
 La aplicación SHALL aceptar adjuntos de hasta 12 MB de los tipos PDF, JPEG,
 PNG, WEBP, ZIP, DOC, DOCX y XLSX, comprobando el tipo por el contenido del
-fichero y no por la extensión. Cada adjunto se guarda con un nombre aleatorio
-fuera de cualquier carpeta pública, con su huella SHA-256 y, si es imagen, con
-una miniatura generada fuera del event loop. Descargarlo MUST pasar por una
-ruta que comprueba sesión y ámbito. Subir un adjunto crea un mensaje de tipo
-adjunto y publica `adjunto.nuevo`.
+fichero y no por la extensión, con una categoría opcional (`radiografia`,
+`informe`, `analitica`). Cada adjunto se guarda con un nombre aleatorio fuera
+de cualquier carpeta pública, con su huella SHA-256 y, si es imagen, con una
+miniatura generada fuera del event loop. Descargarlo MUST pasar por una ruta
+que comprueba sesión y ámbito. Subir un adjunto crea un mensaje de tipo
+adjunto y, si el caso no es borrador, publica `adjunto.nuevo`. En borrador
+solo puede subir el derivador del caso y solo con categoría.
 
 #### Scenario: Ejecutable disfrazado
 - **WHEN** se sube un `.exe` renombrado a `.pdf`
@@ -67,6 +76,14 @@ adjunto y publica `adjunto.nuevo`.
 - **WHEN** se pide la URL de un adjunto sin cookie
 - **THEN** 401
 
+#### Scenario: Radiografía en el borrador
+- **WHEN** el derivador sube una imagen con `categoria=radiografia` a su borrador
+- **THEN** 201, queda con categoría y no hay evento `adjunto.nuevo`
+
+#### Scenario: Clip en el borrador
+- **WHEN** se sube un fichero sin categoría a un borrador
+- **THEN** 409 «Envia la derivació abans d'adjuntar fitxers» y nada en disco
+
 ### Requirement: Subida ágil desde el móvil
 La web SHALL reducir las imágenes en el navegador antes de subirlas (si no
 puede, sube el original), mostrar la vista previa al instante atenuada
@@ -78,12 +95,17 @@ mientras sube y retirarla avisando si la subida falla.
 
 ### Requirement: Retirar adjuntos sin borrarlos
 Bambú SHALL poder retirar cualquier adjunto, y su autor derivador durante los
-15 minutos posteriores a subirlo. Retirar marca el adjunto como eliminado y
-deja en el hilo «Adjunt retirat»; el fichero no se borra en v1.
+15 minutos posteriores a subirlo; en un borrador, que nadie más ve, el autor
+lo retira sin plazo. Retirar marca el adjunto como eliminado y deja en el
+hilo «Adjunt retirat»; el fichero no se borra en v1.
 
 #### Scenario: Derivador fuera de plazo
 - **WHEN** un derivador intenta retirar su adjunto media hora después
 - **THEN** 403
+
+#### Scenario: Placa equivocada en el borrador
+- **WHEN** el derivador retira una radiografía de su borrador dos horas después de subirla
+- **THEN** 200 y no cuenta en «Porta N documents» al enviar
 
 ### Requirement: Últimos movimientos
 El inicio de Bambú SHALL mostrar los últimos eventos de todos los casos (qué,

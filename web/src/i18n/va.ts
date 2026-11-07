@@ -278,6 +278,7 @@ export const va = {
   'doc.ayudaNova': 'Si tens radiografies, informes o analítiques, puja-les ara: van pujant mentre escrius. També podràs afegir-ne després des de la fitxa del cas.',
   'doc.soloLectura': 'Els documents d’aquest cas ja no es poden canviar des d’ací: si cal afegir-ne, escriu al fil.',
   'doc.esperando': 'Esperant els documents…',
+  'doc.subidaFallida': 'Algun document no s’ha pogut pujar. Revisa’ls (o lleva’ls) i torna a enviar.',
 
   // Bambú
   'bambu.hola': 'Hola, {nombre}',

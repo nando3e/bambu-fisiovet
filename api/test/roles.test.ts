@@ -12,6 +12,7 @@ type Metodo = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 const RUTAS: [Metodo, string, Quien][] = [
   ['GET', '/api/auth/yo', 'cualquiera'],
+  ['GET', '/api/casos/1/adjuntos', 'cualquiera'],
   ['POST', '/api/auth/cambia-contrasena', 'cualquiera'],
   ['PATCH', '/api/auth/perfil', 'cualquiera'],
   ['GET', '/api/clinicas/mia', 'derivador'],

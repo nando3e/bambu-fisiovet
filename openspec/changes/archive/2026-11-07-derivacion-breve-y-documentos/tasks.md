@@ -35,8 +35,26 @@ y viendo el test en rojo. Toda ruta nueva con su test de ámbito y de rol.
 - [x] 3.1 Guía del portal (nova derivació, documents), RGPD (documentos =
       adjuntos con categoría), cuaderno D21 + supuesto de los campos retirados.
 
+## Revisor (Opus, 07/11)
+
+1 grave, 7 medios, 7 leves. Corregido: el borrador retomado mandaba la ficha
+entera y el contrato estricto lo rechazaba (ahora solo los tres campos
+retirados con contenido dan 400, y la web manda los dos campos); subida a un
+caso descartado (404, sin fichero); retirar en borrador sin plazo; «Envia» se
+para si alguna subida falló; la ruta nueva en `roles.test.ts`; el API
+devuelve 409 al derivador en un caso cerrado; `GET` en bucle de Documentos;
+el correo encolado se comprueba; lectura entera antes de rechazar por
+categoría.
+
+### Revisor — descartado
+
+- Test del lado de las burbujas: la web no tiene batería y el cálculo es una
+  comparación de dos booleanos; probado a mano en /d y /b.
+- Desglose por tipo en el correo de «Nova derivació»: se ajustó la propuesta
+  (solo el número); el desglose se ve en la ficha.
+- Calidad de las radiografías reducidas (1600 px JPEG): supuesto S9 del
+  cuaderno, a confirmar con Nando.
+
 ## 4. Cierre
 
-- [ ] 4.1 Skill `cerrar-change`: batería, revisor en otro modelo, archivar.
-
-Siguiente: task 4.1 — todo construido, probado en local (subida de 4 MB reducida a 977 KB, burbujas en /d y /b) y documentado; falta el cierre con revisor.
+- [x] 4.1 Skill `cerrar-change`: batería, revisor en Opus (dos pasadas), archivar.

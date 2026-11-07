@@ -59,15 +59,20 @@ export function Documentos({ casoId, estado, deriva, subidas: externas, enFormul
   useEffect(() => {
     cargar().catch((err) => setError(mensajeDe(err)));
   }, [cargar]);
-  // Cuando la fila la lleva otro (la nova derivació), al vaciarse se recarga.
+  // Cuando la fila la lleva otro (la nova derivació), se recarga solo al
+  // vaciarse (de alguna subida a ninguna), no en cada render del padre.
+  const deFuera = Boolean(externas);
   const subiendo = subidas.enCurso.length;
+  const subiendoAntes = useRef(0);
   useEffect(() => {
-    if (externas && subiendo === 0) cargar().catch(() => {});
-  }, [externas, subiendo, cargar]);
+    if (deFuera && subiendo === 0 && subiendoAntes.current > 0) cargar().catch((err) => setError(mensajeDe(err)));
+    subiendoAntes.current = subiendo;
+  }, [deFuera, subiendo, cargar]);
 
   const puedeAnadir = deriva ? ANADE_DERIVADOR.includes(estado) : estado !== 'borrador';
-  const puedeRetirar = (a: Adjunto) => bambu
-    || (a.subido_por === usuario?.id && Date.now() - new Date(a.creado).getTime() < MINUTOS_RETIRAR * 60_000);
+  // Bambú siempre; el veterinario lo suyo: sin plazo en el borrador (nadie más lo ve), 15 minutos después.
+  const puedeRetirar = (a: Adjunto) => bambu || (a.subido_por === usuario?.id
+    && (estado === 'borrador' || Date.now() - new Date(a.creado).getTime() < MINUTOS_RETIRAR * 60_000));
 
   async function retirar(a: Adjunto) {
     if (!window.confirm(t('hilo.retirarSeguro', { nombre: a.nombre }))) return;

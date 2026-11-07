@@ -34,23 +34,32 @@ después en código. Lo que queda fuera de su ámbito MUST responder 404, nunca
 
 ### Requirement: Nueva derivación con borrador autoguardado
 La aplicación SHALL permitir al derivador crear una derivación en tres pasos
-(paciente y propietario → motivo clínico → consentimiento) que se guarda como
-`borrador` en cada paso. Enviar MUST validar en `dominio/validacion-derivacion.ts`
-los campos obligatorios y el consentimiento, pasar el caso a `enviada`,
-fijar `enviado_el` y publicar `derivacion.enviada`. Un borrador puede
-descartarse; no se borra, queda inactivo.
+(paciente y propietario → motivo y documentos → consentimiento) que se guarda
+como `borrador` en cada paso. El segundo paso pide solo el motivo de la
+derivación y el tratamiento actual, y ofrece tres zonas de documentos
+(radiografies, informes, analítiques) que se suben desde el borrador. Enviar
+MUST validar en `dominio/validacion-derivacion.ts` los campos obligatorios y
+el consentimiento, esperar a que terminen las subidas en curso, pasar el caso
+a `enviada`, fijar `enviado_el` y publicar `derivacion.enviada` con el número
+de documentos que trae. Un borrador puede descartarse; no se borra, queda
+inactivo. Los campos història clínica, objectius y altres notes ya no se
+piden ni se aceptan; los casos que los tenían los siguen enseñando.
 
 #### Scenario: Retomar en el ordenador
 - **WHEN** una veterinaria empieza una derivación en el móvil y la abre después en el ordenador
-- **THEN** encuentra el borrador con lo que ya había escrito
+- **THEN** encuentra el borrador con lo que ya había escrito y los documentos que ya había subido
 
 #### Scenario: Enviar sin motivo
 - **WHEN** se intenta enviar sin motivo de derivación
 - **THEN** 400 indicando el campo, y el caso sigue en borrador
 
-#### Scenario: Envío correcto
-- **WHEN** se envía una derivación completa
-- **THEN** queda `enviada`, todos los usuarios bambu tienen la notificación y hay un correo encolado al correo del centro
+#### Scenario: Envío correcto con documentos
+- **WHEN** se envía una derivación completa con dos radiografías subidas en el borrador
+- **THEN** queda `enviada`, todos los usuarios bambu tienen la notificación, el correo encolado dice que trae 2 documents y en el hilo constan los dos adjuntos sin aviso `adjunto.nuevo`
+
+#### Scenario: Campo retirado
+- **WHEN** se manda `historia_clinica` con contenido en `POST` o `PATCH /api/casos`
+- **THEN** 400 indicando el campo; vacío o con claves sobrantes de la ficha, se guarda igual
 
 ### Requirement: Máquina de estados del caso
 Los estados SHALL ser `borrador`, `enviada`, `aceptada`, `en_tratamiento`,
@@ -104,12 +113,12 @@ después. Aceptar publica `derivacion.aceptada`; asignar o reasignar publica
 - **THEN** el veterinario recibe la notificación de aceptación y la fisio la de asignación
 
 ### Requirement: Quién edita qué
-El derivador SHALL poder editar su derivación solo en `borrador` o `enviada`;
-después, el texto original queda congelado. Bambú MUST poder editar siempre la
-ficha del paciente y del propietario, aunque los creara un derivador: cada
-cambio deja `historial` (antes y después) y publica
-`paciente.ficha_modificada`. El derivador también puede editar los datos de
-contacto del propietario de los pacientes de su clínica.
+El derivador SHALL poder editar su derivación (motivo y tratamiento actual)
+solo en `borrador` o `enviada`; después, el texto original queda congelado.
+Bambú MUST poder editar siempre la ficha del paciente y del propietario,
+aunque los creara un derivador: cada cambio deja `historial` (antes y
+después) y publica `paciente.ficha_modificada`. El derivador también puede
+editar los datos de contacto del propietario de los pacientes de su clínica.
 
 #### Scenario: Derivador edita tras aceptar
 - **WHEN** el derivador intenta cambiar el motivo de un caso aceptado
@@ -192,4 +201,31 @@ anteriores al change sin CIF se marcan «Sense CIF». No hay «clínica validada
 #### Scenario: Bambú intenta crear una clínica
 - **WHEN** un usuario de Bambú llama a `POST /api/clinicas`
 - **THEN** 404
+
+### Requirement: Documentos del caso por categoría
+La ficha del caso SHALL tener un bloque «Documents» con los adjuntos no
+retirados agrupados por categoría (`radiografia`, `informe`, `analitica` y
+«altres» para los del hilo), con miniatura para las imágenes y un botón para
+añadir en cada categoría. Pueden añadir el derivador de la clínica del caso
+(en borrador, enviada, aceptada y en tratamiento; en un caso cerrado el API
+responde 409 y lo que haga falta va por el hilo) y Bambú (en cualquier
+estado que no sea borrador). Un caso descartado no admite nada (404).
+`GET /api/casos/:id/adjuntos` MUST aplicar el mismo ámbito que el caso y
+excluir las notas internas al derivador.
+
+#### Scenario: Analítica después de enviar
+- **WHEN** el veterinario añade una analítica a un caso aceptado desde «Documents»
+- **THEN** aparece en «Analítiques», en el hilo como adjunto y Bambú recibe `adjunto.nuevo`
+
+#### Scenario: Otra clínica
+- **WHEN** un derivador pide los documentos de un caso de otra clínica
+- **THEN** 404
+
+#### Scenario: Nota interna
+- **WHEN** Bambú sube un documento como nota interna
+- **THEN** el derivador no lo ve en «Documents» ni en el hilo
+
+#### Scenario: Caso cerrado
+- **WHEN** el veterinario añade una analítica a un caso rechazado
+- **THEN** 409; por el clip del hilo sí puede adjuntar
 

@@ -207,16 +207,31 @@ test('documents: radiografies al borrador sense avís, clip al borrador 409, l�
   const b = (await pedir(s.app, 'POST', '/api/casos', { cookie: vet.cookie, cuerpo: DATOS })).cuerpo as { id: number };
   const png = await sharp({ create: { width: 40, height: 40, channels: 3, background: '#888888' } }).png().toBuffer();
 
-  // Al borrador solo entran documentos con categoría; una desconocida es 400; Bambú ni lo ve.
+  // Al borrador solo entran documentos con categoría (y sin dejar nada en disco); una desconocida es 400; Bambú ni lo ve.
+  const enDisco = ficherosEnDisco();
   assert.equal((await subir(vet.cookie, b.id, 'x.pdf', PDF)).estado, 409);
   assert.equal((await subir(vet.cookie, b.id, 'x.pdf', PDF, false, 'video')).estado, 400);
   assert.equal((await subir(fisio.cookie, b.id, 'x.pdf', PDF, false, 'informe')).estado, 404);
+  assert.equal(ficherosEnDisco(), enDisco);
   const rx1 = await subir(vet.cookie, b.id, 'rx1.png', png, false, 'radiografia');
   const rx2 = await subir(vet.cookie, b.id, 'rx2.png', png, false, 'radiografia');
-  assert.deepEqual([rx1.estado, rx2.estado], [201, 201]);
+  const rx3 = await subir(vet.cookie, b.id, 'rx3.png', png, false, 'radiografia');
+  assert.deepEqual([rx1.estado, rx2.estado, rx3.estado], [201, 201, 201]);
   assert.equal(await eventos('adjunto.nuevo', b.id), 0);
+  // En el borrador, el veterinario retira lo suyo sin plazo (Bambú no lo ve).
+  await s.pool.query(`UPDATE adjuntos SET creado = now() - interval '2 hours' WHERE id = $1`, [rx3.cuerpo.id]);
+  assert.equal((await pedir(s.app, 'DELETE', `/api/adjuntos/${rx3.cuerpo.id}`, { cookie: vet.cookie })).estado, 200);
+  // Un borrador descartado no admite nada más (ni deja fichero).
+  const descartado = (await pedir(s.app, 'POST', '/api/casos', { cookie: vet.cookie, cuerpo: DATOS })).cuerpo as { id: number };
+  assert.equal((await pedir(s.app, 'POST', `/api/casos/${descartado.id}/descarta`, { cookie: vet.cookie })).estado, 200);
+  const antesDescartado = ficherosEnDisco();
+  assert.equal((await subir(vet.cookie, descartado.id, 'rx.png', png, false, 'radiografia')).estado, 404);
+  assert.equal(ficherosEnDisco(), antesDescartado);
 
-  // Al enviar, el aviso a Bambú dice cuántos documentos trae.
+  // Al enviar, el aviso a Bambú (campana y correo del centro) dice cuántos documentos trae.
+  await pedir(s.app, 'PUT', '/api/configuracion/avisos', {
+    cookie: admin, cuerpo: { correo_centro: 'centre@bambufisiovet.com', dias_sin_noticias: 7, dias_pendiente_cita: 3 },
+  });
   assert.equal((await pedir(s.app, 'POST', `/api/casos/${b.id}/envia`, { cookie: vet.cookie, cuerpo: { acepta_consentimiento: true } })).estado, 200);
   const { rows: aviso } = await s.pool.query<{ cuerpo: string }>(
     `SELECT n.cuerpo FROM notificaciones n JOIN eventos e ON e.id = n.evento_id
@@ -224,6 +239,13 @@ test('documents: radiografies al borrador sense avís, clip al borrador 409, l�
     [b.id, fisio.id],
   );
   assert.match(aviso[0]!.cuerpo, /Porta 2 documents\.$/);
+  const { rows: correo } = await s.pool.query<{ destinatario: string; cuerpo: string }>(
+    `SELECT c.destinatario, c.datos->>'cuerpo' AS cuerpo FROM correos_pendientes c JOIN eventos e ON e.id = c.evento_id
+     WHERE e.tipo = 'derivacion.enviada' AND e.caso_id = $1`,
+    [b.id],
+  );
+  assert.equal(correo[0]?.destinatario, 'centre@bambufisiovet.com');
+  assert.match(correo[0]!.cuerpo, /Porta 2 documents\.$/);
 
   // Enviada: una analítica avisa como cualquier adjunto; la nota interna de Bambú no la ve el veterinario.
   assert.equal((await subir(vet.cookie, b.id, 'sang.pdf', PDF, false, 'analitica')).estado, 201);
@@ -235,10 +257,14 @@ test('documents: radiografies al borrador sense avís, clip al borrador 409, l�
     [['rx1.png', 'radiografia', true], ['rx2.png', 'radiografia', true], ['sang.pdf', 'analitica', false]]);
   assert.equal((await lista(fisio.cookie)).length, 4);
   // En el hilo constan con su categoría; retirado uno, sale de la lista; otra clínica, 404.
-  const enHilo = (await mensajes(vet.cookie, b.id)).filter((m) => m.tipo === 'adjunto') as { adjunto_categoria: string | null }[];
+  const enHilo = (await mensajes(vet.cookie, b.id)).filter((m) => m.tipo === 'adjunto' && !m.adjunto_retirado);
   assert.deepEqual(enHilo.map((m) => m.adjunto_categoria), ['radiografia', 'radiografia', 'analitica']);
   assert.equal((await pedir(s.app, 'DELETE', `/api/adjuntos/${rx1.cuerpo.id}`, { cookie: vet.cookie })).estado, 200);
   assert.equal((await lista(vet.cookie)).length, 2);
   const ajeno = await veterinarioVerificado(s);
   assert.equal((await pedir(s.app, 'GET', `/api/casos/${b.id}/adjuntos`, { cookie: ajeno.cookie })).estado, 404);
+  // Cerrado el caso, el veterinario ya no añade documentos (409); el clip del hilo sigue.
+  assert.equal((await pedir(s.app, 'POST', `/api/casos/${b.id}/rechaza`, { cookie: fisio.cookie, cuerpo: { motivo: 'No és un cas de fisio' } })).estado, 200);
+  assert.equal((await subir(vet.cookie, b.id, 'tard.pdf', PDF, false, 'analitica')).estado, 409);
+  assert.equal((await subir(vet.cookie, b.id, 'tard.pdf', PDF)).estado, 201);
 });

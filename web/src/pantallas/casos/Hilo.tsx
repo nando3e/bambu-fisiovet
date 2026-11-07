@@ -120,8 +120,9 @@ export function Hilo({ casoId, borrador }: { casoId: number; borrador: boolean }
       }
       setPreparados([]);
       for (const p of lote) if (p.vista) URL.revokeObjectURL(p.vista);
-      await subidas.encolar(lote.map((p) => p.fichero), `/casos/${casoId}/adjuntos`, { interna: String(loteInterno) });
-      await cargar();
+      // La fila recarga el hilo al acabar el lote; sin ficheros, se recarga aquí.
+      if (lote.length > 0) await subidas.encolar(lote.map((p) => p.fichero), `/casos/${casoId}/adjuntos`, { interna: String(loteInterno) });
+      else await cargar();
     } catch (err) {
       setError(mensajeDe(err));
     } finally {
