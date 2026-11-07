@@ -32,11 +32,11 @@ y viendo el test en rojo. Toda ruta nueva con su test de ámbito y de rol.
 
 ## 3. Documentación
 
-- [ ] 3.1 Guía del portal (nova derivació, documents), RGPD (documentos =
+- [x] 3.1 Guía del portal (nova derivació, documents), RGPD (documentos =
       adjuntos con categoría), cuaderno D21 + supuesto de los campos retirados.
 
 ## 4. Cierre
 
 - [ ] 4.1 Skill `cerrar-change`: batería, revisor en otro modelo, archivar.
 
-Siguiente: task 3.1 — API y web hechas (dos campos, documentos por categoría desde el borrador y en la ficha, burbujas según quién mira); falta la documentación, la prueba visual y el cierre.
+Siguiente: task 4.1 — todo construido, probado en local (subida de 4 MB reducida a 977 KB, burbujas en /d y /b) y documentado; falta el cierre con revisor.

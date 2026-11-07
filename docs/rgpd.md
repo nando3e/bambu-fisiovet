@@ -17,7 +17,7 @@ proveedores de IA (Anthropic y OpenAI).
 | Equipo de Bambú | Nombre, apellidos, correo, contraseña (hash) | Cuenta y trabajo de los casos |
 | Propietarios | Nombre, teléfono, correo y el consentimiento aceptado (texto y versión copiados, con fecha) | Contactar para dar cita |
 | Pacientes (animales) | Nombre, especie, raza, sexo, edad, peso | Tratamiento |
-| Casos | Motivo, historia clínica, tratamiento actual, objetivos, notas, hilo de mensajes, adjuntos, dictados de voz y su texto, informes | Tratamiento y comunicación con el veterinario |
+| Casos | Motivo y tratamiento actual (historia clínica, objetivos y notas solo en los casos anteriores al 07/11/2026: ya no se piden), hilo de mensajes, adjuntos con su categoría (radiografía, informe, analítica), dictados de voz y su texto, informes | Tratamiento y comunicación con el veterinario |
 | Todo el mundo | Sesiones (hash del token, navegador, último uso), historial de cambios de cada ficha y traza de correos enviados | Seguridad y trazabilidad |
 
 ## 2. Quién ve qué

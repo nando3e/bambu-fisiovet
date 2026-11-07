@@ -168,8 +168,11 @@ quién lo hace. El diagrama 2, al final, lo dibuja.
 
 1. **«Pacient i propietari»**: datos del animal y del propietario. Si el
    animal ya se derivó antes, lo busca y se rellenan solos.
-2. **«Motiu clínic»**: por qué lo deriva, historia, tratamiento actual,
-   objetivos.
+2. **«Motiu i documents»**: por qué lo deriva y el tratamiento actual (solo
+   esos dos campos), y debajo tres cajones para subir lo que tenga a mano:
+   **Radiografies**, **Informes** y **Analítiques**. Van subiendo mientras
+   escribe (las fotos se reducen antes de salir del móvil) y «Envia» espera a
+   que acaben. También puede añadirlos después desde «Fitxa» → «Documents».
 3. **«Consentiment i enviament»**: confirma que el propietario acepta que sus
    datos lleguen a Bambú (si ya lo aceptó antes, no hace falta) y pulsa
    «Envia la derivació».
@@ -199,10 +202,14 @@ aviso:
 ### Paso 5. Durante el tratamiento
 
 - **El hilo del caso** es para hablar con Bambú, como un chat: sus mensajes a
-  la izquierda (en blanco) y los de Bambú a la derecha (en verde). Para
-  adjuntar documentos (analíticas, radiografías), «Adjunta un fitxer»: quedan
-  preparados junto al texto y salen con «Envia», pegados al mensaje. Las
-  fotos se ven en el hilo; cualquier adjunto se abre al pulsarlo.
+  la derecha (en blanco) y los de Bambú a la izquierda (en verde). Para
+  adjuntar algo suelto, «Adjunta un fitxer»: queda preparado junto al texto
+  y sale con «Envia», pegado al mensaje. Las fotos se ven en el hilo;
+  cualquier adjunto se abre al pulsarlo.
+- **Los documentos del caso** (radiografías, informes, analíticas) están en
+  «Fitxa» → «Documents», agrupados por tipo, con su botón «Afig» en cada
+  grupo mientras el caso está en marcha. Todo lo que se sube ahí sale
+  también en el hilo, con su etiqueta.
 - **Los informes** los hace Bambú en Wakyma y se los adjunta en el hilo del
   caso: le llega el aviso «Document nou» a la campana (y por correo) y los
   abre desde el hilo.
@@ -303,13 +310,15 @@ El círculo con la «i» de la lista lo recuerda, con las marcas dibujadas.
 
 ### Durante el tratamiento
 
-- **El hilo**, como un chat: el veterinario a la izquierda (blanco), Bambú a
-  la derecha (verde). Lo que se escribe lo ve el veterinario. Las **notas
-  internas** (casilla «Nota interna») van a la derecha en amarillo y solo las
-  ve Bambú.
-- **Documentos**: «Adjunta un fitxer», se preparan junto al texto y salen con
-  «Envia». Los de una nota interna, solo para Bambú. Las fotos se ven en el
-  hilo y cualquier adjunto se abre al pulsarlo.
+- **El hilo**, como un chat: lo de Bambú a la derecha (verde), lo del
+  veterinario a la izquierda (blanco); el veterinario lo ve al revés, con lo
+  suyo a la derecha. Lo que se escribe lo ve el veterinario. Las **notas
+  internas** (casilla «Nota interna») van en amarillo y solo las ve Bambú.
+- **Documentos**: en «Fitxa» → «Documents», agrupados en Radiografies,
+  Informes, Analítiques y «Altres fitxers del fil», con «Afig» por grupo.
+  Lo que el veterinario subió al derivar ya está ahí. También «Adjunta un
+  fitxer» en el hilo, que se prepara junto al texto y sale con «Envia». Los
+  de una nota interna, solo para Bambú. Cualquier adjunto se abre al pulsarlo.
 - **Informes: se hacen en Wakyma y se cuelgan en el hilo.** «Adjunta un
   fitxer», si se quiere con un mensaje («us deixo l'informe»), y «Envia». Al
   veterinario le llega el aviso «Document nou» a la campana y por correo.

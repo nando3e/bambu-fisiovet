@@ -1269,6 +1269,10 @@ button.chip {
 .documentos > p {
   margin: 0;
 }
+/* En el formulario, separado de los campos de texto. */
+.formulario + .documentos {
+  margin-top: 20px;
+}
 .grupo-documentos {
   display: grid;
   gap: 8px;
